@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test-jest": "jest",
+    "postinstall": "npm --prefix backend install",
     "seed": "node prisma/seed.js",
     "test-vitest": "vitest"
   },
