@@ -40,7 +40,7 @@ const mockResend = {
 };
 
 // 2. Link Vitest to your files
-vi.mock('../supabase/admin.js', () => ({ default: mockSupabase }));
+vi.mock('../supabase/admin.js', () => ({ getAdminClient: vi.fn(() => mockSupabase) }));
 vi.mock('../services/auth', () => mockAuthService);
 vi.mock('resend', () => ({ Resend: vi.fn(() => mockResend) }));
 vi.mock('../middleware/authenticate.js', () => ({

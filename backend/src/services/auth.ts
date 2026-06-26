@@ -12,9 +12,14 @@ dotenv.config();
 
 const BCRYPT_ROUNDS = 12;
 const ACCESS_TOKEN_EXPIRY = '15m';
-const SUPABASE_JWT_SECRET: string = process.env.SUPABASE_JWT_SECRET || (() => {
-  throw new Error('SUPABASE_JWT_SECRET is not defined in environment variables');
-})();
+
+function getJwtSecret(): string {
+  const secret = process.env.SUPABASE_JWT_SECRET;
+  if (!secret) {
+    throw new Error('SUPABASE_JWT_SECRET is not defined in environment variables');
+  }
+  return secret;
+}
 
 
 export async function checkPassword (req: Request, res: Response): Promise<void>{
@@ -56,13 +61,13 @@ export function signAccessToken(id: string, email: string): string {
     aud: 'authenticated',
   };
 
-  const token = jwt.sign(payload, SUPABASE_JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+  const token = jwt.sign(payload, getJwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRY });
   console.log(`[auth:signAccessToken] token signed for user ${id}`);
   return token;
 }
 
 export function verifyAccessToken(token: string): TokenPayload {
-  const payload = jwt.verify(token, SUPABASE_JWT_SECRET, { audience: 'authenticated' }) as unknown as TokenPayload;
+  const payload = jwt.verify(token, getJwtSecret(), { audience: 'authenticated' }) as unknown as TokenPayload;
   console.log(`[auth:verifyAccessToken] token verified for user ${payload.sub}`);
   return payload;
 }

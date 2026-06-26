@@ -6,14 +6,18 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Resend client (expects RESEND_API_KEY env var)
-const resendApiKey = process.env.RESEND_API_KEY ?? (() => {
-  throw new Error('CRITICAL: RESEND_API_KEY environment variable is not set.');
-})();
-console.log('this is resend env',process.env.RESEND_API_KEY )
-const resend = new Resend(resendApiKey);
+function getResend() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn('[resend] RESEND_API_KEY not set — email sending disabled');
+    return null;
+  }
+  return new Resend(apiKey);
+}
 
 export async function sendUserVerificationCode(email: string, code: string): Promise<void> {
+  const resend = getResend();
+  if (!resend) return;
   resend.emails.send({
       from: 'Convo Flow <onboarding@resend.dev>',
       to: email,
@@ -45,6 +49,8 @@ export async function sendUserVerificationCode(email: string, code: string): Pro
 })}
 
 export async function sendFriendRequestEmail(fromName: string, fromTag: string, toEmail: string): Promise<void> {
+  const resend = getResend();
+  if (!resend) return;
   resend.emails.send({
     from: 'Convo Flow <onboarding@resend.dev>',
     to: toEmail,

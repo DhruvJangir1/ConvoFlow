@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "../lib/connectionPoolClient";
-import adminClient from "../supabase/admin";
+import { getAdminClient } from "../supabase/admin";
 import { PRISMA_SAFE_SELECT } from "../util/constants";
 import { insertPayloadType } from "../types/authTypes";
 
@@ -10,7 +10,7 @@ export type CreateAuthUserResult =
   | { success: false; status: number; error: string };
 
 export async function createNewSupabaseAuthUser(email: string, password: string, user_name: string): Promise<CreateAuthUserResult> {
-  const { data: authCreateData, error: authCreateError } = await adminClient.auth.admin.createUser({
+  const { data: authCreateData, error: authCreateError } = await getAdminClient().auth.admin.createUser({
     email: email.trim().toLowerCase(),
     password,
     user_metadata: { user_name },
@@ -51,7 +51,7 @@ export async function createNewSupabaseUser(req: Request, res: Response, authRes
     return newUser;
   } catch (insertError: unknown) {
     try {
-      await adminClient.auth.admin.deleteUser(authResult.userId);
+      await getAdminClient().auth.admin.deleteUser(authResult.userId);
     } catch (delErr) {
       console.error('[/signup] failed to delete auth user during rollback:', delErr);
     }
