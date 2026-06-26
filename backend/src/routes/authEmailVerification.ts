@@ -83,6 +83,10 @@ AuthEmailVerificaitonRouter.post('/signup', async (req: Request, res: Response):
   }
 
   const { hash: refreshHash } = generateRefreshToken();
+
+  const totalUsers = await prisma.users.count();
+  const userTag = `${user_name.trim().toLowerCase()}#${String(totalUsers + 1).padStart(4, '0')}`;
+
   const insertPayload = {
     id: authResult.userId,
     user_name: user_name.trim(),
@@ -92,6 +96,7 @@ AuthEmailVerificaitonRouter.post('/signup', async (req: Request, res: Response):
     refresh_token_expiry: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
     last_login: new Date(),
     is_verified: false,
+    user_tag: userTag,
   };
 
 
@@ -139,7 +144,7 @@ AuthEmailVerificaitonRouter.post('/login', async (req: Request, res: Response): 
 
   const user = await prisma.users.findFirst({
     where: { email: email.trim().toLowerCase() },
-    select: { id: true, user_name: true, email: true, password: true, image_url: true, is_verified: true,created_at:true },
+    select: { id: true, user_name: true, email: true, password: true, image_url: true, is_verified: true, created_at: true, user_tag: true },
   });
   console.log(`[/login] user lookup: ${user ? 'found' : 'not found'}`);
 
@@ -178,11 +183,11 @@ AuthEmailVerificaitonRouter.post('/login', async (req: Request, res: Response): 
 
   setAuthCookies(res, accessToken, refreshToken, refreshSalt);
 
-  const { id, user_name, email: userEmail, image_url, is_verified, created_at } = user;
+  const { id, user_name, email: userEmail, image_url, is_verified, created_at, user_tag } = user;
 
   console.log(`[/login] successful login for ${userEmail}`);
   res.json({
-    user: { id, user_name, email: userEmail, image_url, is_verified, created_at },
+    user: { id, user_name, email: userEmail, image_url, is_verified, created_at, user_tag },
   });
 });
 

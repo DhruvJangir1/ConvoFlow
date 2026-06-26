@@ -8,6 +8,7 @@ export interface User {
   image_url: string | null;
   is_verified: boolean;
   last_login: string | null;
+  user_tag: string;
 }
 
 interface UserAuthState {

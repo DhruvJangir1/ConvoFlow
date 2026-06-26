@@ -59,14 +59,18 @@ CORS_ORIGIN=http://localhost:5173
 npm install
 cd backend && npm install && cd ..
 
-# 2. Generate Prisma client & run migrations
+# 2. Generate Prisma client
 npx prisma generate
-npx prisma migrate dev
 
-# 3. (Optional) Seed the database
+# 3. Apply migrations (run SQL files in prisma/migrations/ in order)
+#    If you have existing users, first backfill their user tags:
+node prisma/backfillUserTags.js
+#    Then apply the migration SQL files manually via psql or your DB GUI.
+
+# 4. (Optional) Seed the database
 npm run seed
 
-# 4. Start both frontend and backend
+# 5. Start both frontend and backend
 # Terminal 1 — Backend
 cd backend && npm run dev
 

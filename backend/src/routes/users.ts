@@ -26,7 +26,7 @@ UserRouter.get('/search', authenticate, async (req: Request, res: Response): Pro
         },
       ],
     },
-    select: { id: true, user_name: true, email: true, image_url: true, is_verified: true },
+    select: { id: true, user_name: true, email: true, image_url: true, is_verified: true, user_tag: true },
     take: 20,
   });
 

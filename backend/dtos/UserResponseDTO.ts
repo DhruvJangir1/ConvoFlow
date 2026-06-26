@@ -3,6 +3,7 @@ type UserDataType = {
   user_name: string;
   email: string;
   created_at: Date | string;
+  user_tag: string;
 }
 
 export class UserResponseDTO {
@@ -10,12 +11,14 @@ export class UserResponseDTO {
   user_name: string;
   email: string;
   created_at: string;
+  user_tag: string;
 
   constructor(data: UserDataType) {
     this.id = data.id;
     this.user_name = data.user_name;
     this.email = data.email;
     this.created_at = data.created_at instanceof Date ? data.created_at.toISOString() : data.created_at;
+    this.user_tag = data.user_tag;
   }
 
   static mapUser(rawDbResult: UserDataType): UserResponseDTO {
@@ -24,6 +27,7 @@ export class UserResponseDTO {
       user_name: rawDbResult.user_name,
       email: rawDbResult.email,
       created_at: rawDbResult.created_at,
+      user_tag: rawDbResult.user_tag,
     });
   }
 }

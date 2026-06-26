@@ -16,4 +16,5 @@ export interface insertPayloadType {
   refresh_token_expiry: Date;
   last_login: Date;
   is_verified: boolean;
+  user_tag: string;
 }

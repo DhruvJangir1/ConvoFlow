@@ -6,6 +6,7 @@ export const PRISMA_SAFE_SELECT = {
   image_url: true,
   is_verified: true,
   last_login: true,
+  user_tag: true,
 };
 
 

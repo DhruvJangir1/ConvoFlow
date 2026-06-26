@@ -8,6 +8,7 @@ interface UserResult {
   email: string;
   image_url: string | null;
   is_verified: boolean;
+  user_tag: string;
 }
 
 interface Props {
