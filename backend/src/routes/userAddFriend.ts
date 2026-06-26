@@ -1,0 +1,333 @@
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+import { authenticate } from '../middleware/authenticate.js';
+import { prisma } from '../lib/connectionPoolClient.js';
+import { sendFriendRequestEmail } from '../services/authVerificaiton.js';
+import { notifyFriendRequest } from '../services/userNotify.js';
+import { sendToUser } from '../../ws/websocket.js';
+import { FRIEND_COOLDOWN_MS } from '../util/constants.js';
+import { createDmChat } from '../services/dmChat.js';
+import type { Notification } from "../../../src/types/chat.js";
+
+const FriendRouter = Router();
+
+FriendRouter.post('/send', authenticate, async (req: Request, res: Response): Promise<void> => {
+  if (!req.user){
+    return;
+  }
+
+  const { userTag } = req.body;
+  const senderId = req.user.id;
+  console.log(`[FriendRoute] POST /api/friends/send — sender: ${senderId}, target tag: ${userTag}`);
+
+  if (!userTag || typeof userTag !== 'string' || !userTag.trim()) {
+    console.log('[FriendRoute] 400 — userTag is required');
+    res.status(400).json({ error: 'userTag is required' });
+    return;
+  }
+
+  const trimmedTag = userTag.trim();
+  
+  const senderUser = await prisma.users.findUnique({
+      where: { id: senderId },
+      select: { user_name: true, user_tag: true, email: true },
+    })
+    
+    if (!senderUser){
+      return;
+    }
+
+  const targetUser = await prisma.users.findFirst({
+      where: { user_tag: trimmedTag },
+      select: { id: true, user_name: true, email: true, user_tag: true },
+    })
+
+  if (!targetUser) {
+    console.log(`[FriendRoute] 404 — target user not found for tag: ${trimmedTag}`);
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+  console.log(`[FriendRoute] Target found: ${targetUser.user_name} (${targetUser.id})`);
+
+  // if (targetUser.id === senderId) {
+  //   console.log('[FriendRoute] 400 — self-request blocked');
+  //   res.status(400).json({ error: 'You cannot send a friend request to yourself' });
+  //   return;
+  // }
+
+  const existingRequest = await prisma.add_Friend_Requests.findFirst({
+    where: {
+      OR: [
+        { sender_id: senderId, receiver_id: targetUser.id },
+        { sender_id: targetUser.id, receiver_id: senderId },
+      ],
+      status: 'pending',
+    },
+  });
+
+  if (existingRequest) {
+    console.log(`[FriendRoute] 409 — duplicate pending request (${existingRequest.id})`);
+    res.status(409).json({ error: 'A pending friend request already exists between you and this user' });
+    return;
+  }
+
+  // const pendingOutgoingCount = await prisma.add_Friend_Requests.count({
+  //   where: { sender_id: senderId, receiver_id:targetUser.id, status: 'pending' },
+  // });
+
+  // if (pendingOutgoingCount >= FRIEND_MAX_PENDING_OUTGOING) {
+  //   console.log(`[FriendRoute] 429 — sender at max pending (${pendingOutgoingCount})`);
+  //   res.status(429).json({ error: `You can only have up to ${FRIEND_MAX_PENDING_OUTGOING} pending friend requests` });
+  //   return;
+  // }
+
+  // forces a 5 min cooldown after a user has rejected the same sender's request.
+  const recentDeclined = await prisma.add_Friend_Requests.findFirst({
+    where: {
+      sender_id: senderId,
+      receiver_id: targetUser.id,
+      status: { in: ['declined', 'cancelled'] },
+      updated_at: { gte: new Date(Date.now() - FRIEND_COOLDOWN_MS) },
+    },
+  });
+
+  if (recentDeclined) {
+    console.log(`[FriendRoute] 429 — cooldown active (declined at ${recentDeclined.updated_at})`);
+    res.status(429).json({ error: 'Please wait before sending another request to this user' });
+    return;
+  }
+
+  const friendRequest = await prisma.add_Friend_Requests.create({
+    data: {
+      sender_id: senderId,
+      receiver_id: targetUser.id,
+      sender_user_tag: senderUser.user_tag,
+      receiver_user_tag: targetUser.user_tag,
+      status: 'pending',
+    },
+  });
+  console.log(`[FriendRoute] Friend request created: ${friendRequest.id} (pending)`);
+
+  notifyFriendRequest(targetUser.id, senderId, senderUser.user_name, friendRequest.id);
+  console.log(`[FriendRoute] Notification sent to ${targetUser.id}`);
+
+  sendFriendRequestEmail(senderUser!.user_name, senderUser.user_tag, targetUser.email);
+  console.log(`[FriendRoute] Email sent to ${targetUser.email}`);
+
+  res.status(201).json({
+    message: 'Friend request sent',
+    request: { id: friendRequest.id, status: friendRequest.status },
+  });
+  console.log('[FriendRoute] 201 — success response sent');
+});
+
+FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response): Promise<void> => {
+  const userId = req.user?.id;
+  const notification = req.body.notification as Notification;
+  console.log(notification)
+  const requestId = notification.entity_id;
+  const senderId = notification.sender_user_id;
+
+  console.log('this is notification',notification)
+  console.log(`[FriendRoute] PATCH /api/friends/${requestId}/accept — receiver: ${userId}, sender: ${senderId}`);
+  console.log('[friend route] this is requestId',requestId)
+
+
+  if (!requestId || !senderId) {
+    console.log('[FriendRoute] 400 — entity_id or sender_user_id missing');
+    res.status(400).json({ error: 'entity_id and sender_user_id are required' });
+    return;
+  }
+
+  const friendRequest = await prisma.add_Friend_Requests.findUnique({ where: { id: requestId } });
+
+  if (!friendRequest) {
+    console.log(`[FriendRoute] 404 — friend request ${requestId} not found`);
+    res.status(404).json({ error: 'Friend request not found' });
+    return;
+  }
+  console.log(`[FriendRoute] Found request: status=${friendRequest.status}, receiver=${friendRequest.receiver_id}`);
+
+  if (friendRequest.receiver_id !== userId) {
+    console.log(`[FriendRoute] 403 — user ${userId} is not the receiver (receiver=${friendRequest.receiver_id})`);
+    res.status(403).json({ error: 'Not authorized' });
+    return;
+  }
+
+  if (friendRequest.status !== 'pending') {
+    console.log(`[FriendRoute] 400 — request status is "${friendRequest.status}", expected "pending"`);
+    res.status(400).json({ error: 'Friend request is not pending' });
+    return;
+  }
+
+  await prisma.add_Friend_Requests.update({
+    where: { id: requestId },
+    data: { status: 'accepted', updated_at: new Date() },
+  });
+
+
+  const notif = await prisma.notifications.findFirst({
+  where: { entity_id: requestId, type: 'friend_request' },
+});
+if (notif) {
+  console.log('notif found',notif)
+  await prisma.notifications.update({
+    where: { id: notif.id },
+    data: { type: 'friend_request_accepted', read_at: new Date() },
+  });
+}
+
+  console.log(`[FriendRoute] Request ${requestId} updated to "accepted"`);
+
+  // here is the error
+  const chat = await createDmChat(senderId, userId, userId);
+  if (!chat){
+    console.log('[FriendRoute] 500 — createDmChat returned null');
+    res.status(500).json({ error: 'Failed to create chat' });
+    return;
+  }
+  const chatId = chat.id;
+  console.log(`[FriendRoute] DM chat created: ${chatId}`);
+
+  
+  const otherMember = chat.chat_members.find(m => m.user_id !== userId);
+  const myMember = chat.chat_members.find(m => m.user_id === userId);
+
+  if (!otherMember || !myMember){
+    if (!otherMember){
+     console.log('[FriendRoute] Warning: otherMember not found in chat_members');
+    }
+    if (!myMember){
+      console.log('[FriendRoute] Warning: myMember not found in chat_members');
+    }
+    return;
+  }
+  
+    console.log('[userAddFriend/accept] othermember and my member exists')
+    const acceptedNotification = await prisma.notifications.create({
+      data: {
+        receiver_user_id: senderId,
+        sender_user_id: userId,
+        type: 'friend_request_accepted',
+        content: `${myMember?.users.user_name ?? 'Someone'} accepted your friend request`,
+        entity_id: crypto.randomUUID()
+      },
+    });
+    console.log(`[FriendRoute] Accepted notification created: ${acceptedNotification.id}`);
+
+    sendToUser(senderId, {
+      type: 'notification:new',
+      payload: acceptedNotification,
+    });
+    console.log(`[FriendRoute] WebSocket "notification:new" sent to sender ${senderId}`);
+
+    const now = Date.now();
+
+    //NOTE: these 2 prisma queries dont add any messages but they show the chat in the user's UI for UX.
+
+    // the guy who sent the request
+    sendToUser(senderId, {
+      type: 'chat:new',
+      payload: {
+        chat: {
+          id: chatId,
+          name: myMember.users.user_name ?? 'Unknown',
+          avatar_url: myMember.users.image_url ?? null,
+          lastMessage: '',
+          timestamp: now,
+          unread: 0,
+          type: 'dm',
+          messageCount: 0,
+          members: [{ id: userId, user_name: myMember.users.user_name ?? 'Unknown', image_url: myMember.users.image_url ?? null }],
+        },
+      },
+    });
+    console.log(`[FriendRoute] WebSocket "chat:new" sent to sender ${senderId}`);
+
+    // the guy accpting request
+    sendToUser(userId, {
+      type: 'chat:new',
+      payload: {
+        chat: {
+          id: chatId,
+          name: otherMember.users.user_name,
+          avatar_url: otherMember.users.image_url,
+          lastMessage: '',
+          timestamp: now,
+          unread: 0,
+          type: 'dm',
+          messageCount: 0,
+          members: [{ id: senderId, user_name: otherMember.users.user_name, image_url: otherMember.users.image_url }],
+        },
+      },
+    });
+    console.log(`[FriendRoute] WebSocket "chat:new" sent to receiver ${userId}`);
+
+  res.json({
+    success: true,
+    chat: {
+      id: chatId,
+      name: otherMember.users.user_name,
+      avatar_url: otherMember.users.image_url,
+      messageCount: 0,
+    },
+    senderName: otherMember.users.user_name,
+  });
+  console.log(`[FriendRoute] 200 — accepted, chat=${chatId}`);
+});
+
+FriendRouter.patch('/:id/decline', authenticate, async (req: Request, res: Response): Promise<void> => {
+  const userId = req.user!.id;
+  const id = req.params.id as string;
+  console.log(`[FriendRoute] PATCH /api/friends/${id}/decline — user: ${userId}`);
+
+  const friendRequest = await prisma.add_Friend_Requests.findUnique({
+    where: { id },
+    include: {
+      receiver: { select: { user_name: true } },
+      sender: { select: { id: true } },
+    },
+  });
+  if (!friendRequest) {
+    res.status(404).json({ error: 'Friend request not found' });
+    return;
+  }
+
+  if (friendRequest.receiver_id !== userId) {
+    res.status(403).json({ error: 'Not authorized' });
+    return;
+  }
+
+  if (friendRequest.status !== 'pending') {
+    res.status(400).json({ error: 'Friend request is not pending' });
+    return;
+  }
+
+  await prisma.add_Friend_Requests.update({
+    where: { id },
+    data: { status: 'declined', updated_at: new Date() },
+  });
+  console.log(`[FriendRoute] Friend request ${id} declined`);
+
+  const declinerName = friendRequest.receiver.user_name;
+  const declinedNotification = await prisma.notifications.create({
+    data: {
+      receiver_user_id: friendRequest.sender.id,
+      sender_user_id: userId,
+      type: 'friend_request_declined',
+      content: `${declinerName ?? 'Someone'} declined your friend request`,
+      entity_id: id,
+    },
+  });
+  console.log(`[FriendRoute] Decline notification created: ${declinedNotification.id}`);
+
+  sendToUser(friendRequest.sender.id, {
+    type: 'notification:new',
+    payload: declinedNotification,
+  });
+  console.log(`[FriendRoute] WebSocket "notification:new" sent to sender ${friendRequest.sender.id}`);
+
+  res.json({ success: true });
+});
+
+export default FriendRouter;

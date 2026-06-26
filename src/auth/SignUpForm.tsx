@@ -1,0 +1,396 @@
+import { useState } from "react";
+import { useNavigate, Link, Navigate } from "react-router-dom";
+import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { useSelector } from "react-redux";
+import type { RootState } from "../store/store";
+import { useAuth } from "../context/AuthContext";
+import { validatePasswordLocal, checkPasswordPwned } from "./passwordValidator";
+
+type FormData = {
+  user_name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
+
+type FormErrors = Partial<Record<keyof FormData, string>>;
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const LABEL_TO_ID: Record<string, string> = {
+  "Username": "user_name",
+  "Email address": "email",
+  "Password": "password",
+  "Confirm password": "confirmPassword",
+};
+
+function validate(data: FormData): FormErrors {
+  const errors: FormErrors = {};
+
+  if (!data.user_name.trim()) {
+    errors.user_name = "Username is required";
+  } else if (data.user_name.trim().length < 2) {
+    errors.user_name = "Username must be at least 2 characters";
+  }
+
+  if (!data.email.trim()) {
+    errors.email = "Email is required";
+  } else if (!EMAIL_REGEX.test(data.email.trim())) {
+    errors.email = "Enter a valid email address";
+  }
+
+  const pw = validatePasswordLocal(data.password);
+  if (!data.password) {
+    errors.password = "Password is required";
+  } else if (!pw.isValid) {
+    errors.password = pw.error ?? "Invalid password";
+  }
+
+  if (!data.confirmPassword) {
+    errors.confirmPassword = "Please confirm your password";
+  } else if (data.confirmPassword !== data.password) {
+    errors.confirmPassword = "Passwords do not match";
+  }
+
+  return errors;
+}
+
+export default function SignUpForm() {
+  const navigate = useNavigate();
+  const user = useSelector((s: RootState) => s.userAuth.user);
+  const { loading: sessionLoading, signup } = useAuth();
+  const [data, setData] = useState<FormData>({
+    user_name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [touched, setTouched] = useState<Partial<Record<keyof FormData, boolean>>>({});
+  const [submitError, setSubmitError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [pwFeedback, setPwFeedback] = useState<string | null>(null);
+  const [pwState, setPwState] = useState<'idle' | 'invalid' | 'acceptable' | 'checking' | 'pwned' | 'strong'>('idle');
+
+  if (sessionLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#09090b]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/home" replace />;
+  }
+
+  const hasAnyValue = Object.values(data).some((v) => v.length > 0);
+
+  function handleChange(field: keyof FormData, value: string) {
+    setData((prev) => ({ ...prev, [field]: value }));
+    if (field === "password") {
+      const res = validatePasswordLocal(value);
+      if (!res.isValid) {
+        setPwState('invalid');
+        setPwFeedback(res.error);
+      } else {
+        setPwState('acceptable');
+        setPwFeedback('Meets minimum length — will check breach on blur');
+      }
+      setErrors((prev) => {
+        const next = { ...prev } as FormErrors;
+        if (!res.isValid) next.password = res.error ?? "Invalid password";
+        else delete next.password;
+        return next;
+      });
+    } else {
+      if (errors[field]) {
+        setErrors((prev) => {
+          const next = { ...prev };
+          delete next[field];
+          return next;
+        });
+      }
+    }
+  }
+
+  async function handleBlur(field: keyof FormData) {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    if (field === "password") {
+      const local = validatePasswordLocal(data.password);
+      if (!local.isValid) return;
+      setPwState('checking');
+      setPwFeedback('Checking password against breach databases...');
+      try {
+        const p = await checkPasswordPwned(data.password);
+        if (p.pwned) {
+          setPwState('pwned');
+          setPwFeedback(p.message ?? `Password was seen ${p.count} times in breaches`);
+          setErrors((prev) => ({ ...prev, password: p.message ?? "Password appears in breaches" }));
+        } else {
+          setPwState('strong');
+          setPwFeedback('Password is strong');
+        }
+      } catch {
+        setPwState('acceptable');
+        setPwFeedback('Unable to check breach DB — using local checks only');
+      }
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitError("");
+
+    const validationErrors = validate(data);
+    setErrors(validationErrors);
+    setTouched({
+      user_name: true,
+      email: true,
+      password: true,
+      confirmPassword: true,
+    });
+
+    if (Object.keys(validationErrors).length > 0) return;
+
+    if (pwState !== 'strong') {
+      setLoading(true);
+      setPwState('checking');
+      setPwFeedback('Checking password against breach databases...');
+      try {
+        const p = await checkPasswordPwned(data.password);
+        if (p.pwned) {
+          setPwState('pwned');
+          const errMsg = p.message ?? `Password was seen ${p.count} times in breaches`;
+          setPwFeedback(errMsg);
+          setErrors((prev) => ({ ...prev, password: errMsg }));
+          setLoading(false);
+          return;
+        } else {
+          setPwState('strong');
+          setPwFeedback('Password is strong');
+        }
+      } catch {
+        setPwState('acceptable');
+        setPwFeedback('Unable to check breach DB — proceeding with submission');
+      }
+    }
+
+    setLoading(true);
+    try {
+      const created = await signup(data.user_name, data.email, data.password);
+      const email = created?.email ?? data.email;
+      console.log('this is the email being sent to verification page:', email);
+      navigate(`/verification`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Signup failed";
+      const isDuplicate = /already.*(registered|exists|taken)|email.*in use/i.test(msg);
+      setSubmitError(isDuplicate ? `${msg}. If you previously signed up with this account, consider signing in.` : msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="relative flex h-dvh items-center justify-center overflow-y-auto overflow-x-hidden bg-[#09090b] px-4 py-8">
+      <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-indigo-500/10 blur-[128px]" />
+      <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-blue-500/10 blur-[128px]" />
+
+      <div className="w-full max-w-md animate-message-in">
+        <div className="relative rounded-2xl border border-white/[0.06] bg-white/[0.015] p-8 shadow-2xl shadow-black/50 backdrop-blur-xl transition-all duration-300 hover:border-white/[0.1]">
+          <div className="mb-8 text-center">
+            <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center">
+              <img
+                src="/CONVO_FLOW_LOGO.png"
+                alt="ConvoFlow"
+                className="h-full w-full object-contain"
+              />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-white">
+              Create your account
+            </h1>
+            <p className="mt-1.5 text-sm text-slate-400">
+              Enter your details to get started
+            </p>
+          </div>
+
+          {submitError && (
+            <div className="mb-4 rounded-xl border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              {submitError}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
+            <Field
+              label="Username"
+              error={errors.user_name}
+              touched={touched.user_name}
+            >
+              <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 transition-colors peer-focus:text-blue-400" />
+              <input
+                id="user_name"
+                type="text"
+                autoComplete="username"
+                placeholder="Your username"
+                value={data.user_name}
+                onBlur={() => handleBlur("user_name")}
+                onChange={(e) => handleChange("user_name", e.target.value)}
+                className={`peer w-full rounded-xl border bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-white placeholder-slate-500 caret-blue-400 outline-none transition-all duration-200 focus:bg-white/[0.06] focus:ring-2 focus:ring-blue-500/15 ${
+                  touched.user_name && errors.user_name
+                    ? "border-red-500/60 focus:border-red-500/60 focus:ring-red-500/15"
+                    : "border-white/[0.06] focus:border-blue-500/50"
+                }`}
+              />
+            </Field>
+
+            <Field
+              label="Email address"
+              error={errors.email}
+              touched={touched.email}
+            >
+              <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 transition-colors peer-focus:text-blue-400" />
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={data.email}
+                onBlur={() => handleBlur("email")}
+                onChange={(e) => handleChange("email", e.target.value)}
+                className={`peer w-full rounded-xl border bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-white placeholder-slate-500 caret-blue-400 outline-none transition-all duration-200 focus:bg-white/[0.06] focus:ring-2 focus:ring-blue-500/15 ${
+                  touched.email && errors.email
+                    ? "border-red-500/60 focus:border-red-500/60 focus:ring-red-500/15"
+                    : "border-white/[0.06] focus:border-blue-500/50"
+                }`}
+              />
+            </Field>
+
+            <Field
+              label="Password"
+              error={errors.password}
+              touched={touched.password}
+            >
+              <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 transition-colors peer-focus:text-blue-400" />
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder="Create a password"
+                value={data.password}
+                onBlur={() => handleBlur("password")}
+                onChange={(e) => handleChange("password", e.target.value)}
+                className={`peer w-full rounded-xl border bg-white/[0.04] py-3 pl-10 pr-10 text-sm text-white placeholder-slate-500 caret-blue-400 outline-none transition-all duration-200 focus:bg-white/[0.06] focus:ring-2 focus:ring-blue-500/15 ${
+                  touched.password && errors.password
+                    ? "border-red-500/60 focus:border-red-500/60 focus:ring-red-500/15"
+                    : "border-white/[0.06] focus:border-blue-500/50"
+                }`}
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword((p) => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer rounded-md p-0.5 text-slate-600 transition-colors hover:text-slate-300"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+              {pwFeedback && (
+                <p id="pwFeedback" className={`mt-1 text-xs ${pwState === 'strong' ? 'text-green-400' : pwState === 'invalid' || pwState === 'pwned' ? 'text-red-400' : pwState === 'checking' ? 'text-slate-400' : 'text-yellow-400'}`} aria-live="polite">
+                  {pwFeedback}
+                </p>
+              )}
+            </Field>
+
+            <Field
+              label="Confirm password"
+              error={errors.confirmPassword}
+              touched={touched.confirmPassword}
+            >
+              <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 transition-colors peer-focus:text-blue-400" />
+              <input
+                id="password_confirm"
+                type={showConfirmPassword ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder="Confirm your password"
+                value={data.confirmPassword}
+                onBlur={() => handleBlur("confirmPassword")}
+                onChange={(e) => handleChange("confirmPassword", e.target.value)}
+                className={`peer w-full rounded-xl border bg-white/[0.04] py-3 pl-10 pr-10 text-sm text-white placeholder-slate-500 caret-blue-400 outline-none transition-all duration-200 focus:bg-white/[0.06] focus:ring-2 focus:ring-blue-500/15 ${
+                  touched.confirmPassword && errors.confirmPassword
+                    ? "border-red-500/60 focus:border-red-500/60 focus:ring-red-500/15"
+                    : "border-white/[0.06] focus:border-blue-500/50"
+                }`}
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowConfirmPassword((p) => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer rounded-md p-0.5 text-slate-600 transition-colors hover:text-slate-300"
+                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </Field>
+
+            <button
+              type="submit"
+              disabled={!hasAnyValue || loading}
+              className="group relative w-full cursor-pointer overflow-hidden rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                {loading ? "Processing..." : "Create account"}
+                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+              </span>
+              <div className="absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/10 to-transparent transition-transform duration-500 group-hover:translate-x-full" />
+            </button>
+          </form>
+
+          <p className="mt-8 text-center text-xs text-slate-600">
+            Already have an account?{" "}
+            <Link
+              to="/login"
+              className="font-medium text-blue-400 underline-offset-2 transition-colors hover:text-blue-300 hover:underline"
+            >
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  error,
+  touched,
+  children,
+}: {
+  label: string;
+  error?: string;
+  touched?: boolean;
+  children: React.ReactNode;
+}) {
+  const showError = touched && error;
+
+  return (
+    <div className="space-y-1.5">
+      <label
+        htmlFor={LABEL_TO_ID[label] ?? label.toLowerCase()}
+        className="block text-sm font-medium text-slate-400 transition-colors peer-focus:text-blue-400"
+      >
+        {label}
+      </label>
+      <div className="relative">{children}</div>
+      <div className="h-4">
+        {showError && (
+          <p className="animate-message-in text-xs text-red-400" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

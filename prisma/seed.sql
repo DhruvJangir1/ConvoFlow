@@ -1,0 +1,43 @@
+INSERT INTO "USERS" (id, user_name, email, password, image_url, is_verified, created_at, last_login)
+VALUES
+  (
+    gen_random_uuid(),
+    'johndoe',
+    'john@example.com',
+    '$2b$12$FcO0..aXbPoI5q9jWWFGUeJN2OlkqmKJwGKFF8GkGvGoFCbEx0Dc2',
+    'https://api.dicebear.com/9.x/avataaars/svg?seed=johndoe',
+    true,
+    clock_timestamp(),
+    clock_timestamp()
+  ),
+  (
+    gen_random_uuid(),
+    'janesmith',
+    'jane@example.com',
+    '$2b$12$FcO0..aXbPoI5q9jWWFGUeJN2OlkqmKJwGKFF8GkGvGoFCbEx0Dc2',
+    'https://api.dicebear.com/9.x/avataaars/svg?seed=janesmith',
+    true,
+    clock_timestamp(),
+    clock_timestamp()
+  ),
+  (
+    gen_random_uuid(),
+    'alicewonder',
+    'alice@example.com',
+    '$2b$12$FcO0..aXbPoI5q9jWWFGUeJN2OlkqmKJwGKFF8GkGvGoFCbEx0Dc2',
+    'https://api.dicebear.com/9.x/avataaars/svg?seed=alicewonder',
+    true,
+    clock_timestamp(),
+    clock_timestamp()
+  ),
+  (
+    gen_random_uuid(),
+    'bob_builder',
+    'bob@example.com',
+    '$2b$12$FcO0..aXbPoI5q9jWWFGUeJN2OlkqmKJwGKFF8GkGvGoFCbEx0Dc2',
+    'https://api.dicebear.com/9.x/avataaars/svg?seed=bob_builder',
+    false,
+    clock_timestamp(),
+    clock_timestamp()
+  )
+ON CONFLICT (email) DO NOTHING;

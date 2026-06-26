@@ -1,0 +1,87 @@
+import { Resend } from 'resend';
+import type {  Response } from 'express';
+import { REFRESH_TOKEN_EXPIRY_MS } from '../services/auth.js';
+import { COOKIE_OPTIONS } from '../util/constants.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// Resend client (expects RESEND_API_KEY env var)
+const resendApiKey = process.env.RESEND_API_KEY ?? (() => {
+  throw new Error('CRITICAL: RESEND_API_KEY environment variable is not set.');
+})();
+const resend = new Resend(resendApiKey);
+
+export async function sendUserVerificationCode(email: string, code: string): Promise<void> {
+  resend.emails.send({
+      from: 'Convo Flow <onboarding@resend.dev>',
+      to: email,
+      subject: 'Your ConvoFlow verification code',
+      html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; padding: 24px; color: #111827; max-width: 600px; margin: 0 auto; border-radius: 8px;">
+  <div style="padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; margin-bottom: 24px;">
+    <h2 style="margin: 0; font-size: 20px; font-weight: 700; color: #4f46e5; letter-spacing: -0.025em;">ConvoFlow</h2>
+  </div>
+
+  <div style="background-color: #ffffff; padding: 32px; border-radius: 6px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);">
+    <h1 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; text-align: center; color: #111827;">Verify your email</h1>
+    <p style="margin: 0 0 24px 0; font-size: 15px; line-height: 1.5; color: #4b5563; text-align: center;">
+      Use the verification code below to secure your account. This code is only valid for the next 15 minutes.
+    </p>
+
+    <div style="background-color: #f3f4f6; border-radius: 6px; padding: 16px; text-align: center; margin-bottom: 24px;">
+      <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #1f2937; padding-left: 6px;">${code}</span>
+    </div>
+
+    <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #9ca3af; text-align: center;">
+      If you didn't request this verification, you can safely ignore this email.
+    </p>
+  </div>
+
+  <div style="padding-top: 24px; text-align: center;">
+    <p style="margin: 0; font-size: 12px; color: #9ca3af;">&copy; 2026 ConvoFlow. All rights reserved.</p>
+  </div>
+</div>`
+})}
+
+export async function sendFriendRequestEmail(fromName: string, fromTag: string, toEmail: string): Promise<void> {
+  resend.emails.send({
+    from: 'Convo Flow <onboarding@resend.dev>',
+    to: toEmail,
+    subject: `${fromName} wants to be your friend on ConvoFlow`,
+    html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; padding: 24px; color: #111827; max-width: 600px; margin: 0 auto; border-radius: 8px;">
+  <div style="padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; margin-bottom: 24px;">
+    <h2 style="margin: 0; font-size: 20px; font-weight: 700; color: #4f46e5; letter-spacing: -0.025em;">ConvoFlow</h2>
+  </div>
+
+  <div style="background-color: #ffffff; padding: 32px; border-radius: 6px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);">
+    <h1 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; text-align: center; color: #111827;">Friend Request</h1>
+    <p style="margin: 0 0 8px 0; font-size: 15px; line-height: 1.5; color: #4b5563; text-align: center;">
+      <strong style="color: #111827;">${fromName}</strong> (<span style="font-family: monospace;">${fromTag}</span>) wants to connect with you on ConvoFlow.
+    </p>
+    <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.5; color: #6b7280; text-align: center;">
+      Log in to accept or decline this request.
+    </p>
+  </div>
+
+  <div style="padding-top: 24px; text-align: center;">
+    <p style="margin: 0; font-size: 12px; color: #9ca3af;">&copy; 2026 ConvoFlow. All rights reserved.</p>
+  </div>
+</div>`,
+  });
+}
+
+export function setAuthCookies(res: Response, accessToken: string, refreshToken: string, refreshSalt: string) {
+  res.cookie('access_token', accessToken, {
+    ...COOKIE_OPTIONS,
+    maxAge: 15 * 60 * 1000,
+  });
+  res.cookie('refresh_token', refreshToken, {
+    ...COOKIE_OPTIONS,
+    maxAge: REFRESH_TOKEN_EXPIRY_MS,
+  });
+  res.cookie('refresh_salt', refreshSalt, {
+    ...COOKIE_OPTIONS,
+    maxAge: REFRESH_TOKEN_EXPIRY_MS,
+  });
+}
+
