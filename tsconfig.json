@@ -1,5 +1,6 @@
 {
   "files": [],
+  "exclude": ["prisma.config.ts"],
   "compilerOptions": {
     "types": ["jest", "node","vitest/globals"],
     "target": "ES2022",
