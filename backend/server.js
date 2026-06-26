@@ -174,7 +174,7 @@ if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
   console.log(`[server] Serving static files from ${distPath}`);
   // SPA fallback — any non-API request serves index.html
-  app.get('*', (req, res, next) => {
+  app.get('*path', (req, res, next) => {
     if (req.path.startsWith('/api')) return next();
     res.sendFile(path.join(distPath, 'index.html'));
   });

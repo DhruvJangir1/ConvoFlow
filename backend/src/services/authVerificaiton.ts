@@ -10,6 +10,7 @@ dotenv.config();
 const resendApiKey = process.env.RESEND_API_KEY ?? (() => {
   throw new Error('CRITICAL: RESEND_API_KEY environment variable is not set.');
 })();
+console.log('this is resend env',process.env.RESEND_API_KEY )
 const resend = new Resend(resendApiKey);
 
 export async function sendUserVerificationCode(email: string, code: string): Promise<void> {
