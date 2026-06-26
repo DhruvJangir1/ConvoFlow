@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "prisma generate && tsc -b && vite build",
     "start": "npm run build && npm --prefix backend start",
     "lint": "eslint .",
     "preview": "vite preview",
