@@ -47,40 +47,40 @@ interface Post {
 
 const posts: Post[] = [
   {
-    handle: "SarahP",
+    handle: "brayden_99",
     content:
-      "Just finished that Chem midterm — absolutely brutal. Who else is celebrating with a 3AM cry session?",
-    timestamp: "12m ago",
-    likes: 24,
-    replies: 8,
-    hue: 320,
+      "if the professor doesn't show up in the next 4 minutes we are legally allowed to leave right? i didn't wake up at 8am for nothing",
+    timestamp: "4m ago",
+    likes: 112,
+    replies: 23,
+    hue: 25,
   },
   {
-    handle: "MarcusL",
+    handle: "chloe.v",
     content:
-      "Pro tip: if you use .map() instead of a for loop on that data transformation, you'll cut your runtime in half. Trust me.",
-    timestamp: "34m ago",
-    likes: 47,
-    replies: 12,
-    hue: 200,
+      "Submitting an empty PDF at 11:59 PM just to buy myself an extra 12 hours of sleep while the professor emails me about a 'corrupted file'",
+    timestamp: "18m ago",
+    likes: 340,
+    replies: 42,
+    hue: 310,
   },
   {
-    handle: "AishaK",
+    handle: "sk8r_lucas",
     content:
-      "Anyone else's professor just drop a 60-page reading over spring break?? I need a study buddy stat.",
-    timestamp: "1h ago",
-    likes: 31,
-    replies: 15,
-    hue: 140,
+      "currently rawdogging this midterm with 0 minutes of studying and a large iced coffee. wish me luck boys about to get a solid 12%",
+    timestamp: "45m ago",
+    likes: 89,
+    replies: 14,
+    hue: 160,
   },
   {
-    handle: "JayT",
+    handle: "emily_is_tired",
     content:
-      "Finally got my study group together — we're tackling Calc III this weekend. Who's in?",
+      "Me watching the lecture at 3x speed the morning of the exam sounds like a chipmunk yelling at me about macroeconomics",
     timestamp: "2h ago",
-    likes: 19,
-    replies: 9,
-    hue: 50,
+    likes: 215,
+    replies: 31,
+    hue: 210,
   },
 ];
 
@@ -109,115 +109,110 @@ export default function WelcomePage() {
 
   return (
     <div className="relative grid min-h-dvh grid-cols-1 overflow-hidden bg-surface lg:grid-cols-12">
-      <div className="pointer-events-none absolute right-1/4 top-1/2 h-[550px] w-[550px] -translate-y-1/2 rounded-full bg-accent/20 blur-[200px]" />
+      <div className="pointer-events-none absolute right-1/4 top-1/2 h-[450px] w-[450px] -translate-y-1/2 rounded-full bg-accent/15 blur-[180px]" />
 
-      <div className="relative col-span-1 hidden flex-col justify-center overflow-hidden px-8 py-16 lg:flex lg:col-span-6">
-
-        <div className="relative z-10 max-w-xl">
-          <div className="mb-2 flex items-center gap-2">
-            <span className="relative flex h-2.5 w-2.5">
+      {/* ── Left Side: Info / Feed (Scaled / Tightened Down) ── */}
+      <div className="relative col-span-1 hidden flex-col justify-center overflow-hidden px-10 py-12 lg:flex lg:col-span-6">
+        <div className="relative z-10 max-w-lg">
+          <div className="mb-1 flex items-center gap-1.5">
+            <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-secondary" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent-secondary" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent-secondary" />
             </span>
-            <span className="text-xs font-semibold uppercase tracking-[0.15em] bg-linear-to-r from-accent-secondary to-accent bg-clip-text text-transparent">
+            <span className="text-[8px] font-semibold uppercase tracking-[0.15em] bg-linear-to-r from-accent-secondary to-accent bg-clip-text text-transparent">
               Live community
             </span>
           </div>
 
-          <h1 className="mt-4 text-4xl font-bold leading-tight tracking-tight">
+          <h1 className="mt-2 text-xl font-bold leading-tight tracking-tight">
             <span className="text-text-primary">Your Community.</span>{" "}
             <span className="bg-linear-to-r from-accent via-accent-secondary to-accent-success bg-clip-text text-transparent">
               Log in and connect.
             </span>
           </h1>
 
-          <p className="mt-3 text-lg leading-relaxed text-text-secondary">
+          <p className="mt-2 text-xs leading-relaxed text-text-secondary">
             See what your classmates are up to. Dive into a world of shared learning.
           </p>
 
-          <div className="mt-8 flex max-h-[460px] flex-col gap-3 overflow-y-auto pr-2 scrollbar-thin">
+          <div className="mt-6 flex max-h-[400px] flex-col gap-2.5 overflow-y-auto pr-1.5 scrollbar-thin">
             {posts.map((post) => (
               <div
                 key={post.handle + post.timestamp}
-                className="group rounded-xl border border-border bg-surface-elevated/60 p-4 transition-all duration-300 hover:scale-[1.02]"
+                className="group rounded-xl border border-border bg-surface-elevated/60 p-3.5 transition-all duration-300 hover:scale-[1.01]"
                 style={{
                   borderColor: `hsla(${post.hue}, 60%, 50%, 0.15)`,
-                  boxShadow: `0 0 20px hsla(${post.hue}, 60%, 50%, 0.03)`,
+                  boxShadow: `0 0 20px hsla(${post.hue}, 60%, 50%, 0.02)`,
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.borderColor = `hsla(${post.hue}, 70%, 55%, 0.4)`;
-                  e.currentTarget.style.boxShadow = `0 0 30px hsla(${post.hue}, 60%, 50%, 0.1)`;
+                  e.currentTarget.style.boxShadow = `0 0 30px hsla(${post.hue}, 60%, 50%, 0.08)`;
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.borderColor = `hsla(${post.hue}, 60%, 50%, 0.15)`;
-                  e.currentTarget.style.boxShadow = `0 0 20px hsla(${post.hue}, 60%, 50%, 0.03)`;
+                  e.currentTarget.style.boxShadow = `0 0 20px hsla(${post.hue}, 60%, 50%, 0.02)`;
                 }}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-2.5">
                   <div
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white ring-2 ring-white/10 transition-transform duration-300 group-hover:scale-110"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[7px] font-semibold text-white ring-2 ring-white/5 transition-transform duration-300 group-hover:scale-105"
                     style={{ background: avatarGradient(post.handle) }}
                   >
                     {getInitials(post.handle)}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-baseline justify-between">
-                      <span className="text-sm font-semibold text-text-primary">
+                      <span className="text-[10px] font-semibold text-text-primary truncate">
                         @{post.handle}
                       </span>
-                      <span className="text-[11px] text-text-muted">{post.timestamp}</span>
+                      <span className="text-[8px] text-text-muted shrink-0 ml-2">{post.timestamp}</span>
                     </div>
-                    <p className="mt-1 text-sm leading-relaxed text-text-secondary">
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-text-secondary whitespace-normal break-words">
                       {post.content}
                     </p>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-5 border-t border-border/50 pt-3">
-                  <button className="group/btn flex items-center gap-1.5 text-xs text-text-muted transition-all duration-200 hover:text-accent-secondary">
-                    <Heart className="h-3.5 w-3.5 transition-all duration-200 group-hover/btn:scale-125 group-hover/btn:fill-current" />
+                <div className="mt-2.5 flex items-center gap-4 border-t border-border/40 pt-2.5">
+                  <button className="group/btn flex items-center gap-1 text-[8px] text-text-muted transition-all duration-200 hover:text-accent-secondary">
+                    <Heart className="h-2.5 w-2.5 transition-all duration-200 group-hover/btn:scale-110 group-hover/btn:fill-current" />
                     <span>{post.likes}</span>
                   </button>
-                  <button className="group/btn flex items-center gap-1.5 text-xs text-text-muted transition-all duration-200 hover:text-accent">
-                    <MessageCircle className="h-3.5 w-3.5 transition-all duration-200 group-hover/btn:scale-125" />
+                  <button className="group/btn flex items-center gap-1 text-[8px] text-text-muted transition-all duration-200 hover:text-accent">
+                    <MessageCircle className="h-2.5 w-2.5 transition-all duration-200 group-hover/btn:scale-110" />
                     <span>{post.replies}</span>
                   </button>
-                  <button className="group/btn ml-auto flex items-center gap-1.5 text-xs text-text-muted transition-all duration-200 hover:text-accent-success">
-                    <Share2 className="h-3.5 w-3.5 transition-all duration-200 group-hover/btn:scale-125" />
+                  <button className="group/btn ml-auto flex items-center gap-1 text-[8px] text-text-muted transition-all duration-200 hover:text-accent-success">
+                    <Share2 className="h-2.5 w-2.5 transition-all duration-200 group-hover/btn:scale-110" />
                     <span>Share</span>
                   </button>
                 </div>
               </div>
             ))}
 
+            {/* Poll Component */}
             <div
-              className="rounded-xl border border-border bg-surface-elevated/60 p-4 transition-all duration-300 hover:scale-[1.02]"
-              style={{
-                borderColor: `hsla(270, 60%, 50%, 0.15)`,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = `hsla(270, 70%, 55%, 0.4)`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = `hsla(270, 60%, 50%, 0.15)`;
-              }}
+              className="rounded-xl border border-border bg-surface-elevated/60 p-3.5 transition-all duration-300 hover:scale-[1.01]"
+              style={{ borderColor: `hsla(270, 60%, 50%, 0.15)` }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = `hsla(270, 70%, 55%, 0.4)`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = `hsla(270, 60%, 50%, 0.15)`; }}
             >
-              <div className="mb-2 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-accent" />
-                <span className="text-xs font-semibold uppercase tracking-[0.08em] bg-linear-to-r from-accent to-accent-secondary bg-clip-text text-transparent">
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3 text-accent" />
+                <span className="text-[8px] font-semibold uppercase tracking-[0.08em] bg-linear-to-r from-accent to-accent-secondary bg-clip-text text-transparent">
                   Live Poll
                 </span>
               </div>
-              <p className="text-sm font-medium text-text-primary">
+              <p className="text-[10px] font-medium text-text-primary">
                 What&rsquo;s the hardest subject this semester?
               </p>
-              <div className="mt-3 space-y-2.5">
+              <div className="mt-2.5 space-y-2">
                 {pollOptions.map((opt) => (
                   <div key={opt.label}>
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-[8px]">
                       <span className="text-text-secondary">{opt.label}</span>
                       <span className="text-text-muted">{opt.pct}%</span>
                     </div>
-                    <div className="mt-1 h-2.5 w-full overflow-hidden rounded-full bg-surface-raised">
+                    <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
                       <div
                         className={`h-full rounded-full bg-linear-to-r ${opt.color} transition-all duration-700 ease-out`}
                         style={{ width: `${opt.pct}%` }}
@@ -226,104 +221,95 @@ export default function WelcomePage() {
                   </div>
                 ))}
               </div>
-              <div className="mt-3 border-t border-border/50 pt-3">
-                <button className="group/btn flex items-center gap-1.5 text-xs text-text-muted transition-all duration-200 hover:text-accent">
-                  <Heart className="h-3.5 w-3.5 transition-all duration-200 group-hover/btn:scale-125 group-hover/btn:fill-current" />
+              <div className="mt-2.5 border-t border-border/40 pt-2.5">
+                <button className="group/btn flex items-center gap-1 text-[8px] text-text-muted transition-all duration-200 hover:text-accent">
+                  <Heart className="h-2.5 w-2.5 transition-all duration-200 group-hover/btn:scale-110 group-hover/btn:fill-current" />
                   <span>18</span>
                 </button>
               </div>
             </div>
 
+            {/* Group Preview */}
             <div
-              className="rounded-xl border border-border bg-surface-elevated/60 p-4 transition-all duration-300 hover:scale-[1.02]"
-              style={{
-                borderColor: `hsla(170, 60%, 40%, 0.15)`,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = `hsla(170, 70%, 45%, 0.4)`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = `hsla(170, 60%, 40%, 0.15)`;
-              }}
+              className="rounded-xl border border-border bg-surface-elevated/60 p-3.5 transition-all duration-300 hover:scale-[1.01]"
+              style={{ borderColor: `hsla(170, 60%, 40%, 0.15)` }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = `hsla(170, 70%, 45%, 0.4)`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = `hsla(170, 60%, 40%, 0.15)`; }}
             >
-              <div className="flex items-center gap-3">
-                <div className="flex -space-x-2">
+              <div className="flex items-center gap-2.5">
+                <div className="flex -space-x-1.5">
                   {["ZaraM", "JayT", "PriyaR"].map((name) => (
                     <div
                       key={name}
-                      className="h-8 w-8 rounded-full border-2 border-surface text-[10px] font-semibold text-white transition-transform duration-200 hover:scale-110"
-                      style={{
-                        background: avatarGradient(name),
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
+                      className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-surface text-[6px] font-semibold text-white transition-transform duration-200 hover:scale-105"
+                      style={{ background: avatarGradient(name) }}
                     >
                       {getInitials(name)}
                     </div>
                   ))}
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-surface bg-gradient-to-br from-accent to-accent-secondary text-[10px] font-semibold text-white">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-surface bg-gradient-to-br from-accent to-accent-secondary text-[6px] font-semibold text-white">
                     +12
                   </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-text-primary">The Chem Squad</p>
-                  <p className="text-xs text-text-muted">24 members &middot; 3 online now</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-semibold text-text-primary truncate">The Chem Squad</p>
+                  <p className="text-[8px] text-text-muted truncate">24 members &middot; 3 online</p>
                 </div>
               </div>
-              <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
-                <button className="flex items-center gap-1.5 text-xs font-medium transition-all duration-200 hover:scale-105"
+              <div className="mt-2.5 flex items-center justify-between border-t border-border/40 pt-2.5">
+                <button className="flex items-center gap-1 text-[8px] font-medium transition-all duration-200 hover:scale-102"
                   style={{ color: `hsl(170, 60%, 55%)` }}
                 >
-                  <Users className="h-3.5 w-3.5" />
+                  <Users className="h-2.5 w-2.5" />
                   <span>Join chat</span>
                 </button>
-                <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                  <MessageCircle className="h-3.5 w-3.5" />
+                <div className="flex items-center gap-1 text-[8px] text-text-muted">
+                  <MessageCircle className="h-2.5 w-2.5" />
                   <span>142 messages today</span>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-accent/20 bg-gradient-to-br from-accent/5 via-accent-secondary/5 to-accent-success/5 p-4 transition-all duration-300 hover:scale-[1.02]">
-              <div className="flex items-center gap-3">
-                <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-accent-secondary to-rose-500">
-                  <Radio className="h-4 w-4 text-white" />
-                  <span className="absolute flex h-8 w-8">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-secondary/30" />
+            {/* Live Card */}
+            <div className="rounded-xl border border-accent/15 bg-gradient-to-br from-accent/5 via-accent-secondary/5 to-accent-success/5 p-3.5 transition-all duration-300 hover:scale-[1.01]">
+              <div className="flex items-center gap-2.5">
+                <div className="relative flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-accent-secondary to-rose-500">
+                  <Radio className="h-3 w-3 text-white" />
+                  <span className="absolute flex h-6 w-6">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-secondary/20" />
                   </span>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-text-primary">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-medium text-text-primary truncate">
                     Professor Al-Fayed is live
                   </p>
-                  <p className="flex items-center gap-1.5 text-xs text-text-muted">
-                    <span className="relative flex h-2 w-2">
+                  <p className="flex items-center gap-1 text-[8px] text-text-muted truncate">
+                    <span className="relative flex h-1 w-1 shrink-0">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-secondary" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-accent-secondary" />
+                      <span className="relative inline-flex h-1 w-1 rounded-full bg-accent-secondary" />
                     </span>
                     Advanced Algorithms forum
                   </p>
                 </div>
-                <span className="animate-pulse rounded-md bg-accent-secondary/15 px-2 py-1 text-[11px] font-bold text-accent-secondary">
+                <span className="animate-pulse rounded-md bg-accent-secondary/15 px-1 py-0.5 text-[7px] font-bold text-accent-secondary shrink-0">
                   LIVE
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="mt-6 flex items-center justify-center gap-8 rounded-xl border border-border/60 bg-gradient-to-r from-accent/5 via-accent-secondary/5 to-accent-success/5 px-6 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex -space-x-2">
+          {/* Metrics Footer */}
+          <div className="mt-4 flex items-center justify-center gap-6 rounded-xl border border-border/40 bg-gradient-to-r from-accent/5 via-accent-secondary/5 to-accent-success/5 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <div className="flex -space-x-1.5">
                 {[
                   { name: "ZaraM", hue: 300 },
                   { name: "JayT", hue: 50 },
                   { name: "PriyaR", hue: 180 },
-                  { name: "AishaK", hue: 140 },
                 ].map(({ name, hue }) => (
                   <div
                     key={name}
-                    className="h-7 w-7 rounded-full border-2 border-surface"
+                    className="h-5 w-5 rounded-full border border-surface"
                     style={{
                       background: `linear-gradient(135deg, hsl(${hue}, 65%, 45%), hsl(${(hue + 80) % 360}, 55%, 35%))`,
                     }}
@@ -331,26 +317,26 @@ export default function WelcomePage() {
                 ))}
               </div>
               <div>
-                <p className="text-sm font-bold bg-linear-to-r from-accent to-accent-secondary bg-clip-text text-transparent">
+                <p className="text-[10px] font-bold bg-linear-to-r from-accent to-accent-secondary bg-clip-text text-transparent">
                   1,200+
                 </p>
-                <p className="text-xs text-text-muted">students active now</p>
+                <p className="text-[8px] text-text-muted whitespace-nowrap">active now</p>
               </div>
             </div>
-            <div className="h-8 w-px bg-gradient-to-b from-accent/20 via-accent-secondary/20 to-transparent" />
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-accent-secondary" />
-              <p className="text-sm">
+            <div className="h-6 w-px bg-gradient-to-b from-border/40 to-transparent" />
+            <div className="flex items-center gap-1.5">
+              <Zap className="h-3 w-3 text-accent-secondary" />
+              <p className="text-[10px]">
                 <span className="font-bold bg-linear-to-r from-accent-secondary to-accent-success bg-clip-text text-transparent">
                   50K+
                 </span>{" "}
-                <span className="text-text-muted">notes shared</span>
+                <span className="text-text-muted">notes</span>
               </p>
             </div>
-            <div className="h-8 w-px bg-gradient-to-b from-accent-success/20 via-accent/20 to-transparent" />
-            <div className="flex items-center gap-1.5">
-              <Flame className="h-4 w-4 text-accent-danger" />
-              <p className="text-sm">
+            <div className="h-6 w-px bg-gradient-to-b from-border/40 to-transparent" />
+            <div className="flex items-center gap-1">
+              <Flame className="h-3 w-3 text-accent-danger" />
+              <p className="text-[10px]">
                 <span className="font-bold text-text-primary">4.9</span>{" "}
                 <span className="text-text-muted">rating</span>
               </p>
@@ -359,66 +345,70 @@ export default function WelcomePage() {
         </div>
       </div>
 
-      <div className="relative col-span-1 flex min-h-dvh items-center justify-center px-6 py-12 lg:col-span-6">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 text-center lg:hidden">
-            <img src="/CONVO_FLOW_LOGO.png" alt="" className="mx-auto h-12 w-auto" />
-            <h1 className="mt-5 text-2xl font-bold tracking-tight text-text-primary">
+      {/* ── Right Side: Auth Module ── */}
+      <div className="relative col-span-1 flex min-h-dvh items-center justify-center px-4 py-8 lg:col-span-6">
+        <div className="w-full max-w-xs">
+          {/* Mobile-only Header */}
+          <div className="mb-6 text-center lg:hidden">
+            <img src="/CONVO_FLOW_LOGO.png" alt="" className="mx-auto h-9 w-auto" />
+            <h1 className="mt-4 text-base font-bold tracking-tight text-text-primary">
               Welcome to ConvoFlow
             </h1>
-            <p className="mt-2 text-sm text-text-secondary">
+            <p className="mt-1 text-[10px] text-text-secondary">
               The nicest place to talk with the people you love.
             </p>
           </div>
 
-          <div className="relative rounded-2xl border border-border bg-surface-elevated/80 p-10 shadow-2xl shadow-black/50 backdrop-blur-xl transition-all duration-300 hover:border-border-active">
-            <div className="mb-10 text-center">
-              <div className="mx-auto mb-8 hidden h-24 w-24 items-center justify-center lg:flex">
+          {/* Box Container */}
+          <div className="relative rounded-xl border border-border bg-surface-elevated/80 p-8 shadow-xl shadow-black/40 backdrop-blur-xl transition-all duration-300 hover:border-border-active">
+            <div className="mb-6 text-center">
+              <div className="mx-auto mb-5 hidden h-16 w-16 items-center justify-center lg:flex">
                 <img
                   src="/CONVO_FLOW_LOGO.png"
                   alt="ConvoFlow"
                   className="h-full w-full object-contain"
                 />
               </div>
-              <h2 className="text-2xl font-bold tracking-tight text-text-primary">
+              <h2 className="text-xl font-bold tracking-tight text-text-primary">
                 Get started
               </h2>
-              <p className="mt-2 text-sm text-text-secondary">
+              <p className="mt-1 text-xs text-text-secondary">
                 Create an account or sign in to continue
               </p>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2.5">
               <button
                 onClick={() => navigate("/signup")}
-                className="group relative flex-1 cursor-pointer overflow-hidden rounded-xl bg-gradient-to-r from-blue-600 to-accent px-3 py-3 text-sm font-semibold text-white shadow-lg shadow-accent/20 transition-all duration-300 hover:shadow-xl hover:shadow-accent/30 active:scale-[0.98]"
+                className="group relative flex-1 cursor-pointer overflow-hidden rounded-lg bg-gradient-to-r from-blue-600 to-accent px-2.5 py-2 text-xs font-semibold text-white shadow-md transition-all duration-300 hover:shadow-lg active:scale-[0.98]"
               >
-                <span className="relative z-10 flex items-center justify-center gap-1.5">
-                  <Sparkles className="h-4 w-4" />
+                <span className="relative z-10 flex items-center justify-center gap-1">
+                  <Sparkles className="h-3.5 w-3.5" />
                   Sign Up
                 </span>
-                <div className="absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/15 to-transparent transition-transform duration-500 group-hover:translate-x-full" />
+                <div className="absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/10 to-transparent transition-transform duration-500 group-hover:translate-x-full" />
               </button>
 
               <button
                 onClick={() => navigate("/login")}
-                className="group flex-1 cursor-pointer rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-semibold text-white/80 backdrop-blur-sm transition-all duration-200 hover:border-white/20 hover:bg-white/10 hover:text-white active:scale-[0.98]"
+                className="group flex-1 cursor-pointer rounded-lg border border-white/5 bg-white/5 px-2.5 py-2 text-xs font-semibold text-white/80 backdrop-blur-sm transition-all duration-200 hover:border-white/10 hover:bg-white/10 hover:text-white active:scale-[0.98]"
               >
-                <span className="flex items-center justify-center gap-1.5">
-                  <TrendingUp className="h-4 w-4" />
+                <span className="flex items-center justify-center gap-1">
+                  <TrendingUp className="h-3.5 w-3.5" />
                   Log In
                 </span>
               </button>
             </div>
 
-            <p className="mt-8 text-center text-xs text-text-muted">
+            <p className="mt-6 text-center text-[10px] text-text-muted">
               By continuing, you agree to ConvoFlow&apos;s Terms of Service.
             </p>
           </div>
 
-          <div className="mt-4 flex items-center justify-center gap-3 rounded-xl border border-border bg-surface-elevated/40 px-4 py-3 lg:hidden">
-            <Sparkles className="h-4 w-4 text-accent-secondary" />
-            <p className="text-xs text-text-secondary">
+          {/* Bottom Banner */}
+          <div className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-border bg-surface-elevated/40 px-3 py-2 lg:hidden">
+            <Sparkles className="h-3 w-3 text-accent-secondary" />
+            <p className="text-[8px] text-text-secondary">
               <span className="font-semibold text-text-primary">500+</span> students active right now
             </p>
           </div>
