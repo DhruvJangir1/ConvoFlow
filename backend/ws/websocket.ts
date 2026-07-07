@@ -3,6 +3,7 @@ import http from 'http';
 import type { IncomingMessage } from 'http';
 import { consumeTicket, startTicketCleanup, stopTicketCleanup } from '../src/services/wsTicketStore';
 import { prisma } from '../src/lib/connectionPoolClient';
+import { escapeHtml } from '../src/util/sanitize.js';
 
 interface AuthenticatedSocket extends WebSocket {
   userId?: string;
@@ -152,12 +153,13 @@ export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chat
   }
 
   try {
-    const message = await prisma.messages.create({
-      data: { chat_id: chatId, sender_id: ws.userId, content },
+    const sanitizedContent = escapeHtml(content);
+    const message = await prisma.standardChatMessages.create({
+      data: { chat_id: chatId, sender_id: ws.userId, content: sanitizedContent },
     });
     console.log(`[ws:message] Message ${message.id} saved to DB`);
 
-    await prisma.chats.update({
+    await prisma.standardChats.update({
       where: { id: chatId },
       data: { updated_at: new Date() },
     });
@@ -368,12 +370,6 @@ export function setupWebSocket(): WebSocketServer {
       console.log(`[ws:setup] DB error loading profile, using ID as name`);
     }
 
-    // Check for existing socket from same user and kill it
-    const existingSocket = userSockets.get(userId);
-    if (existingSocket !== undefined) {
-      console.log(`[ws:setup] User ${userId} already has a socket — terminating old one`);
-      existingSocket.terminate();
-    }
     userSockets.set(userId, ws);
     console.log(`[ws:setup] Socket stored for ${ws.userName} (${userId}) — ${userSockets.size} total unique users connected`);
 
