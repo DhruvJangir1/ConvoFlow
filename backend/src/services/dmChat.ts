@@ -2,8 +2,8 @@ import { prisma } from '../lib/connectionPoolClient.js';
 
 export async function findDmChat(userIdA: string, userIdB: string) {
   const [membershipsA, membershipsB] = await Promise.all([
-    prisma.chat_members.findMany({ where: { user_id: userIdA }, select: { chat_id: true } }),
-    prisma.chat_members.findMany({ where: { user_id: userIdB }, select: { chat_id: true } }),
+    prisma.standardChatMembers.findMany({ where: { user_id: userIdA }, select: { chat_id: true } }),
+    prisma.standardChatMembers.findMany({ where: { user_id: userIdB }, select: { chat_id: true } }),
   ]);
 
   const chatIdsA = new Set(membershipsA.map(m => m.chat_id));
@@ -11,42 +11,42 @@ export async function findDmChat(userIdA: string, userIdB: string) {
 
   if (commonIds.length === 0) return null;
 
-  const existing = await prisma.chats.findFirst({
+  const existing = await prisma.standardChats.findFirst({
     where: { id: { in: commonIds }, type: 'dm' },
     select: { id: true },
   });
 
   if (!existing) return null;
 
-  return prisma.chats.findUnique({
+  return prisma.standardChats.findUnique({
     where: { id: existing.id },
     include: {
-      chat_members: {
+      StandardChatMembers: {
         include: {
-          users: { select: { id: true, user_name: true, image_url: true } },
+          USERS: { select: { id: true, user_name: true, image_url: true } },
         },
       },
     },
   });
 }
 
-export async function createDmChat(userIdA: string, userIdB: string, creatorId: string) {
+export async function createDmChat(userIdA: string, userIdB: string, creatorId: string, name?: string, avatar_url?: string) {
   console.log(`these are the people: userIDA ${userIdA}   useridB ${userIdB}  creatorId ${creatorId}`)
-  const chat = await prisma.chats.create({
-    data: { type: 'dm', created_by: creatorId },
+  const chat = await prisma.standardChats.create({
+    data: { type: 'dm', created_by: creatorId, name, avatar_url },
   });
   console.log('this is chat,',chat)
 
 const memberIds = [...new Set([userIdA, userIdB])];
-await prisma.chat_members.createMany({
+await prisma.standardChatMembers.createMany({
   data: memberIds.map(user_id => ({ chat_id: chat.id, user_id })),
 });
-  return prisma.chats.findUnique({
+  return prisma.standardChats.findUnique({
     where: { id: chat.id },
     include: {
-      chat_members: {
+      StandardChatMembers: {
         include: {
-          users: { select: { id: true, user_name: true, image_url: true } },
+          USERS: { select: { id: true, user_name: true, image_url: true } },
         },
       },
     },

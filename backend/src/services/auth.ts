@@ -26,7 +26,7 @@ export async function checkPassword (req: Request, res: Response): Promise<void>
   const { password } = req.body as { password?: string };
   const ipAddress = req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown';
 
-  if (!trackAuthAttempt(ipAddress)) { // this checks if the amount of requests are less than or = to the max request limit
+  if (!await trackAuthAttempt(ipAddress)) {
     res.status(429).json({ error: 'Too many requests, please try again later' });
     return;
   }

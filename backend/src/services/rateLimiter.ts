@@ -1,37 +1,49 @@
-import { AUTH_MAX_ATTEMPTS, AUTH_MAX_KEYS, AUTH_WINDOW_MS } from '../util/constants';
+import { client } from '../../redis/redisClient.js';
 
-// In-memory rate-limit state per IP. Replace with Redis when scaling to multi-instance.
-const authAttemptsRecords: Map<string, { count: number; firstSeen: number }> = new Map();
+const WINDOW_MS = 60 * 1000;
+const MAX_ATTEMPTS = 10;
+const BLOCK_SECONDS = 300;
+const KEY_TTL_SECONDS = 600;
 
-// Evict entries that have outlived the window so the map doesn't grow unbounded.
-setInterval(() => {
+function rateLimitKey(ip: string): string {
+  return `rate_limit:${ip}`;
+}
+
+function blockKey(ip: string): string {
+  return `rate_limit:blocked:${ip}`;
+}
+
+export async function trackAuthAttempt(ip: string): Promise<boolean> {
   const now = Date.now();
-  for (const [ip, entry] of Array.from(authAttemptsRecords.entries())) {
-    if (now - entry.firstSeen > AUTH_WINDOW_MS) {
-      authAttemptsRecords.delete(ip);
-    }
-  }
-}, AUTH_WINDOW_MS);
+  const rlKey = rateLimitKey(ip);
+  const blKey = blockKey(ip);
 
-// Returns false if the IP has exceeded AUTH_MAX_ATTEMPTS within AUTH_WINDOW_MS.
-// When the window expires the counter resets automatically.
-export function trackAuthAttempt(ip: string): boolean {
-  const now = Date.now();
-  const entry = authAttemptsRecords.get(ip);
-
-  // First visit or window expired — start a new window.
-  if (!entry || now - entry.firstSeen > AUTH_WINDOW_MS) {
-    // Prevent unbounded growth under heavy traffic from many distinct IPs.
-    if (authAttemptsRecords.size >= AUTH_MAX_KEYS) {
-      const firstKey = authAttemptsRecords.keys().next().value as string | undefined;
-      if (firstKey) authAttemptsRecords.delete(firstKey);
+  try {
+    const isBlocked = await client.get(blKey);
+    if (isBlocked) {
+      console.log(`[rateLimiter] Request blocked for ${ip} — still in block period`);
+      return false;
     }
-    authAttemptsRecords.set(ip, { count: 1, firstSeen: now });
+
+    await client.zRemRangeByScore(rlKey, 0, now - WINDOW_MS);
+
+    const attemptCount = await client.zCard(rlKey);
+
+    if (attemptCount >= MAX_ATTEMPTS) {
+      console.log(`[rateLimiter] ${ip} exceeded ${MAX_ATTEMPTS} attempts in 1 min — blocking for 5 min`);
+      await client.set(blKey, '1', { EX: BLOCK_SECONDS });
+      await client.del(rlKey);
+      return false;
+    }
+
+    await client.zAdd(rlKey, { score: now, value: String(now) });
+    await client.expire(rlKey, KEY_TTL_SECONDS);
+
+    console.log(`[rateLimiter] ${ip} — attempt ${attemptCount + 1}/${MAX_ATTEMPTS} recorded`);
     return true;
-  }
 
-  // Within the current window — increment and check limit.
-  entry.count += 1;
-  authAttemptsRecords.set(ip, entry);
-  return entry.count <= AUTH_MAX_ATTEMPTS; // make sure that a given ip address doesnt exceed the limit 
+  } catch (err) {
+    console.error(`[rateLimiter] Redis error for IP ${ip}:`, err);
+    return false;
+  }
 }
