@@ -68,7 +68,6 @@ export default function AnonymousChat() {
   const { data: roomDetail } = useAnonymousRoomQuery(roomId);
   const {
     data: messagesData,
-    isLoading: messagesQueryLoading,
   } = useAnonymousMessagesQuery(roomId, ownMessageIds.current);
   const sendMessageMutation = useAnonymousSendMessageMutation();
   const editMessageMutation = useAnonymousEditMessageMutation();

@@ -62,7 +62,7 @@ async function fetchAnonymousMessages(
 }
 
 export function useAnonymousMessagesQuery(
-  roomId: string,
+  roomId: string | undefined,
   ownIds: Set<string>,
 ) {
   const user = useSelector((s: RootState) => s.userAuth.user);
@@ -71,8 +71,8 @@ export function useAnonymousMessagesQuery(
   const isEnbaled = roomId !== null && user !== null;
 
   return useQuery({
-    queryKey: anonChatKeys.messages(roomId),
-    queryFn: () => fetchAnonymousMessages(roomId, user.id, user.image_url, ownIds),
+    queryKey: anonChatKeys.messages(roomId!),
+    queryFn: () => fetchAnonymousMessages(roomId!, user.id, user.image_url, ownIds),
     enabled: isEnbaled,
     staleTime: 300_000,
     gcTime: 600_000,

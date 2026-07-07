@@ -1,4 +1,4 @@
-import { Loader2, CheckCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface Props {
   isOpen: boolean;

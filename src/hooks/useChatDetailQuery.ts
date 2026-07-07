@@ -14,7 +14,7 @@ async function fetchChatListAndExtract(chatId: string): Promise<Chat> {
   return chat;
 }
 
-export function useChatDetailQuery(chatId: string) {
+export function useChatDetailQuery(chatId: string | undefined) {
   const queryClient = useQueryClient();
   const user = useSelector((s: RootState) => s.userAuth.user);
 
@@ -22,7 +22,7 @@ export function useChatDetailQuery(chatId: string) {
 
   return useQuery({
     queryKey: chatKeys.detail(chatId ?? ''),
-    queryFn: () => fetchChatListAndExtract(chatId),
+    queryFn: () => fetchChatListAndExtract(chatId!),
     enabled: isEnabled,
     staleTime: 300_000,
     gcTime: 600_000,

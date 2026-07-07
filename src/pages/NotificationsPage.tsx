@@ -2,8 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserPlus, UserCheck, UserX, Bell, Loader2, Send } from "lucide-react";
-import { useDispatch, useSelector } from "react-redux";
-import type { RootState } from "../store/store";
+import { useDispatch } from "react-redux";
 import { resetUnreadNotif } from "../store/userAuthSlice";
 import { addChat } from "../store/chatSlice";
 import { useNotificationsQuery } from "../hooks/useNotificationsQuery";
@@ -53,7 +52,6 @@ export default function NotificationsPage() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const queryClient = useQueryClient();
-  const user = useSelector((s: RootState) => s.userAuth.user);
   const { data: notifData, isLoading: notifLoading } = useNotificationsQuery();
   const markReadMutation = useMarkNotificationRead();
   const markAllReadMutation = useMarkAllNotificationsRead();

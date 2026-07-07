@@ -12,7 +12,7 @@ async function fetchAnonymousRoomDetail(roomId: string): Promise<AnonymousRoom> 
   return data.chat;
 }
 
-export function useAnonymousRoomQuery(roomId: string) {
+export function useAnonymousRoomQuery(roomId: string | undefined) {
   const queryClient = useQueryClient();
   const user = useSelector((s: RootState) => s.userAuth.user);
 
@@ -20,7 +20,7 @@ export function useAnonymousRoomQuery(roomId: string) {
 
   return useQuery({
     queryKey: anonChatKeys.detail(roomId ?? ''),
-    queryFn: () => fetchAnonymousRoomDetail(roomId),
+    queryFn: () => fetchAnonymousRoomDetail(roomId!),
     enabled: isEnabled,
     staleTime: 300_000,
     gcTime: 600_000,

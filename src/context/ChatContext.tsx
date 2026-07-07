@@ -19,7 +19,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [chats, dispatch]);
 
   return (
-    <ChatContext.Provider value={{ loading: isLoading, refetchChats: refetch }}>
+    <ChatContext.Provider value={{ loading: isLoading, refetchChats: () => refetch().then(() => {}) }}>
       {children}
     </ChatContext.Provider>
   );
