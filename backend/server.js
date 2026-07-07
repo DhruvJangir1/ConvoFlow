@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import { validateOrigin } from './src/middleware/validateOrigin';
 import { setupWebSocket, shutdownWebSocket } from './ws/websocket';
 import { checkPoolHealth } from './src/lib/healthCheckPool'
+import { connectRedis, disconnectRedis } from './redis/redisClient'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -151,6 +152,7 @@ import ChatRouter from "./src/chat/chat";
 import UserRouter from "./src/routes/users";
 import FriendRouter from "./src/routes/userAddFriend";
 import NotificationRouter from "./src/routes/userNotification";
+import AnonymousChatRouter from "./src/routes/anonymousChat";
 
 app.use("/api/auth", AuthRouter);
 console.log('[server] Auth routes mounted at /api/auth');
@@ -162,6 +164,8 @@ app.use("/api/friends", FriendRouter);
 console.log('[server] Friend routes mounted at /api/friends');
 app.use("/api/notifications", NotificationRouter);
 console.log('[server] Notification routes mounted at /api/notifications');
+app.use("/api/anonymousChats", AnonymousChatRouter);
+console.log('[server] AnonymousChat routes mounted at /api/anonymousChats');
 
 app.get("/api/health", (req, res) => {
   console.log(`[server] Health check from ${req.ip}`);
@@ -182,14 +186,17 @@ if (fs.existsSync(distPath)) {
   console.log('[server] No dist/ found — API only mode (run "npm run build" in root for full stack)');
 }
 
-console.log('[server.js] about to set the web socket server')
-setupWebSocket();
+console.log('[server.js] about to start the server');
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`[server] CORS origin: ${corsOrigin}`);
-  console.log(`[server] Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+(async () => {
+  await connectRedis();
+  setupWebSocket();
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`[server] CORS origin: ${corsOrigin}`);
+    console.log(`[server] Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+})();
 
 // Graceful shutdown
 import { shutdownDb } from './src/lib/connectionPoolClient';
@@ -198,6 +205,7 @@ const shutdown = async () => {
   shutdownWebSocket();
   try {
     await shutdownDb();
+    await disconnectRedis();
   } catch (e) {
     console.error('Error during shutdown:', e);
   } finally {
