@@ -3,6 +3,7 @@ import { Info } from "lucide-react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
 import { useParams } from "react-router-dom";
+import { useChatDetailQuery } from "../hooks/useChatDetailQuery";
 import GroupInfoModal from "./GroupInfoModal";
 
 function getInitials(name: string): string {
@@ -29,10 +30,9 @@ function avatarGradient(name: string): string {
 
 export default function ChatHeader() {
   const user = useSelector((s: RootState) => s.userAuth.user);
-  const chats = useSelector((s: RootState) => s.chat.chats);
   const onlineUsers = useSelector((s: RootState) => s.chat.onlineUsers);
   const { chatId } = useParams();
-  const chat = chats.find((c) => c.id === chatId);
+  const { data: chat } = useChatDetailQuery(chatId);
   const [infoOpen, setInfoOpen] = useState(false);
 
   if (!chat) return null;

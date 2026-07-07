@@ -4,7 +4,7 @@ import Edit from "@mui/icons-material/Edit";
 import Delete from "@mui/icons-material/Delete";
 import Check from "@mui/icons-material/Check";
 import Close from "@mui/icons-material/Close";
-import { SmilePlus } from "lucide-react";
+import { SmilePlus, ThumbsUp, ThumbsDown } from "lucide-react";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import type { ChatMessages as Message, Reaction } from "../types/chat";
@@ -26,6 +26,10 @@ type MessageListProps = {
   userId: string;
   onAddReaction: (messageId: string, emoji: string) => void;
   onRemoveReaction: (messageId: string, reactionId: string) => void;
+  showVoting?: boolean;
+  showReactions?: boolean;
+  onUpvote?: (messageId: string) => void;
+  onDownvote?: (messageId: string) => void;
 };
 
 type Group = {
@@ -83,6 +87,10 @@ function formatDateSeparator(dateStr: string): string {
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return date.toLocaleDateString("en-US", { weekday: "long" });
   return date.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+}
+
+function getInitials(name: string): string {
+  return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 }
 
 function wrapText(text: string, maxChars: number = 75): string {
@@ -185,13 +193,13 @@ function EmojiPickerPopover({
   open,
   onClose,
   onEmojiSelect,
-  anchorRef,
+  anchorEl,
   alignRight,
 }: {
   open: boolean;
   onClose: () => void;
   onEmojiSelect: (emoji: string) => void;
-  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  anchorEl: HTMLElement | null;
   alignRight?: boolean;
 }) {
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -199,23 +207,23 @@ function EmojiPickerPopover({
 
   useEffect(() => {
     if (!open) return;
-    if (anchorRef.current) {
-      const rect = anchorRef.current.getBoundingClientRect();
+    if (anchorEl) {
+      const rect = anchorEl.getBoundingClientRect();
       setOpenUpward(rect.top > window.innerHeight * 0.5);
     }
     function handleClickOutside(e: MouseEvent) {
       if (
         popoverRef.current &&
         !popoverRef.current.contains(e.target as Node) &&
-        anchorRef.current &&
-        !anchorRef.current.contains(e.target as Node)
+        anchorEl &&
+        !anchorEl.contains(e.target as Node)
       ) {
         onClose();
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open, onClose, anchorRef]);
+  }, [open, onClose, anchorEl]);
 
   if (!open) return null;
 
@@ -261,6 +269,10 @@ export default function MessageList({
   userId,
   onAddReaction,
   onRemoveReaction,
+  showVoting,
+  showReactions = true,
+  onUpvote,
+  onDownvote,
 }: MessageListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -269,11 +281,14 @@ export default function MessageList({
   const prevScrollInfo = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const isPrependingRef = useRef(false);
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<string | null>(null);
-  const emojiButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const [pickerAnchorEl, setPickerAnchorEl] = useState<HTMLButtonElement | null>(null);
 
   const { groups } = useMemo(() => groupMessages(messages), [messages]);
 
-  const handleEmojiPickerClose = useCallback(() => setEmojiPickerMsgId(null), []);
+  const handleEmojiPickerClose = useCallback(() => {
+    setEmojiPickerMsgId(null);
+    setPickerAnchorEl(null);
+  }, []);
 
   const handleEmojiSelect = useCallback(
     (messageId: string, emoji: string) => {
@@ -281,15 +296,7 @@ export default function MessageList({
     },
     [onAddReaction],
   );
-
-  const setEmojiButtonRef = useCallback((msgId: string, el: HTMLButtonElement | null) => {
-    if (el) {
-      emojiButtonRefs.current.set(msgId, el);
-    } else {
-      emojiButtonRefs.current.delete(msgId);
-    }
-  }, []);
-
+  
   useEffect(() => {
     const el = editTextareaRef.current;
     if (!el) return;
@@ -442,17 +449,26 @@ export default function MessageList({
                 return (
                   <div
                     key={`${group.messages[0].id}-${mi}`}
-                    className={`group flex w-full animate-message-in ${isLast ? "mb-3" : "mb-0.5"}`}
+                    className={`group flex w-full animate-message-in ${isLast ? "mb-6" : "mb-4"}`}
                     style={{
                       justifyContent: group.isOwn ? "flex-end" : "flex-start",
                     }}
                   >
+                    {mi === 0 && !group.isOwn && !msg.isAnonymous && (
+                      <div className="h-8 w-8 shrink-0 self-end rounded-full overflow-hidden bg-zinc-600 flex items-center justify-center text-xs font-semibold text-white">
+                        {msg.senderImage ? (
+                          <img src={msg.senderImage} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          getInitials(msg.senderName)
+                        )}
+                      </div>
+                    )}
                     <div
                       className={`flex flex-col w-full max-w-[70%] ${
                         group.isOwn ? "items-end" : "items-start"
                       }`}
                     >
-                      {mi === 0 && !group.isOwn && (
+                      {mi === 0 && !msg.isAnonymous && !group.isOwn && (
                         <span className="mb-1 ml-0.5 text-[12px] font-semibold text-accent-secondary">
                           {msg.senderName}
                         </span>
@@ -461,9 +477,11 @@ export default function MessageList({
                         className={`transition-all duration-200 ${
                           isEditing
                             ? "rounded-2xl border border-border bg-surface-raised shadow-lg shadow-black/20 px-3.5 pt-3 pb-2"
-                            : group.isOwn
-                              ? "w-fit rounded-2xl rounded-tr-sm bg-indigo-600 text-white shadow-sm px-3 py-1.5"
-                              : "w-fit rounded-2xl rounded-tl-sm bg-zinc-800 text-text-primary shadow-sm px-3 py-1.5"
+                            : msg.isAnonymous
+                              ? "w-fit rounded-2xl bg-zinc-700 text-text-primary shadow-sm px-3 py-1.5"
+                              : group.isOwn
+                                ? "w-fit rounded-2xl rounded-tr-sm bg-indigo-600 text-white shadow-sm px-3 py-1.5"
+                                : "w-fit rounded-2xl rounded-tl-sm bg-zinc-800 text-text-primary shadow-sm px-3 py-1.5"
                         }`}
                         style={{ maxWidth: "100%" }}
                       >
@@ -512,7 +530,7 @@ export default function MessageList({
                         ) : (
                           <>
                             <p className="text-sm whitespace-pre-wrap min-w-0">
-                              {wrapText(msg.content)}
+                              {wrapText(msg.content ?? "")}
                             </p>
                             <ReactionBar
                               reactions={msg.reactions}
@@ -537,15 +555,59 @@ export default function MessageList({
                         )}
                       </div>
 
+                      {mi === 0 && group.isOwn && !msg.isAnonymous && (
+                        <div className="h-8 w-8 shrink-0 self-end rounded-full overflow-hidden bg-zinc-600 flex items-center justify-center text-xs font-semibold text-white">
+                          {msg.senderImage ? (
+                            <img src={msg.senderImage} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            getInitials(msg.senderName)
+                          )}
+                        </div>
+                      )}
+
+                      {showVoting && (
+                        <div className={`flex mt-0.5 ${group.isOwn ? "justify-end" : "justify-start"}`}>
+                          <div className="flex items-center gap-0.5">
+                            <button
+                              onClick={() => onUpvote?.(msg.id)}
+                              className={`flex h-6 items-center gap-1 rounded px-1.5 transition-colors ${
+                                msg.userVote === 'upvote'
+                                  ? 'text-green-400 bg-green-900/20'
+                                  : 'text-zinc-400 hover:text-green-400 hover:bg-zinc-700/50'
+                              }`}
+                              aria-label="Upvote"
+                            >
+                              <ThumbsUp className={`h-3.5 w-3.5 ${msg.userVote === 'upvote' ? 'fill-green-400' : ''}`} />
+                              {(msg.totalUpvotes ?? 0) > 0 && (
+                                <span className="text-[11px] font-medium leading-none">{msg.totalUpvotes}</span>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => onDownvote?.(msg.id)}
+                              className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
+                                msg.userVote === 'downvote'
+                                  ? 'text-red-400 bg-red-900/20'
+                                  : 'text-zinc-400 hover:text-red-400 hover:bg-zinc-700/50'
+                              }`}
+                              aria-label="Downvote"
+                            >
+                              <ThumbsDown className={`h-3.5 w-3.5 ${msg.userVote === 'downvote' ? 'fill-red-400' : ''}`} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {!isEditing && (
                         <div className="flex gap-0.5 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 relative">
+                          {showReactions && (
+                            <>
                           <button
-                            ref={(el) => setEmojiButtonRef(msg.id, el)}
-                            onClick={() =>
+                            onClick={(e) => {
+                              setPickerAnchorEl(e.currentTarget);
                               setEmojiPickerMsgId((prev) =>
                                 prev === msg.id ? null : msg.id,
-                              )
-                            }
+                              );
+                            }}
                             className="flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
                             aria-label="Add reaction"
                           >
@@ -555,11 +617,11 @@ export default function MessageList({
                             open={pickerOpen}
                             onClose={handleEmojiPickerClose}
                             onEmojiSelect={(emoji) => handleEmojiSelect(msg.id, emoji)}
-                            anchorRef={{
-                              current: emojiButtonRefs.current.get(msg.id) ?? null,
-                            }}
+                            anchorEl={pickerAnchorEl}
                             alignRight={group.isOwn}
                           />
+                          </>
+                          )}
                           {group.isOwn && (
                             <>
                               <IconButton

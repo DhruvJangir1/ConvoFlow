@@ -6,9 +6,11 @@ type ChatInputProps = {
   onChange: (value: string) => void;
   onSend: () => void;
   disabled?: boolean;
+  isAnonymous?: boolean;
+  onAnonymousToggle?: () => void;
 };
 
-export default function ChatInput({ value, onChange, onSend, disabled }: ChatInputProps) {
+export default function ChatInput({ value, onChange, onSend, disabled, isAnonymous, onAnonymousToggle }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasContent = value.trim().length > 0;
   const canSend = hasContent && !disabled;
@@ -46,6 +48,24 @@ export default function ChatInput({ value, onChange, onSend, disabled }: ChatInp
       >
         <Paperclip className="h-4 w-4" />
       </button>
+
+      {onAnonymousToggle !== undefined && (
+        <label className="flex cursor-pointer items-center gap-1.5 select-none">
+          <div
+            role="switch"
+            aria-checked={isAnonymous}
+            tabIndex={0}
+            onClick={onAnonymousToggle}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAnonymousToggle(); }}}
+            className={`relative h-5 w-9 rounded-full transition-colors duration-200 ${isAnonymous ? 'bg-[#007AFF]' : 'bg-zinc-700'}`}
+          >
+            <div
+              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${isAnonymous ? 'translate-x-[18px]' : 'translate-x-0.5'}`}
+            />
+          </div>
+          <span className="text-[11px] font-medium text-text-muted">Anonymous</span>
+        </label>
+      )}
 
       <textarea
         ref={textareaRef}
