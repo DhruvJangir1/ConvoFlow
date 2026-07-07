@@ -1,0 +1,26 @@
+
+# create the services that will run on the docker containers, and this file will show how the services are connected together
+services:
+  app:
+    # to create a container for the app, this is the directory since we will take everything in this folder
+    build: .
+    
+    container_name: ConvoFlow
+    
+    ports:
+      - 3000:3000
+    
+    # we need to load in redis before loading in the app
+    depends_on:
+      - redis
+
+
+  redis:
+    container_name: redis
+    
+    image: redis:latest
+
+    ports:
+      - 6379:6379
+
+
