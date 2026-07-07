@@ -1,107 +1,77 @@
 import { prisma } from '../lib/connectionPoolClient.js';
 
 export async function upvote(userId: string, messageId: string) {
-  const upvoteRecord = await prisma.anonymousChatMessagesUserVotes.findFirst({
-    where: { user_id: userId, mesage_id: messageId, type: 'upvote' },
-  });
-
-  if (upvoteRecord) {
-    await prisma.anonymousChatMessagesUserVotes.delete({
-      where: { id: upvoteRecord.id },
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.anonymousChatMessagesUserVotes.findFirst({
+      where: { user_id: userId, mesage_id: messageId },
     });
 
-    await prisma.anonymousChatMessages.update({
-      where: { id: messageId },
-      data: { TotalUpvotes: { decrement: 1 } },
+    if (existing) {
+      if (existing.type === 'upvote') {
+        await tx.anonymousChatMessagesUserVotes.delete({ where: { id: existing.id } });
+        await tx.anonymousChatMessages.update({
+          where: { id: messageId },
+          data: { TotalUpvotes: { decrement: 1 } },
+        });
+        return { success: true, action: 'removed' };
+      }
+
+      await tx.anonymousChatMessagesUserVotes.delete({ where: { id: existing.id } });
+      await tx.anonymousChatMessagesUserVotes.create({
+        data: { user_id: userId, mesage_id: messageId, type: 'upvote' },
+      });
+      await tx.anonymousChatMessages.update({
+        where: { id: messageId },
+        data: { TotalUpvotes: { increment: 2 } },
+      });
+      return { success: true, action: 'added' };
+    }
+
+    await tx.anonymousChatMessagesUserVotes.create({
+      data: { user_id: userId, mesage_id: messageId, type: 'upvote' },
     });
-
-    return { success: true, action: 'removed' };
-  }
-
-  const downvoteRecord = await prisma.anonymousChatMessagesUserVotes.findFirst({
-    where: { user_id: userId, mesage_id: messageId, type: 'downvote' },
-  });
-
-  if (downvoteRecord) {
-    await prisma.anonymousChatMessagesUserVotes.delete({
-      where: { id: downvoteRecord.id },
-    });
-
-    await prisma.anonymousChatMessages.update({
+    await tx.anonymousChatMessages.update({
       where: { id: messageId },
       data: { TotalUpvotes: { increment: 1 } },
     });
-  }
-
-  await prisma.anonymousChatMessagesUserVotes.create({
-    data: {
-      user_id: userId,
-      mesage_id: messageId,
-      type: 'upvote',
-    },
+    return { success: true, action: 'added' };
   });
-
-  await prisma.anonymousChatMessages.update({
-    where: { id: messageId },
-    data: { TotalUpvotes: { increment: 1 } },
-  });
-
-  return { success: true, action: 'added' };
 }
 
-
 export async function downvote(userId: string, messageId: string) {
-  const downvoteRecord = await prisma.anonymousChatMessagesUserVotes.findFirst({
-    where: { user_id: userId, mesage_id: messageId, type: 'downvote' },
-  });
-
-  if (downvoteRecord) {
-    await prisma.anonymousChatMessagesUserVotes.delete({
-      where: { id: downvoteRecord.id },
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.anonymousChatMessagesUserVotes.findFirst({
+      where: { user_id: userId, mesage_id: messageId },
     });
 
-    await prisma.anonymousChatMessages.update({
-      where: { id: messageId },
-      data: { TotalUpvotes: { increment: 1 } },
+    if (existing) {
+      if (existing.type === 'downvote') {
+        await tx.anonymousChatMessagesUserVotes.delete({ where: { id: existing.id } });
+        await tx.anonymousChatMessages.update({
+          where: { id: messageId },
+          data: { TotalUpvotes: { increment: 1 } },
+        });
+        return { success: true, action: 'removed' };
+      }
+
+      await tx.anonymousChatMessagesUserVotes.delete({ where: { id: existing.id } });
+      await tx.anonymousChatMessagesUserVotes.create({
+        data: { user_id: userId, mesage_id: messageId, type: 'downvote' },
+      });
+      await tx.anonymousChatMessages.update({
+        where: { id: messageId },
+        data: { TotalUpvotes: { decrement: 2 } },
+      });
+      return { success: true, action: 'added' };
+    }
+
+    await tx.anonymousChatMessagesUserVotes.create({
+      data: { user_id: userId, mesage_id: messageId, type: 'downvote' },
     });
-
-    return { success: true, action: 'removed' };
-  }
-
-  const upvoteRecord = await prisma.anonymousChatMessagesUserVotes.findFirst({
-    where: { user_id: userId, mesage_id: messageId, type: 'upvote' },
-  });
-
-  if (upvoteRecord) {
-    await prisma.anonymousChatMessagesUserVotes.delete({
-      where: { id: upvoteRecord.id },
-    });
-
-    await prisma.anonymousChatMessages.update({
-      where: { id: messageId },
-      data: { TotalUpvotes: { decrement: 1 } },
-    });
-  }
-
-  const message = await prisma.anonymousChatMessages.findUnique({
-    where: { id: messageId },
-    select: { TotalUpvotes: true },
-  });
-
-  await prisma.anonymousChatMessagesUserVotes.create({
-    data: {
-      user_id: userId,
-      mesage_id: messageId,
-      type: 'downvote',
-    },
-  });
-
-  if (message && message.TotalUpvotes > 0) {
-    await prisma.anonymousChatMessages.update({
+    await tx.anonymousChatMessages.update({
       where: { id: messageId },
       data: { TotalUpvotes: { decrement: 1 } },
     });
-  }
-
-  return { success: true, action: 'added' };
+    return { success: true, action: 'added' };
+  });
 }

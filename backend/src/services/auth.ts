@@ -6,7 +6,9 @@ import dotenv from 'dotenv';
 import type { Request, Response } from 'express';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { setAuthCookies } from './authVerificaiton.js';
+import { clearAuthCookies } from './authCookieSessions.js';
 import { trackAuthAttempt } from './rateLimiter.js';
+import { client as redis } from '../../redis/redisClient.js';
 
 dotenv.config();
 
@@ -116,7 +118,19 @@ export async function refreshUserAccessToken(req: Request, res: Response): Promi
     });
 
     if (!user) {
-      console.log('[refreshUserAccessToken] no user found with matching refresh token');
+      const reuseKey = `used_token:${tokenHash}`;
+      const replayedUserId = await redis.get(reuseKey);
+      if (replayedUserId) {
+        console.log(`[refreshUserAccessToken] REPLAY DETECTED — token already rotated for user ${replayedUserId}`);
+        await prisma.users.update({
+          where: { id: replayedUserId },
+          data: { refresh_token_hash: null, refresh_token_expiry: null },
+        });
+        clearAuthCookies(res);
+        console.log(`[refreshUserAccessToken] tokens invalidated for user ${replayedUserId} due to replay`);
+      } else {
+        console.log('[refreshUserAccessToken] no user found with matching refresh token');
+      }
       return;
     }
     console.log(`[refreshUserAccessToken] user found: ${user.id}`);
@@ -138,6 +152,10 @@ export async function refreshUserAccessToken(req: Request, res: Response): Promi
       },
     });
     console.log(`[refreshUserAccessToken] db updated with new refresh hash for user ${user.id}`);
+
+    // mark old token as used so replays are detected
+    await redis.set(`used_token:${tokenHash}`, user.id, { EX: Math.ceil(REFRESH_TOKEN_EXPIRY_MS / 1000) });
+    console.log(`[refreshUserAccessToken] old token hash stored in Redis for replay detection`);
 
     // set the cookies in the client's browser
     setAuthCookies(res,newAccessToken,newRefreshToken,newRefreshSalt);
