@@ -21,7 +21,7 @@ model AnonymousChatMessagesUserVotes {
 }
 ```
 
-One row per user per message per vote type. The composite index on `(user_id, mesage_id, type)` ensures fast lookups.
+One row per user per message. The composite index on `(user_id, mesage_id, type)` ensures fast lookups. Only one vote row per user per message exists at any time — enforced by the application logic inside `$transaction`.
 
 ### AnonymousChatMessages.TotalUpvotes
 
@@ -35,22 +35,21 @@ Updated atomically alongside vote records to avoid counting queries.
 
 ## Vote Service (`backend/src/services/userMessageVote.ts`)
 
+Both `upvote()` and `downvote()` run inside `prisma.$transaction()` to prevent race conditions from concurrent requests. Each function finds the user's current vote for the message in a single query, then branches on the result:
+
 ### `upvote(userId, messageId)`
 
-1. Check if user already has an `upvote` record → if yes, **remove** the vote (toggle off), decrement count by 1
-2. Check if user has a `downvote` record → if yes, **remove** the downvote, increment count by 1 (net +2 from the toggle: removing -1 then adding +1)
-3. Create an `upvote` record, increment count by 1
-
-Return: `{ success: true, action: 'removed' | 'added' }`
+1. **Look up** the user's existing vote for this message (single `findFirst`).
+2. **No existing vote** → Create `upvote` record, increment `TotalUpvotes` by **+1**.
+3. **Existing `upvote`** → Remove record (toggle off), decrement `TotalUpvotes` by **-1**.
+4. **Existing `downvote`** → Remove downvote, create upvote, adjust `TotalUpvotes` by **+2** (net effect: removing a downvote is +1, adding an upvote is +1).
 
 ### `downvote(userId, messageId)`
 
-1. Check if user already has a `downvote` record → if yes, **remove** the vote (toggle off), increment count by 1
-2. Check if user has an `upvote` record → if yes, **remove** the upvote, decrement count by 1
-3. Create a `downvote` record
-4. Only decrement count if current total is greater than 0 (prevents negative scores)
-
-Return: `{ success: true, action: 'removed' | 'added' }`
+1. **Look up** the user's existing vote for this message (single `findFirst`).
+2. **No existing vote** → Create `downvote` record, decrement `TotalUpvotes` by **-1**.
+3. **Existing `downvote`** → Remove record (toggle off), increment `TotalUpvotes` by **+1**.
+4. **Existing `upvote`** → Remove upvote, create downvote, adjust `TotalUpvotes` by **-2** (net effect: removing an upvote is -1, adding a downvote is -1).
 
 ### Vote Transition Summary
 
@@ -59,7 +58,7 @@ Return: `{ success: true, action: 'removed' | 'added' }`
 | None → Upvote | Create upvote | +1 |
 | Upvote → None | Delete upvote | -1 |
 | Downvote → Upvote | Delete downvote + create upvote | +2 |
-| None → Downvote | Create downvote | -1 (if > 0) |
+| None → Downvote | Create downvote | -1 |
 | Downvote → None | Delete downvote | +1 |
 | Upvote → Downvote | Delete upvote + create downvote | -2 |
 

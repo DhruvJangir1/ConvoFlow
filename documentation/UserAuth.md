@@ -19,7 +19,9 @@
 | **Refresh Token** | Opaque random 64-char hex | `httpOnly` cookie (`refresh_token`) | 30 days | Yes (stored as bcrypt hash in DB) |
 | **Refresh Salt** | Plaintext salt for bcrypt | `httpOnly` cookie (`refresh_salt`) | 30 days | — |
 
-**Rotation**: Every time a refresh token is used, it is rotated — the old hash is replaced with a new one in the DB. This limits the damage of a leaked refresh token (replay detection).
+**Rotation**: Every time a refresh token is used, it is rotated — the old hash is replaced with a new one in the DB.
+
+**Replay Detection**: On successful rotation, the old token hash is stored in Redis as `used_token:<hash>` → `userId` with a 30-day TTL. If a subsequent refresh attempt hashes to a value not found in the DB *but* the hash exists in Redis, the token was already rotated by someone else → **replay attack detected**. The user's `refresh_token_hash` is nullified and all cookies are cleared, forcing re-login. This prevents an attacker who stole a refresh token from using it after the legitimate user rotates it.
 
 ---
 
@@ -197,14 +199,18 @@ COOKIE_OPTIONS = {
 
 # Security Guardrails
 
-- **Helmet**: HTTP security headers (X-Content-Type-Options, X-Frame-Options, etc.).
-- **CORS**: Configured origin restrictions.
+- **Helmet**: HTTP security headers (CSP, HSTS, frameguard, noSniff, etc.).
+- **CORS**: Configured origin restrictions, enforced Origin/Referer validation on state-changing methods.
 - **httpOnly cookies**: Tokens inaccessible to JS.
 - **bcrypt**: Password hashing (12 rounds) + refresh token hashing (10 rounds).
 - **JWT verification**: Audience (`authenticated`) + secret checked on every verify.
-- **Rate limiting**: IP-based throttling on auth endpoints.
+- **Rate limiting**: IP-based throttling on auth endpoints (Redis-backed sliding window).
 - **HIBP integration**: Reject known compromised passwords at signup.
-- **Environment variables**: `SUPABASE_JWT_SECRET`, `SUPA_BASE_URL`, `SUPA_BASE_ANON_PUBLISHABLE_KEY`, `RESEND_API_KEY` stored in `.env`.
+- **Chat membership checks**: All message CRUD endpoints verify user is a member of the target chat.
+- **XSS prevention**: All user message content is HTML-escaped before storage (`escapeHtml` on every write path).
+- **Refresh token replay detection**: Old token hashes stored in Redis; replayed tokens detected and invalidated.
+- **Redis authentication**: `REDIS_URL` and `REDIS_PASSWORD` env vars supported; defaults to `redis://localhost:6379`.
+- **Environment variables**: `SUPABASE_JWT_SECRET`, `SUPA_BASE_URL`, `SUPA_BASE_ANON_PUBLISHABLE_KEY`, `RESEND_API_KEY`, `REDIS_URL`, `REDIS_PASSWORD` stored in `.env`.
 
 ---
 
@@ -229,7 +235,7 @@ COOKIE_OPTIONS = {
 - [ ] **Remember-me toggle** — extend refresh token lifetime (e.g., 90 days) vs. default 30 days
 - [ ] **Audit logging** — log auth events (login, logout, failed attempts) to a separate audit table
 - [ ] **Account lockout** — after N consecutive failed attempts, lock account for a cooldown period (beyond IP-level rate limiting)
-- [ ] **Refresh token family tree** — track parent-child relationships of rotated refresh tokens to detect token reuse (theft detection)
+- [x] **Refresh token family tree** — Redis-backed replay detection flags rotated token reuse and invalidates all sessions
 - [ ] **Magic link login** — passwordless email login via one-time tokens (Supabase supports this)
 - [ ] **Social login linking** — allow users to link multiple OAuth providers to the same account
 - [ ] **Rate limit by userId + IP** — combine userId-level and IP-level rate limiting for more granular control
