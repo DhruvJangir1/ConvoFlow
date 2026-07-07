@@ -22,39 +22,42 @@ ChatRouter.post('/', authenticate, async (req: Request, res: Response): Promise<
   try {
     let chat: {
       id: string;
+      type: string;
       name: string | null;
+      created_by: string | null;
       avatar_url: string | null;
       created_at: Date;
-      type: string;
-      chat_members: { user_id: string; users: { id: string; user_name: string; image_url: string | null } }[];
+      updated_at: Date;
+      StandardChatMembers: {
+        user_id: string;
+        USERS: { id: string; user_name: string; image_url: string | null };
+      }[];
     };
 
     if (allParticipantIds.length === 2) {
       const existing = await findDmChat(allParticipantIds[0], allParticipantIds[1]);
       chat = existing ?? (await createDmChat(allParticipantIds[0], allParticipantIds[1], userId))!;
     } else {
-      chat = await prisma.chats.create({
+      chat = await prisma.standardChats.create({
         data: {
           type: 'group',
-          name: name || null,
+          name: name || 'No name',
           created_by: userId,
-          chat_members: {
-            create: allParticipantIds.map((pid) => ({ user_id: pid })),
-          },
+          avatar_url: null,
         },
         include: {
-          chat_members: {
+          StandardChatMembers: {
             include: {
-              users: { select: { id: true, user_name: true, image_url: true } },
+              USERS: { select: { id: true, user_name: true, image_url: true } },
             },
           },
         },
       });
     }
 
-    const otherMembers = chat.chat_members.filter((member) => member.user_id !== userId);
-    const displayName = chat.name || otherMembers.map((member) => member.users.user_name).join(', ') || 'Unknown';
-    const avatarUrl = chat.avatar_url || otherMembers[0]?.users?.image_url || null;
+    const otherMembers = chat.StandardChatMembers.filter((member) => member.user_id !== userId);
+    const displayName = chat.name || otherMembers.map((member) => member.USERS.user_name).join(', ') || 'Unknown';
+    const avatarUrl = chat.avatar_url || otherMembers[0]?.USERS?.image_url || null;
 
     res.json({
       chat: {
@@ -66,10 +69,10 @@ ChatRouter.post('/', authenticate, async (req: Request, res: Response): Promise<
         unread: 0,
         type: chat.type,
         messageCount: 0,
-        members: chat.chat_members.map((m) => ({
-          id: m.users.id,
-          user_name: m.users.user_name,
-          image_url: m.users.image_url,
+        members: chat.StandardChatMembers.map((m) => ({
+          id: m.USERS.id,
+          user_name: m.USERS.user_name,
+          image_url: m.USERS.image_url,
         })),
       },
     });
@@ -80,68 +83,58 @@ ChatRouter.post('/', authenticate, async (req: Request, res: Response): Promise<
 });
 
 ChatRouter.get('/', authenticate, async (req: Request, res: Response): Promise<void> => {
-  // render in the chats
-  const userId = req.user!.id;
-  console.log(`[chat:GET /] fetching chats for user ${userId}`);
+  const userId = req.user?.id;
 
-  const chats = await prisma.chats.findMany({
-    where: {
-      chat_members: {
-        some: { user_id: userId },
-      },
-    },
+  const memberships = await prisma.standardChatMembers.findMany({
+    where: { user_id: userId },
+    orderBy: { last_read_at: 'desc' },
     include: {
-      _count: {
-        select: { messages: true },
-      },
-      chat_members: {
+      StandardChats: {
         include: {
-          users: {
-            select: { id: true, user_name: true, image_url: true },
+          StandardChatMessages: {
+            orderBy: { created_at: 'desc' },
+            take: 1,
+            select: { content: true, created_at: true, sender_id: true },
+          },
+          StandardChatMembers: {
+            where: { user_id: { not: userId } },
+            include: {
+              USERS: { select: { id: true, user_name: true, image_url: true } },
+            },
           },
         },
       },
-      messages: {
-        orderBy: { created_at: 'desc' },
-        take: 1,
-        select: { content: true, created_at: true, sender_id: true },
-      },
     },
-    orderBy: { updated_at: 'desc' },
   });
-  console.log(`[chat:GET /] found ${chats.length} chats for user ${userId}`);
 
-  const transformed = chats.map((chat) => {
-    const otherMembers = chat.chat_members.filter((m) => m.user_id !== userId);
-    const displayName = chat.name || otherMembers.map((m) => m.users.user_name).join(', ') || 'Unknown';
-    const avatarUrl = chat.avatar_url || otherMembers[0]?.users?.image_url || null;
-    const lastMessage = chat.messages[0]?.content || '';
-    const timestamp = chat.messages[0]?.created_at || chat.updated_at;
+  const transformed = memberships.map((m) => {
+    const chat = m.StandardChats;
+    const otherMembers = chat.StandardChatMembers;
+    const lastMsg = chat.StandardChatMessages[0];
 
     return {
       id: chat.id,
-      name: displayName,
-      avatar_url: avatarUrl,
-      lastMessage,
-      timestamp: timestamp instanceof Date ? timestamp.getTime() : new Date(timestamp).getTime(),
+      name: chat.name || otherMembers.map((o) => o.USERS.user_name).join(', ') || 'Unknown',
+      avatar_url: chat.avatar_url || otherMembers[0]?.USERS?.image_url || null,
+      lastMessage: lastMsg?.content || '',
+      timestamp: (lastMsg?.created_at ?? chat.updated_at).getTime(),
       unread: 0,
       type: chat.type,
-      messageCount: chat._count.messages,
-      members: chat.chat_members.map((m) => ({
-        id: m.users.id,
-        user_name: m.users.user_name,
-        image_url: m.users.image_url,
+      messageCount: 0,
+      members: otherMembers.map((cm) => ({
+        id: cm.USERS.id,
+        user_name: cm.USERS.user_name,
+        image_url: cm.USERS.image_url,
       })),
     };
   });
-
-  console.log(`[chat:GET /] returning ${transformed.length} transformed chats`);
+  
   res.json({ chats: transformed });
 });
 
 ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
   const chatId = req.params.chatId as string;
-  const userId = req.user!.id;
+  const userId = req.user?.id;
   const before = req.query.before as string | undefined;
 
   console.log(`[chat:GET /:chatId/messages] fetching messages for chat ${chatId} by user ${userId}${before ? ` before ${before}` : ''}`);
@@ -154,12 +147,12 @@ ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
       where.created_at = { lt: new Date(before) };
     }
 
-    const messages = await prisma.messages.findMany({
+    const messages = await prisma.standardChatMessages.findMany({
       where,
       orderBy: { created_at: 'desc' },
       take: limit,
       include: {
-        users: {
+        USERS: {
           select: { id: true, user_name: true, image_url: true },
         },
       },
@@ -208,7 +201,7 @@ ChatRouter.post('/:chatId/:userId/appendMessage', authenticate, async (req: Requ
   }
 
   try {
-    const newMessage = await prisma.messages.create({
+    const newMessage = await prisma.standardChatMessages.create({
       data: {
         chat_id: chatId,
         sender_id: userId,
@@ -218,9 +211,10 @@ ChatRouter.post('/:chatId/:userId/appendMessage', authenticate, async (req: Requ
 
     console.log(`[chat:POST /:chatId/messages] message created with id ${newMessage.id} in chat ${chatId}`);
     console.log(`[chat:POST /:chatId/messages] the message with id ${newMessage.id} in chat ${chatId} is about to be BROADCASTED`);
+
     broadcastToRoom(chatId,newMessage);
 
-    await prisma.chats.update({
+    await prisma.standardChats.update({
       where: { id: chatId },
       data: { updated_at: new Date() },
     });
@@ -269,7 +263,7 @@ ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (re
   }
 
   try {
-    const existing = await prisma.messages.findUnique({
+    const existing = await prisma.standardChatMessages.findUnique({
       where: { id: messageId },
     });
 
@@ -285,14 +279,14 @@ ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (re
       return;
     }
 
-    const updated = await prisma.messages.update({
+    const updated = await prisma.standardChatMessages.update({
       where: { id: messageId },
       data: {
         content,
         is_edited: true,
       },
       include: {
-        users: {
+        USERS: {
           select: { id: true, user_name: true, image_url: true },
         },
       },
@@ -300,7 +294,7 @@ ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (re
 
     console.log(`[chat:PATCH /:chatId/messages/:messageId] message ${messageId} updated successfully`);
 
-    await prisma.chats.update({
+    await prisma.standardChats.update({
       where: { id: chatId },
       data: { updated_at: new Date() },
     });
@@ -341,7 +335,7 @@ ChatRouter.delete('/:chatId/messages/:messageId/:userId', authenticate, async (r
   console.log(`[chat:DELETE /:chatId/messages/:messageId] user ${userId} deleting message ${messageId} in chat ${chatId}`);
 
   try {
-    const existing = await prisma.messages.findUnique({
+    const existing = await prisma.standardChatMessages.findUnique({
       where: { id: messageId },
     });
 
@@ -357,7 +351,7 @@ ChatRouter.delete('/:chatId/messages/:messageId/:userId', authenticate, async (r
       return;
     }
 
-    await prisma.messages.delete({
+    await prisma.standardChatMessages.delete({
       where: { id: messageId },
     });
 
