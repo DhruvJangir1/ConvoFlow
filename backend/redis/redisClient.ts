@@ -1,6 +1,11 @@
 import { createClient } from 'redis';
 
-const client = createClient()
+const REDIS_PASSWORD = process.env.REDIS_PASSWORD || undefined;
+
+const client = createClient({
+
+  ...(REDIS_PASSWORD ? { password: REDIS_PASSWORD } : {}),
+});
 
 client.on('error', (err) => console.error('[redis] Client Error:', err));
 client.on('connect', () => console.log('[redis] Connected'));
