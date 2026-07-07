@@ -10,100 +10,191 @@ datasource db {
 }
 
 model users {
-  id                       String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_name                String
-  email                    String                @unique
-  image_url                String?
-  is_verified              Boolean               @default(false)
-  created_at               DateTime              @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
-  last_login               DateTime              @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
-  refresh_token_hash       String?
-  refresh_token_expiry     DateTime?             @db.Timestamptz(6)
-  password                 String?
-  bio                      String?
-  user_tag                 String                @unique
-  received_friend_requests Add_Friend_Requests[] @relation("receivedRequests")
-  sent_friend_requests     Add_Friend_Requests[] @relation("sentRequests")
-  users                    auth_users            @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  chat_members             chat_members[]
-  chats                    chats[]
-  messages                 messages[]
+  id                                                     String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_name                                              String
+  email                                                  String                 @unique
+  image_url                                              String?
+  is_verified                                            Boolean                @default(false)
+  created_at                                             DateTime               @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  last_login                                             DateTime               @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  refresh_token_hash                                     String?
+  refresh_token_expiry                                   DateTime?              @db.Timestamptz(6)
+  password                                               String?
+  bio                                                    String?
+  user_tag                                               String                 @unique
+  role                                                   String                 @default("user")
+  AddFriendRequests_AddFriendRequests_receiver_idToUSERS AddFriendRequests[]    @relation("AddFriendRequests_receiver_idToUSERS")
+  AddFriendRequests_AddFriendRequests_sender_idToUSERS   AddFriendRequests[]    @relation("AddFriendRequests_sender_idToUSERS")
+  AnonymousChatMembers                                   AnonymousChatMembers?
+  DailyPolls                                             DailyPolls[]
+  Notifications_Notifications_receiver_user_idToUSERS    Notifications[]        @relation("Notifications_receiver_user_idToUSERS")
+  Notifications_Notifications_sender_user_idToUSERS      Notifications[]        @relation("Notifications_sender_user_idToUSERS")
+  StandardChatMembers                                    StandardChatMembers[]
+  StandardChatMessages                                   StandardChatMessages[]
+  StandardChats                                          StandardChats[]
+  users                                                  auth_users             @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  UserPollVotes                                          UserPollVotes[]
 
   @@map("USERS")
   @@schema("public")
 }
 
-model chat_members {
-  chat_id      String   @db.Uuid
-  user_id      String   @db.Uuid
-  joined_at    DateTime @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
-  last_read_at DateTime @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
-  chats        chats    @relation(fields: [chat_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users        users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Notifications {
+  id                                          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at                                  DateTime           @default(now()) @db.Timestamptz(6)
+  receiver_user_id                            String             @db.Uuid
+  sender_user_id                              String             @db.Uuid
+  type                                        String             @default("")
+  content                                     String?
+  read_at                                     DateTime?          @db.Timestamptz(6)
+  entity_id                                   String             @unique(map: "notifications_entity_id_unique") @db.Uuid
+  AddFriendRequests                           AddFriendRequests?
+  USERS_Notifications_receiver_user_idToUSERS users              @relation("Notifications_receiver_user_idToUSERS", fields: [receiver_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Notifications_receiver_fkey")
+  USERS_Notifications_sender_user_idToUSERS   users              @relation("Notifications_sender_user_idToUSERS", fields: [sender_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Notifications_sender_fkey")
 
-  @@id([chat_id, user_id])
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model AddFriendRequests {
+  id                                         String        @id(map: "Add_Friend_Requests_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sender_id                                  String        @db.Uuid
+  receiver_id                                String        @db.Uuid
+  created_at                                 DateTime      @default(now()) @db.Timestamptz(6)
+  status                                     String        @default("pending")
+  updated_at                                 DateTime?     @db.Timestamptz(6)
+  sender_user_tag                            String
+  receiver_user_tag                          String
+  USERS_AddFriendRequests_receiver_idToUSERS users         @relation("AddFriendRequests_receiver_idToUSERS", fields: [receiver_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Add_Friend_Requests_receiver_id_fkey")
+  USERS_AddFriendRequests_sender_idToUSERS   users         @relation("AddFriendRequests_sender_idToUSERS", fields: [sender_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Add_Friend_Requests_sender_id_fkey")
+  Notifications                              Notifications @relation(fields: [id], references: [entity_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_notifications_id_bridge")
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model AnonymousChatMembers {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+  chat_id        String         @db.Uuid
+  AnonymousChats AnonymousChats @relation(fields: [chat_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  USERS          users          @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_anonymous_chat_members_identity")
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model AnonymousChatMessages {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+  content        String?
+  chat_id        String         @db.Uuid
+  message_type   String         @default("text")
+  is_edited      Boolean        @default(false)
+  status         String         @default("sent")
+  sender_id      String?        @db.Uuid
+  TotalUpvotes   Int            @default(0) @db.SmallInt
+  lastVoted      DateTime?      @db.Timestamptz(6)
+  isAnonymous    Boolean        @default(false)
+  user_avatar    String?
+  AnonymousChats AnonymousChats @relation(fields: [chat_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_anonymous_chat_messages_room")
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model AnonymousChats {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String?
+  avatar_url            String?
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime?               @default(now()) @db.Timestamptz(6)
+  AnonymousChatMembers  AnonymousChatMembers[]
+  AnonymousChatMessages AnonymousChatMessages[]
+  DailyPolls            DailyPolls?
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model DailyPolls {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question       String
+  option1        String
+  option2        String
+  option3        String
+  option4        String
+  created_by     String?         @db.Uuid
+  created_at     DateTime?       @default(now()) @db.Timestamptz(6)
+  last_voted     DateTime?       @db.Timestamptz(6)
+  USERS          users?          @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  AnonymousChats AnonymousChats  @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  UserPollVotes  UserPollVotes[]
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model StandardChatMembers {
+  chat_id       String        @db.Uuid
+  user_id       String        @db.Uuid
+  joined_at     DateTime      @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  last_read_at  DateTime      @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  StandardChats StandardChats @relation(fields: [chat_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "chat_members_chat_id_fkey")
+  USERS         users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "chat_members_user_id_fkey")
+
+  @@id([chat_id, user_id], map: "chat_members_pkey")
   @@index([user_id, chat_id, last_read_at], map: "idx_chat_members_user_lookup")
   @@schema("public")
 }
 
-model chats {
-  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  type         String         @default("dm") @db.VarChar(50)
-  name         String?        @db.VarChar(255)
-  avatar_url   String?
-  created_by   String?        @db.Uuid
-  created_at   DateTime       @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
-  updated_at   DateTime       @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
-  chat_members chat_members[]
-  users        users?         @relation(fields: [created_by], references: [id], onUpdate: NoAction)
-  messages     messages[]
-
-  @@schema("public")
-}
-
-model messages {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  chat_id      String   @db.Uuid
-  sender_id    String   @db.Uuid
-  message_type String   @default("text") @db.VarChar(15)
-  content      String
-  is_edited    Boolean  @default(false)
-  created_at   DateTime @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
-  status       String   @default("sent") @db.VarChar(20)
-  chats        chats    @relation(fields: [chat_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users        users    @relation(fields: [sender_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model StandardChatMessages {
+  id            String        @id(map: "messages_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chat_id       String        @db.Uuid
+  sender_id     String        @db.Uuid
+  message_type  String        @default("text") @db.VarChar(15)
+  content       String
+  is_edited     Boolean       @default(false)
+  created_at    DateTime      @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  status        String        @default("sent") @db.VarChar(20)
+  user_avatar   String?
+  StandardChats StandardChats @relation(fields: [chat_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "messages_chat_id_fkey")
+  USERS         users         @relation(fields: [sender_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_sender_id_fkey")
 
   @@index([chat_id, created_at(sort: Desc), sender_id, message_type, content, is_edited, status], map: "idx_messages_stream_perf")
   @@schema("public")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model Add_Friend_Requests {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sender_id         String    @db.Uuid
-  receiver_id       String    @db.Uuid
-  created_at        DateTime  @default(now()) @db.Timestamptz(6)
-  status            String    @default("pending")
-  updated_at        DateTime? @db.Timestamptz(6)
-  sender_user_tag   String
-  receiver_user_tag String
-  receiver          users     @relation("receivedRequests", fields: [receiver_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  sender            users     @relation("sentRequests", fields: [sender_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+model StandardChats {
+  id                   String                 @id(map: "chats_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type                 String                 @default("dm") @db.VarChar(50)
+  name                 String?                @db.VarChar(255)
+  avatar_url           String?
+  created_by           String?                @db.Uuid
+  created_at           DateTime               @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at           DateTime               @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  StandardChatMembers  StandardChatMembers[]
+  StandardChatMessages StandardChatMessages[]
+  USERS                users?                 @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "chats_created_by_fkey")
 
   @@schema("public")
 }
 
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model Notifications {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  created_at       DateTime  @default(now()) @db.Timestamptz(6)
-  receiver_user_id String    @db.Uuid
-  sender_user_id   String    @db.Uuid
-  type             String    @default("")
-  content          String?
-  read_at          DateTime? @db.Timestamptz(6)
-  entity_id        String    @db.Uuid
+model UserPollVotes {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  poll_id        String?     @db.Uuid
+  voter_id       String?     @db.Uuid
+  optionSelected Int         @db.SmallInt
+  created_at     DateTime?   @default(now()) @db.Timestamptz(6)
+  DailyPolls     DailyPolls? @relation(fields: [poll_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  USERS          users?      @relation(fields: [voter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@unique([poll_id, voter_id], map: "unique_voter_per_poll")
   @@schema("public")
 }
 
@@ -122,30 +213,31 @@ model audit_log_entries {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model custom_oauth_providers {
-  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  provider_type         String
-  identifier            String    @unique
-  name                  String
-  client_id             String
-  client_secret         String
-  acceptable_client_ids String[]  @default([])
-  scopes                String[]  @default([])
-  pkce_enabled          Boolean   @default(true)
-  attribute_mapping     Json      @default("{}")
-  authorization_params  Json      @default("{}")
-  enabled               Boolean   @default(true)
-  email_optional        Boolean   @default(false)
-  issuer                String?
-  discovery_url         String?
-  skip_nonce_check      Boolean   @default(false)
-  cached_discovery      Json?
-  discovery_cached_at   DateTime? @db.Timestamptz(6)
-  authorization_url     String?
-  token_url             String?
-  userinfo_url          String?
-  jwks_uri              String?
-  created_at            DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime  @default(now()) @db.Timestamptz(6)
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider_type           String
+  identifier              String    @unique
+  name                    String
+  client_id               String
+  client_secret           String
+  acceptable_client_ids   String[]  @default([])
+  scopes                  String[]  @default([])
+  pkce_enabled            Boolean   @default(true)
+  attribute_mapping       Json      @default("{}")
+  authorization_params    Json      @default("{}")
+  enabled                 Boolean   @default(true)
+  email_optional          Boolean   @default(false)
+  issuer                  String?
+  discovery_url           String?
+  skip_nonce_check        Boolean   @default(false)
+  cached_discovery        Json?
+  discovery_cached_at     DateTime? @db.Timestamptz(6)
+  authorization_url       String?
+  token_url               String?
+  userinfo_url            String?
+  jwks_uri                String?
+  created_at              DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime  @default(now()) @db.Timestamptz(6)
+  custom_claims_allowlist String[]  @default([])
 
   @@index([created_at])
   @@index([enabled])
@@ -263,8 +355,8 @@ model mfa_factors {
   mfa_challenges               mfa_challenges[]
   users                        auth_users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([friendly_name, user_id], map: "mfa_factors_user_friendly_name_unique", where: raw("(TRIM(BOTH FROM friendly_name) <> ''::text)"))
   @@unique([user_id, phone], map: "unique_phone_factor_per_user")
+  @@unique([friendly_name, user_id], map: "mfa_factors_user_friendly_name_unique", where: raw("(TRIM(BOTH FROM friendly_name) <> ''::text)"))
   @@index([user_id, created_at], map: "factor_id_created_at_idx")
   @@index([user_id])
   @@schema("auth")
@@ -342,9 +434,9 @@ model oauth_consents {
   users         auth_users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([user_id, client_id], map: "oauth_consents_user_client_unique")
+  @@index([user_id, granted_at(sort: Desc)], map: "oauth_consents_user_order_idx")
   @@index([client_id], map: "oauth_consents_active_client_idx", where: raw("(revoked_at IS NULL)"))
   @@index([user_id, client_id], map: "oauth_consents_active_user_client_idx", where: raw("(revoked_at IS NULL)"))
-  @@index([user_id, granted_at(sort: Desc)], map: "oauth_consents_user_order_idx")
   @@schema("auth")
 }
 
@@ -594,6 +686,18 @@ model webauthn_credentials {
 
   @@index([user_id])
   @@schema("auth")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model AnonymousChatMessagesUserVotes {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  mesage_id  String   @db.Uuid
+  type       String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id, mesage_id, type], map: "idx_anonymous_votes_user_message_type")
+  @@schema("public")
 }
 
 enum aal_level {
