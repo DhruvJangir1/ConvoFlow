@@ -4,7 +4,9 @@ import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../store/store";
 import { setUnreadNotifCount, resetUnreadNotif } from "../store/userAuthSlice";
 import ProfileModal from "../modals/ProfileModal";
+import ViewSidebarIcon from '@mui/icons-material/ViewSidebar';
 import ChatIcon from '@mui/icons-material/Chat';
+import LanguageIcon from '@mui/icons-material/Language';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import PersonOutlined from "@mui/icons-material/PersonOutlined";
 
@@ -15,6 +17,7 @@ export default function Sidebar() {
   const user = useSelector((s: RootState) => s.userAuth.user);
   const unreadCount = useSelector((s: RootState) => s.userAuth.unreadNotifCount);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const refreshUnread = useCallback(() => {
     if (!user || location.pathname === '/notification') return;
@@ -43,51 +46,78 @@ export default function Sidebar() {
     }
   }, [location.pathname, dispatch]);
 
-  const isActive = (path: string) =>
-    path === "/home" || path === "/chat"
-      ? location.pathname === "/home" || location.pathname.startsWith("/chat")
-      : location.pathname === path;
+  const isActive = (path: string) => {
+    if (path === "/home" || path === "/chat") {
+      return location.pathname === "/home" || location.pathname.startsWith("/chat");
+    }
+    if (path === "/communities" || path === "/anonymous") {
+      return location.pathname === "/communities" || location.pathname.startsWith("/anonymous");
+    }
+    return location.pathname === path;
+  };
 
   const btnClass = (active: boolean) =>
-    `flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+    `cursor-pointer flex items-center gap-3 rounded-lg transition-colors ${
+      expanded ? "w-full px-3 py-2" : "h-8 w-8 justify-center"
+    } ${
       active
         ? "bg-surface-hover text-text-primary"
         : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
     }`;
 
   return (
-    <aside className="flex w-12 shrink-0 flex-col items-center border-r border-border bg-surface-elevated py-3">
+    <aside className={`flex shrink-0 flex-col border-r border-border bg-surface-elevated py-3 transition-all duration-200 ${
+      expanded ? "w-44 px-2 items-start" : "w-12 items-center"
+    }`}>
+      <button
+        onClick={() => setExpanded((p) => !p)}
+        className={btnClass(false)}
+        aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+      >
+        <ViewSidebarIcon fontSize="small" />
+        {expanded && <span className="text-sm whitespace-nowrap">Collapse</span>}
+      </button>
+
       <button
         onClick={() => navigate("/home")}
-        style={{cursor:'pointer'}}
         className={btnClass(isActive("/home"))}
         aria-label="Chats"
       >
         <ChatIcon fontSize="small" />
+        {expanded && <span className="text-sm whitespace-nowrap">Chats</span>}
+      </button>
+
+      <button
+        onClick={() => navigate("/communities")}
+        className={btnClass(isActive("/communities"))}
+        aria-label="Communities"
+      >
+        <LanguageIcon fontSize="small" />
+        {expanded && <span className="text-sm whitespace-nowrap">Communities</span>}
       </button>
 
       <button
         onClick={() => navigate("/notification")}
-        style={{cursor:'pointer'}}
         className={`relative ${btnClass(isActive("/notification"))}`}
         aria-label="Notifications"
       >
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-2 w-2">
+          <span className={`${expanded ? "" : "absolute -right-0.5 -top-0.5"} flex h-2 w-2`}>
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-yellow-400" />
           </span>
         )}
-        <NotificationsIcon style={{cursor:"pointer"}}/>
+        <NotificationsIcon fontSize="small" />
+        {expanded && <span className="text-sm whitespace-nowrap">Notifications</span>}
       </button>
 
       <button
         onClick={() => setTimeout(() => setProfileOpen(true), 300)}
-        style={{cursor:'pointer'}}
         className={`mt-auto ${btnClass(false)}`}
         aria-label="Profile"
       >
         <PersonOutlined fontSize="small" />
+        {expanded && <span className="text-sm whitespace-nowrap">Profile</span>}
       </button>
 
       <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
