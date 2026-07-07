@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { broadcastToRoom } from '../../ws/websocket.js';
 import { upvote, downvote } from '../services/userMessageVote.js';
+import { escapeHtml } from '../util/sanitize.js';
 
 const AnonymousChatRouter = Router();
 
@@ -149,10 +150,12 @@ AnonymousChatRouter.post('/:id/messages/:userId/:isAnonymous', authenticate, asy
   }
 
   try {
+    const sanitizedContent = escapeHtml(content.trim());
+
     const message = await prisma.anonymousChatMessages.create({
       data: {
         chat_id: chatId,
-        content: content.trim(),
+        content: sanitizedContent,
         sender_id: userId,
         isAnonymous: isAnon,
       },
@@ -215,10 +218,17 @@ AnonymousChatRouter.patch('/:id/messages/:messageId', authenticate, async (req: 
       return;
     }
 
+    if (existing.sender_id !== req.user!.id) {
+      res.status(403).json({ error: 'Not authorized to edit this message' });
+      return;
+    }
+
+    const sanitizedContent = escapeHtml(content.trim());
+
     const updated = await prisma.anonymousChatMessages.update({
       where: { id: messageId },
       data: {
-        content: content.trim(),
+        content: sanitizedContent,
         is_edited: true,
       },
     });
@@ -246,6 +256,11 @@ AnonymousChatRouter.delete('/:id/messages/:messageId', authenticate, async (req:
 
     if (existing.chat_id !== chatId) {
       res.status(400).json({ error: 'Message does not belong to this room' });
+      return;
+    }
+
+    if (existing.sender_id !== req.user!.id) {
+      res.status(403).json({ error: 'Not authorized to delete this message' });
       return;
     }
 
