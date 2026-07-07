@@ -12,7 +12,7 @@ Real-time messaging platform with end-to-end authentication, WebSocket-based ins
 | **Auth** | Supabase Auth (admin API), bcrypt, JWT, httpOnly cookies |
 | **Real-time** | ws (WebSocket server with room-based pub/sub) |
 | **Email** | Resend (verification codes, notifications) |
-| **Cache** | Redis (optional, for scaling) |
+| **Cache** | Redis (rate limiting, refresh token replay detection, optional for scaling) |
 | **Monitoring** | Prometheus client metrics |
 
 ## Features
@@ -22,7 +22,7 @@ Real-time messaging platform with end-to-end authentication, WebSocket-based ins
 - **Friends** — Send/accept/decline friend requests by user tag, friend list
 - **Notifications** — Real-time notifications for friend requests via WebSocket
 - **Profile** — Avatar with initials fallback, account details, stats (chats, messages)
-- **Security** — Helmet (CSP, HSTS, frameguard), CSRF origin validation, rate limiting, httpOnly cookies
+- **Security** — Helmet (CSP, HSTS, frameguard), CSRF origin validation, rate limiting, httpOnly cookies, refresh token replay detection, HTML sanitization, chat membership authorization
 
 ## Prerequisites
 
@@ -48,6 +48,7 @@ RESEND_API_KEY=re_your-api-key
 
 # Optional
 REDIS_URL=redis://localhost:6379
+REDIS_PASSWORD=your-redis-password
 PORT=3000
 CORS_ORIGIN=http://localhost:5173
 ```
@@ -90,7 +91,7 @@ Frontend runs on `http://localhost:5173`, backend on `http://localhost:3000`.
 │   │   ├── services/          # Auth, email, rate limiter, verification store
 │   │   ├── middleware/        # Authenticate, origin validation
 │   │   ├── types/             # TypeScript interfaces
-│   │   ├── util/              # Constants, helpers
+│   │   ├── util/              # Constants, sanitization helpers
 │   │   ├── lib/               # DB pool, Prometheus metrics
 │   │   ├── supabase/          # Supabase admin client
 │   │   └── chat/              # Chat routes
