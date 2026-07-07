@@ -1,39 +1,19 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useQueryClient } from '@tanstack/react-query';
 import { setConnected, incrementUnreadNotif } from '../store/userAuthSlice';
 import { setOnlineUsers, addOnlineUser, removeOnlineUser, addChat } from '../store/chatSlice';
+import { chatKeys, notifKeys } from '../lib/queryKeys';
 import type { RootState } from '../store/store';
+import type { Chat, ChatMessages, Notification } from '../types/chat';
+import type { MessagesResponse } from '../hooks/useChatMessagesQuery';
+import type { WSMessage } from '../types/WsMessageNotification';
 
-interface NotificationPayload {
-  id: string;
-  created_at: string;
-  receiver_user_id: string;
-  sender_user_id: string;
-  type: string;
-  content: string | null;
-  read_at: string | null;
-  entity_id: string;
-}
-
-type WSMessage =
-  | { type: 'message:new'; payload: { id: string; chatId: string; senderId: string; senderName: string; senderImage: string | null; content: string; createdAt: string } }
-  | { type: 'message:ack'; payload: { id: string; tempId?: string } }
-  | { type: 'typing:update'; payload: { chatId: string; userId: string; isTyping: boolean } }
-  | { type: 'subscribed'; payload: { chatIds: string[] } }
-  | { type: 'unsubscribed'; payload: { chatIds: string[] } }
-  | { type: 'user:online'; payload: { chatId: string; userId: string } }
-  | { type: 'user:offline'; payload: { chatId: string; userId: string } }
-  | { type: 'chat:online-users'; payload: { chatId: string; userIds: string[] } }
-  | { type: 'notification:new'; payload: NotificationPayload }
-  | { type: 'chat:new'; payload: { chat: { id: string; name: string; avatar_url: string | null; lastMessage: string; timestamp: number; unread: number; type: string; messageCount: number; members: { id: string; user_name: string; image_url: string | null }[] } } }
-  | { type: 'error'; payload: { message: string } };
-  
-  interface WebSocketContextValue {
+interface WebSocketContextValue {
   socket: WebSocket | null;
   send: (type: string, payload: object) => void;
   subscribeToChats: (chatIds: string[]) => void;
-  unsubscribeFromChats: (chatIds: string[]) => void;
   onMessage: (handler: (msg: WSMessage) => void) => () => void;
 }
 
@@ -45,12 +25,14 @@ const RECONNECT_DELAY_MS = 2000;
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const dispatch = useDispatch();
+  const queryClient = useQueryClient();
   const user = useSelector((s: RootState) => s.userAuth.user);
   
   const messageHandlers = useRef<Set<(msg: WSMessage) => void>>(new Set());
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChatsRef = useRef<Set<string>>(new Set());
+  const connectRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   const cleanup = useCallback(() => {
     if (reconnectTimer.current) {
@@ -69,9 +51,26 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     dispatch(setConnected(false));
   }, [dispatch]);
 
-  const connect = useCallback(async () => {
 
+    const subscribeToChats = useCallback((chatIds: string[]) => {
+    for (const id of chatIds) subscribedChatsRef.current.add(id);
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'subscribe', payload: { chatIds } }));
+    } else {
+      const interval = setInterval(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ type: 'subscribe', payload: { chatIds } }));
+          clearInterval(interval);
+        }
+      }, 100);
+      setTimeout(() => clearInterval(interval), 10_000);
+    }
+  }, []);
+
+
+  const connect = useCallback(async () => {
     if (!user) return;
+    cleanup();
 
     try {
       console.log('[WS] Fetching ticket from', TICKET_ENDPOINT);
@@ -92,23 +91,53 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
       };
 
+      const handlers: Record<string, (payload: any) => void> = {
+        'chat:online-users': (payload) => dispatch(setOnlineUsers(payload)),
+        'user:online': (payload) => dispatch(addOnlineUser(payload)),
+        'user:offline': (payload) => dispatch(removeOnlineUser(payload)),
+
+        'notification:new': (payload) => {
+          dispatch(incrementUnreadNotif());
+          queryClient.setQueryData<Notification[]>(notifKeys.lists(), (old) =>
+            old ? [payload, ...old.filter((n) => n.id !== payload.id)] : [payload],
+          );
+        },
+
+        'chat:new': (payload) => {
+          const newChatId = payload.chat.id;
+          dispatch(addChat(payload.chat));
+          queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) =>
+            old ? [payload.chat, ...old.filter((c) => c.id !== newChatId)] : [payload.chat],
+          );
+          subscribeToChats([newChatId]);
+        },
+
+        'message:new': (payload) => {
+          const { chatId, ...rest } = payload;
+          queryClient.setQueryData<MessagesResponse>(chatKeys.messages(chatId), (old) => {
+            const entry: ChatMessages = {
+              ...rest,
+              isOwn: rest.senderId === user?.id,
+              senderImage: rest.senderImage ?? null,
+            };
+            if (!old) return { messages: [entry], hasMore: false };
+            if (old.messages.some((m) => m.id === entry.id)) return old;
+            return { ...old, messages: [...old.messages, entry] };
+          });
+          queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) =>
+            old?.map((chat) =>
+              chat.id === chatId
+                ? { ...chat, lastMessage: rest.content, timestamp: new Date(rest.createdAt).getTime() }
+                : chat,
+            ),
+          );
+        },
+      };
+
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data) as WSMessage;
-          // Update online users state
-          if (msg.type === 'chat:online-users') {
-            dispatch(setOnlineUsers(msg.payload));
-          } else if (msg.type === 'user:online') {
-            dispatch(addOnlineUser(msg.payload));
-          } else if (msg.type === 'user:offline') {
-            dispatch(removeOnlineUser(msg.payload));
-          } else if (msg.type === 'notification:new') {
-            console.log('[WS] notification:new received');
-            dispatch(incrementUnreadNotif());
-          } else if (msg.type === 'chat:new') {
-            console.log('[WS] chat:new received');
-            dispatch(addChat(msg.payload.chat));
-          }
+          handlers[msg.type]?.(msg.payload);
           messageHandlers.current.forEach((handler) => handler(msg));
         } catch {
           /* ignore malformed */
@@ -117,30 +146,27 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
       ws.onclose = () => {
         dispatch(setConnected(false));
-        if (user) {
-          reconnectTimer.current = setTimeout(cleanup, RECONNECT_DELAY_MS);
-        }
+        reconnectTimer.current = setTimeout(() => connectRef.current(), RECONNECT_DELAY_MS);
       };
 
       ws.onerror = () => {
         ws.close();
       };
     } catch {
-      if (user) {
-        reconnectTimer.current = setTimeout(cleanup, RECONNECT_DELAY_MS);
-      }
+      reconnectTimer.current = setTimeout(() => connectRef.current(), RECONNECT_DELAY_MS);
     }
-  }, [user, cleanup, dispatch]);
+  }, [user, cleanup, dispatch, queryClient, subscribeToChats]);
+
+  connectRef.current = connect;
 
   useEffect(() => {
     if (user) {
       connect();
-    } 
-    else {
+    } else {
       cleanup();
     }
-    return cleanup;
-  }, [user, connect, cleanup]);
+    return () => cleanup();
+  }, [cleanup, connect, user]);
 
   const send = useCallback((type: string, payload: object) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -148,15 +174,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const subscribeToChats = useCallback((chatIds: string[]) => {
-    for (const id of chatIds) subscribedChatsRef.current.add(id);
-    send('subscribe', { chatIds });
-  }, [send]);
-
-  const unsubscribeFromChats = useCallback((chatIds: string[]) => {
-    for (const id of chatIds) subscribedChatsRef.current.delete(id);
-    send('unsubscribe', { chatIds });
-  }, [send]);
+  // const unsubscribeFromChats = useCallback((chatIds: string[]) => {
+  //   for (const id of chatIds) subscribedChatsRef.current.delete(id);
+  //   send('unsubscribe', { chatIds });
+  // }, [send]);
 
   const onMessage = useCallback((handler: (msg: WSMessage) => void) => {
     messageHandlers.current.add(handler);
@@ -165,7 +186,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
   return (
     // eslint-disable-next-line react-hooks/refs
-    <WebSocketContext.Provider value={{ socket: wsRef.current, send, subscribeToChats, unsubscribeFromChats, onMessage }}>
+    <WebSocketContext.Provider value={{ socket: wsRef.current, send, subscribeToChats, onMessage }}>
       {children}
     </WebSocketContext.Provider>
   );

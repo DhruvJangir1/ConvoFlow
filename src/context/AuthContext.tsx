@@ -19,15 +19,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSession = useCallback(async () => {
     setLoading(true);
     try {
-      console.log('About to fetch sessions')
       const res = await fetch('/api/auth/TokenVerificaitonRouter/session', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
-        console.log(data)
         dispatch(setUser(data.user));
       } else {
         dispatch(setUser(null));
-        console.log('user is null')
       }
     } catch {
       dispatch(setUser(null));
