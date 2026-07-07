@@ -3,7 +3,6 @@ import pg from 'pg';
 
 const { Client } = pg;
 
-
 const supabaseUrl =  process.env.SUPA_BASE_URL 
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 const databaseUrl = process.env.DIRECT_URL
