@@ -19,9 +19,7 @@ export const COOKIE_OPTIONS = {
 };
 
 
-export const AUTH_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
-export const AUTH_MAX_ATTEMPTS = 10;
-export const AUTH_MAX_KEYS = 5000; // cap map size to avoid memory OOM
+// Rate-limit constants moved to services/rateLimiter.ts (Redis-backed, 1‑min window, 10 max, 5‑min block)
 export const VERIFICATION_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 
