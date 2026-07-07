@@ -3,9 +3,10 @@ import pg from 'pg';
 
 const { Client } = pg;
 
-const supabaseUrl = 'https://fvrbxglgvllfrcblqtum.supabase.co';
-const serviceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ2cmJ4Z2xndmxsZnJjYmxxdHVtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDUxNDg3NywiZXhwIjoyMDk2MDkwODc3fQ.e1KtVLj0jFJ6M8OPf5EdabXQwdIKmIrEz_u2aSsTbOw';
-const databaseUrl = 'postgresql://postgres.fvrbxglgvllfrcblqtum:d%40%5B%3E%2FPx%2Am%25xJkle%2A%2124ctEr@aws-1-us-east-2.pooler.supabase.com:5432/postgres';
+
+const supabaseUrl =  process.env.SUPA_BASE_URL 
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const databaseUrl = process.env.DIRECT_URL
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
