@@ -5,6 +5,15 @@ import { refreshUserAccessToken } from '../services/auth.js';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { broadcastToRoom } from '../../ws/websocket.js';
 import { findDmChat, createDmChat } from '../services/dmChat.js';
+import { escapeHtml } from '../util/sanitize.js';
+
+async function requireChatMembership(userId: string, chatId: string): Promise<boolean> {
+  const membership = await prisma.standardChatMembers.findUnique({
+    where: { chat_id_user_id: { chat_id: chatId, user_id: userId } },
+    select: { user_id: true },
+  });
+  return membership !== null;
+}
 
 const ChatRouter = Router();
 
@@ -139,6 +148,11 @@ ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
 
   console.log(`[chat:GET /:chatId/messages] fetching messages for chat ${chatId} by user ${userId}${before ? ` before ${before}` : ''}`);
 
+  if (!userId || !await requireChatMembership(userId, chatId)) {
+    res.status(403).json({ error: 'Not a member of this chat' });
+    return;
+  }
+
   const limit = 20;
 
   try {
@@ -200,12 +214,19 @@ ChatRouter.post('/:chatId/:userId/appendMessage', authenticate, async (req: Requ
     return;
   }
 
+  if (!await requireChatMembership(userId, chatId)) {
+    res.status(403).json({ error: 'Not a member of this chat' });
+    return;
+  }
+
   try {
+    const sanitizedContent = escapeHtml(content);
+
     const newMessage = await prisma.standardChatMessages.create({
       data: {
         chat_id: chatId,
         sender_id: userId,
-        content,
+        content: sanitizedContent,
       },
     });
 
@@ -236,10 +257,6 @@ ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (re
     }
   }
 
-  if (!req.params.userId){
-    res.status(400).json({error:'UserId is required'});
-    return;
-  }
   if (!req.params.chatId){
     res.status(400).json({error:'ChatId is required'});
     return;
@@ -251,7 +268,7 @@ ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (re
 
   const chatId = req.params.chatId as string;
   const messageId = req.params.messageId as string;
-  const userId = req.params.userId;
+  const userId = req.user.id;
   const { content } = req.body as { content?: string };
 
   console.log(`[chat:PATCH /:chatId/messages/:messageId] user ${userId} updating message ${messageId} in chat ${chatId}`);
@@ -259,6 +276,11 @@ ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (re
   if (!content || typeof content !== 'string') {
     console.log(`[chat:PATCH /:chatId/messages/:messageId] validation failed: content missing or invalid`);
     res.status(400).json({ error: 'content is required and must be a string' });
+    return;
+  }
+
+  if (!await requireChatMembership(userId, chatId)) {
+    res.status(403).json({ error: 'Not a member of this chat' });
     return;
   }
 
@@ -279,10 +301,12 @@ ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (re
       return;
     }
 
+    const sanitizedContent = escapeHtml(content);
+
     const updated = await prisma.standardChatMessages.update({
       where: { id: messageId },
       data: {
-        content,
+        content: sanitizedContent,
         is_edited: true,
       },
       include: {
@@ -315,10 +339,6 @@ ChatRouter.delete('/:chatId/messages/:messageId/:userId', authenticate, async (r
     }
   }
 
-  if (!req.params.userId){
-    res.status(400).json({error:'UserId is required'});
-    return;
-  }
   if (!req.params.chatId){
     res.status(400).json({error:'ChatId is required'});
     return;
@@ -330,9 +350,14 @@ ChatRouter.delete('/:chatId/messages/:messageId/:userId', authenticate, async (r
   
   const chatId = req.params.chatId as string;
   const messageId = req.params.messageId as string;
-  const userId = req.params.userId;
+  const userId = req.user.id;
 
   console.log(`[chat:DELETE /:chatId/messages/:messageId] user ${userId} deleting message ${messageId} in chat ${chatId}`);
+
+  if (!await requireChatMembership(userId, chatId)) {
+    res.status(403).json({ error: 'Not a member of this chat' });
+    return;
+  }
 
   try {
     const existing = await prisma.standardChatMessages.findUnique({
