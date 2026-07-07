@@ -399,7 +399,7 @@ export function setupWebSocket(): WebSocketServer {
     console.log(`[ws:setup] === CONNECTION FULLY ESTABLISHED for ${ws.userName} (${userId}) ===`);
   });
 
-  server.listen(WS_PORT, () => {
+  server.listen(WS_PORT, '0.0.0.0', () => {
     console.log(`[ws:setup] ===== WS SERVER LISTENING on ws://localhost:${WS_PORT}/ws =====`);
   });
 

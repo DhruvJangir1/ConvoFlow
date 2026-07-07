@@ -191,7 +191,7 @@ console.log('[server.js] about to start the server');
 (async () => {
   await connectRedis();
   setupWebSocket();
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`[server] CORS origin: ${corsOrigin}`);
     console.log(`[server] Environment: ${process.env.NODE_ENV || 'development'}`);
