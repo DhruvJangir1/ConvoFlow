@@ -6,8 +6,19 @@ import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../store/store";
 import { resetUnreadNotif } from "../store/userAuthSlice";
 import { addChat } from "../store/chatSlice";
-import AcceptLoadingModal from "../modals/AcceptLoadingModal";
+import { useNotificationsQuery } from "../hooks/useNotificationsQuery";
+import {
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+  useDeclineFriendRequest,
+  useAcceptFriendRequest,
+} from "../hooks/useNotificationMutations";
+import AddFriendModal from "../modals/AddFriendModal";
 import type { Notification } from "../types/chat";
+import type { Chat } from "../types/chat";
+import { useQueryClient } from "@tanstack/react-query";
+import { chatKeys } from "../lib/queryKeys";
+import { useWebSocket } from "../context/WebSocketContext";
 
 const typeConfig: Record<string, { icon: typeof Bell; color: string; bg: string }> = {
   friend_request: {
@@ -41,11 +52,18 @@ function relativeTime(dateStr: string): string {
 export default function NotificationsPage() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const queryClient = useQueryClient();
   const user = useSelector((s: RootState) => s.userAuth.user);
+  const { data: notifData, isLoading: notifLoading } = useNotificationsQuery();
+  const markReadMutation = useMarkNotificationRead();
+  const markAllReadMutation = useMarkAllNotificationsRead();
+  const declineMutation = useDeclineFriendRequest();
+  const acceptMutation = useAcceptFriendRequest();
+  const { subscribeToChats } = useWebSocket();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [acceptLoading, setAcceptLoading] = useState(false);
+  const [acceptSenderName, setAcceptSenderName] = useState("");
 
     function removeNotification(id: string) {
     setNotifications(prev => prev.filter(x => x.id !== id));
@@ -55,108 +73,115 @@ export default function NotificationsPage() {
     dispatch(resetUnreadNotif());
   }, [dispatch]);
 
+  // Seed local state from TanStack cache
   useEffect(() => {
-    if (!user) return;
-    setLoading(true);
-    fetch('/api/notifications', { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => setNotifications(data.notifications ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [user]);
+    if (notifData) {
+      setNotifications(notifData);
+    }
+  }, [notifData]);
 
   const markAsRead = useCallback((id: string) => {
-    fetch(`/api/notifications/${id}/read`, {
-      method: 'PATCH',
-      credentials: 'include',
-    }).catch(() => {});
+    markReadMutation.mutate(id);
     setNotifications(prev =>
       prev.map(n => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n))
     );
-  }, []);
+  }, [markReadMutation]);
 
   const markAllAsRead = useCallback(() => {
-    fetch('/api/notifications/read-all', {
-      method: 'PATCH',
-      credentials: 'include',
-    }).catch(() => {});
+    markAllReadMutation.mutate();
     setNotifications(prev =>
       prev.map(n => ({ ...n, read_at: n.read_at ?? new Date().toISOString() }))
     );
     dispatch(resetUnreadNotif());
-  }, [dispatch]);
+  }, [markAllReadMutation, dispatch]);
 
   const handleDecline = useCallback(async (notification: Notification) => {
     setActionLoading(notification.id);
-    try {
-      const res = await fetch(`/api/friends/${notification.entity_id}/decline`, {
-        method: 'PATCH',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Request failed' }));
-        console.error('[NotificationsPage] Decline failed:', err.error);
-        return;
-      }
-      removeNotification(notification.id);
-    } catch (err) {
-      console.error('[NotificationsPage] Decline error:', err);
-    } finally {
-      setActionLoading(null);
-    }
-  }, []);
+    declineMutation.mutate(notification.entity_id, {
+      onError: (err) => {
+        console.error('[NotificationsPage] Decline failed:', err);
+      },
+      onSettled: () => {
+        removeNotification(notification.id);
+        setActionLoading(null);
+      },
+    });
+  }, [declineMutation]);
 
   const handleAccept = useCallback(async (notification: Notification) => {
+    const senderName = notification.content?.replace(' sent you a friend request', '') ?? 'Friend';
+    setAcceptSenderName(senderName);
     setAcceptLoading(true);
-    try {
-      const res = await fetch(`/api/friends/accept`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notification }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Request failed' }));
-        console.error('[NotificationsPage] Accept failed:', err.error);
-        return;
-      }
-      const data = await res.json();
-      markAsRead(notification.id);
-      removeNotification(notification.id);
-      dispatch(addChat({
-        id: data.chat.id,
-        name: data.chat.name ?? data.senderName ?? 'Unknown',
-        avatar_url: data.chat.avatar_url ?? null,
-        lastMessage: '',
-        timestamp: Date.now(),
-        unread: 0,
-        type: 'dm',
-        messageCount: 0,
-        members: [{
-          id: notification.sender_user_id,
-          user_name: data.senderName ?? 'Unknown',
-          image_url: null,
-        }],
-      }));
-
-      if (data.chat.id) {
-        navigate(`/chat/${data.chat.id}`);
-      }
-      
-    } catch (err) {
-      console.error('[NotificationsPage] Accept error:', err);
-    } finally {
-      setAcceptLoading(false);
-      setActionLoading(null);
-    }
-  }, [navigate, markAsRead, dispatch]);
+    acceptMutation.mutate(notification, {
+      onSuccess: (data) => {
+        console.log('[NotificationsPage] Accept mutation onSuccess fired, data:', data);
+        try {
+          removeNotification(notification.id);
+          const chatId = data.chat?.id;
+          if (!chatId) {
+            console.error('[NotificationsPage] Accept succeeded but no chat ID returned');
+            setAcceptLoading(false);
+            setActionLoading(null);
+            return;
+          }
+          console.log('[NotificationsPage] Building newChat for dispatch, chatId:', chatId);
+          const newChat: Chat = {
+            id: chatId,
+            name: data.chat.name ?? data.senderName ?? 'Unknown',
+            avatar_url: data.chat.avatar_url ?? null,
+            lastMessage: '',
+            timestamp: Date.now(),
+            unread: 0,
+            type: 'dm',
+            messageCount: 0,
+            members: [{
+              id: notification.sender_user_id,
+              user_name: data.senderName ?? 'Unknown',
+              image_url: null,
+            }],
+          };
+          console.log('[NotificationsPage] Dispatching addChat to Redux');
+          dispatch(addChat(newChat));
+          console.log('[NotificationsPage] Setting messages cache for chat', chatId);
+          queryClient.setQueryData(chatKeys.messages(chatId), { messages: [], hasMore: false });
+          console.log('[NotificationsPage] Calling subscribeToChats');
+          subscribeToChats([chatId]);
+          console.log('[NotificationsPage] Navigating to /chat/' + chatId);
+          navigate(`/chat/${chatId}`);
+          console.log('[NotificationsPage] Navigation call completed');
+        } catch (err) {
+          console.error('[NotificationsPage] onSuccess error:', err);
+          setAcceptLoading(false);
+          setActionLoading(null);
+        }
+      },
+      onError: (err) => {
+        console.error('[NotificationsPage] Accept error:', err);
+        setAcceptLoading(false);
+        setActionLoading(null);
+      },
+      onSettled: () => {
+        setActionLoading(null);
+      },
+    });
+  }, [acceptMutation, dispatch, queryClient, subscribeToChats, navigate]);
 
   const handleCreateChat = useCallback(async (notification: Notification) => {
-        markAsRead(notification.id);
-    if (notification.entity_id) {
-      navigate(`/chat/${notification.entity_id}`);
+    markAsRead(notification.id);
+    const targetId = notification.entity_id;
+    if (!targetId) return;
+    if (notification.type === 'friend_request_accepted') {
+      const chats = queryClient.getQueryData<Chat[]>(chatKeys.lists());
+      const match = chats?.find(
+        (c) => c.type === 'dm' && c.members?.some((m) => m.id === notification.sender_user_id),
+      );
+      if (match) {
+        navigate(`/chat/${match.id}`);
+        return;
+      }
     }
-  }, [navigate, markAsRead]);
+    navigate(`/chat/${targetId}`);
+  }, [navigate, markAsRead, queryClient]);
 
   const unread = notifications.filter(n => !n.read_at);
   const read = notifications.filter(n => n.read_at);
@@ -252,7 +277,7 @@ export default function NotificationsPage() {
         <div className="relative px-6 py-5">
           <div className="absolute bottom-0 left-10.25 top-0 w-px bg-zinc-800" />
 
-          {loading ? (
+          {notifLoading ? (
             <p className="text-sm text-zinc-500">Loading...</p>
           ) : notifications.length === 0 ? (
             <p className="text-sm text-zinc-500">No notifications yet</p>
@@ -284,7 +309,7 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      <AcceptLoadingModal isOpen={acceptLoading} />
+      <AddFriendModal isOpen={acceptLoading} senderName={acceptSenderName} />
     </div>
   );
 }

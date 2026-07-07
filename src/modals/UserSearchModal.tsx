@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Search, Loader2, MessageCircle, X } from "lucide-react";
+import { chatKeys } from "../lib/queryKeys";
 
 interface UserResult {
   id: string;
@@ -44,6 +46,7 @@ export default function UserSearchModal({ isOpen, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState<string | null>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -95,6 +98,7 @@ export default function UserSearchModal({ isOpen, onClose }: Props) {
       });
       if (!res.ok) throw new Error('Failed to create chat');
       const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: chatKeys.lists() });
       onClose();
       navigate(`/chat/${data.chat.id}`);
     } catch (err) {

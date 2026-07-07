@@ -33,7 +33,10 @@ export type ChatMessages={
   senderName: string,
   senderImage: null | string,
   isEdited?: boolean,
-  reactions?: Reaction[]
+  reactions?: Reaction[],
+  totalUpvotes?: number,
+  userVote?: 'upvote' | 'downvote' | null,
+  isAnonymous?: boolean,
 }
 
 export interface Notification {
@@ -46,3 +49,4 @@ export interface Notification {
   read_at: string | null;
   entity_id: string;
 }
+

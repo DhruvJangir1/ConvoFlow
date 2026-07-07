@@ -9,6 +9,8 @@ import SignUpForm from "./auth/SignUpForm";
 import LandingPage from "./pages/LandingPage";
 import WelcomePage from "./pages/WelcomePage";
 import NotFoundPage from "./pages/NotFoundPage";
+import AnonymousChat from "./pages/AnonymousChat";
+import Communities from "./pages/Communities";
 import ProtectedRoute from "./components/ProtectedRoute";
 import VerificationPage from "./auth/VerificationPage";
 
@@ -29,7 +31,9 @@ export default function App() {
           }
         >
           <Route path="home" element={<Home />} />
+          <Route path="communities" element={<Communities />} />
           <Route path="chat/:chatId" element={<ChatView />} />
+          <Route path="anonymous/:id" element={<AnonymousChat />} />
           <Route path="profile" element={<ProfileView />} />
           <Route path="notification" element={<NotificationsPage />} />
         </Route>

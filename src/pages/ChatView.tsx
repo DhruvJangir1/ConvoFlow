@@ -1,21 +1,26 @@
 import { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
-import { useChats } from "../context/ChatContext";
 import { useWebSocket } from "../context/WebSocketContext";
 import { useParams } from "react-router-dom";
 import ChatHeader from "../components/ChatHeader";
 import MessageList from "../components/MessageList";
 import ChatInput from "../components/ChatInput";
 import ConfirmModal from "../modals/ConfirmModal";
+import { useChatMessagesQuery } from "../hooks/useChatMessagesQuery";
+import {
+  useSendMessageMutation,
+  useEditMessageMutation,
+  useDeleteMessageMutation,
+} from "../hooks/useChatMutations";
 import type { ChatMessages, Reaction } from "../types/chat";
 
-function buildMessage(raw: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; users?: { user_name: string; image_url: string | null } | null }, isOwn: boolean): ChatMessages {
+function buildMessage(raw: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; USERS?: { user_name: string; image_url: string | null } | null }, isOwn: boolean): ChatMessages {
   return {
     id: raw.id,
     senderId: raw.sender_id,
-    senderName: raw.users?.user_name ?? raw.sender_id.slice(0, 8),
-    senderImage: raw.users?.image_url ?? null,
+    senderName: raw.USERS?.user_name ?? raw.sender_id.slice(0, 8),
+    senderImage: raw.USERS?.image_url ?? null,
     content: raw.content,
     createdAt: raw.created_at,
     isOwn,
@@ -36,63 +41,45 @@ export default function ChatView() {
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const user = useSelector((s: RootState) => s.userAuth.user);
   const isConnected = useSelector((s: RootState) => s.userAuth.isConnected);
-  const { refetchChats } = useChats();
   const { chatId } = useParams();
-  const { subscribeToChats, unsubscribeFromChats, send, onMessage } = useWebSocket();
+  const sendMessageMutation = useSendMessageMutation();
+  const editMessageMutation = useEditMessageMutation();
+  const deleteMessageMutation = useDeleteMessageMutation();
+  const { subscribeToChats, send, onMessage } = useWebSocket();
   const prevChatIdRef = useRef<string | null>(null);
 
   const [deleteModalOpen,setDeleteModalOpen] = useState(false);
 
+  const {
+    data: messagesData,
+  } = useChatMessagesQuery(chatId);
+
   // Subscribe/unsubscribe to chat via WebSocket when chatId changes
   useEffect(() => {
     if (!chatId || !user) return;
-
-    if (prevChatIdRef.current && prevChatIdRef.current !== chatId) {
-      unsubscribeFromChats([prevChatIdRef.current]);
-    }
     prevChatIdRef.current = chatId;
-
     subscribeToChats([chatId]);
+  }, [chatId, user, subscribeToChats]);
 
-    return () => {
-      if (chatId) {
-        unsubscribeFromChats([chatId]);
-      }
-    };
-  }, [chatId, user, subscribeToChats, unsubscribeFromChats]);
-
-  // Fetch initial messages via REST
+  // Seed local state from TanStack cache (instant if cached, otherwise after fetch)
   useEffect(() => {
-    if (!chatId || !user) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMessagesLoading(true);
-    setMessages([]);
-    setHasMoreMessages(true);
-    setLoadingMore(false);
-    oldestMessageDateRef.current = null;
-    setStreaming(false);
+    if (!chatId) return;
 
-    fetch(`/api/chats/${chatId}/messages`, { credentials: "include" })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch messages");
-        return res.json();
-      })
-      .then((data) => {
-        const msgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; users?: { user_name: string; image_url: string | null } | null }) =>
-          buildMessage(m, m.sender_id === user.id),
-        );
-        setMessages(msgs);
-        setHasMoreMessages(data.hasMore ?? false);
-        if (msgs.length > 0) {
-          oldestMessageDateRef.current = msgs[0].createdAt;
-        }
-      })
-      .catch((err) => {
-        console.error(`[ChatView] failed to fetch messages for chat ${chatId}:`, err);
-        setMessages([]);
-      })
-      .finally(() => setMessagesLoading(false));
-  }, [chatId, user]);
+    if (messagesData) {
+      setMessages(messagesData.messages);
+      setHasMoreMessages(messagesData.hasMore);
+      setMessagesLoading(false);
+      if (messagesData.messages.length > 0) {
+        oldestMessageDateRef.current = messagesData.messages[0].createdAt;
+      }
+    } else {
+      setMessagesLoading(true);
+      setMessages([]);
+      setHasMoreMessages(true);
+      oldestMessageDateRef.current = null;
+      setStreaming(false);
+    }
+  }, [messagesData, chatId]);
 
   // Listen for real-time messages via WebSocket
   useEffect(() => {
@@ -138,7 +125,7 @@ export default function ChatView() {
       );
       if (!res.ok) throw new Error("Failed to fetch more messages");
       const data = await res.json();
-      const newMsgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; users?: { user_name: string; image_url: string | null } | null }) =>
+      const newMsgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; USERS?: { user_name: string; image_url: string | null } | null }) =>
         buildMessage(m, m.sender_id === user.id),
       );
       setMessages((prev) => [...newMsgs, ...prev]);
@@ -165,43 +152,33 @@ export default function ChatView() {
       createdAt: new Date().toISOString(),
       isOwn: true,
       senderName: user.user_name,
-      senderImage: null,
+      senderImage: user.image_url ?? null,
     };
 
     setMessages((prev) => [...prev, optimistic]);
     setMessageText("");
 
     if (isConnected) {
-      // Send via WebSocket for real-time delivery
       send('message:send', { chatId, content: trimmed, tempId });
     } else {
-      // Fallback to REST if WebSocket is disconnected
-      try {
-        const res = await fetch(`/api/chats/${chatId}/${user.id}/appendMessage`, {
-          method: "POST",
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ content: trimmed, chatId, userId: user.id }),
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: "Failed to send message" }));
-          throw new Error(err.error);
-        }
-
-        const data = await res.json();
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === tempId
-              ? { ...m, id: data.message.id, createdAt: data.message.created_at }
-              : m,
-          ),
-        );
-        refetchChats();
-      } catch (err) {
-        console.error(`[ChatView] error sending message:`, err);
-        setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      }
+      sendMessageMutation.mutate(
+        { chatId, content: trimmed, userId: user.id },
+        {
+          onSuccess: (data) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempId
+                  ? { ...m, id: data.message.id, createdAt: data.message.created_at }
+                  : m,
+              ),
+            );
+          },
+          onError: (err) => {
+            console.error(`[ChatView] error sending message:`, err);
+            setMessages((prev) => prev.filter((m) => m.id !== tempId));
+          },
+        },
+      );
     }
   }
 
@@ -231,31 +208,20 @@ export default function ChatView() {
     setEditingMessageId(null);
     setEditText("");
 
-    try {
-      const res = await fetch(
-        `/api/chats/${chatId}/messages/${editingMessageId}/${user?.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ content: newContent }),
+    editMessageMutation.mutate(
+      { chatId, messageId: editingMessageId, content: newContent, userId: user!.id },
+      {
+        onSuccess: (data) => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === editingMessageId ? buildMessage(data.message, true) : m)),
+          );
         },
-      );
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to update message" }));
-        throw new Error(err.error);
-      }
-
-      const data = await res.json();
-      setMessages((prev) =>
-        prev.map((m) => (m.id === editingMessageId ? buildMessage(data.message, true) : m)),
-      );
-      refetchChats();
-    } catch (err) {
-      console.error(`[ChatView] error updating message ${editingMessageId}:`, err);
-      setMessages(prevMessages);
-    }
+        onError: (err) => {
+          console.error(`[ChatView] error updating message ${editingMessageId}:`, err);
+          setMessages(prevMessages);
+        },
+      },
+    );
   }
 
   function cancelDelete() {
@@ -272,25 +238,15 @@ export default function ChatView() {
     setDeletingMessageId(null);
 
       setDeleteModalOpen(false);
-    try {
-      const res = await fetch(
-        `/api/chats/${chatId}/messages/${msgId}/${user?.id}`,
-        {
-          method: "DELETE",
-          credentials: "include",
+    deleteMessageMutation.mutate(
+      { chatId, messageId: msgId, userId: user!.id },
+      {
+        onError: (err) => {
+          console.error(`[ChatView] error deleting message ${msgId}:`, err);
+          setMessages(prevMessages);
         },
-      );
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to delete message" }));
-        throw new Error(err.error);
-      }
-
-      refetchChats();
-    } catch (err) {
-      console.error(`[ChatView] error deleting message ${msgId}:`, err);
-      setMessages(prevMessages);
-    }
+      },
+    );
 
   }
   

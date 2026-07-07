@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { X, Copy, Check, LogOut, Pencil, Calendar, MessageSquare, Hash, Shield } from "lucide-react";
 import { useSelector } from "react-redux";
+import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import type { RootState } from "../store/store";
 import UserAvatar from "../components/UserAvatar";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSignOut?: () => void;
   onEditProfile?: () => void;
 }
 
@@ -53,7 +54,9 @@ function AccountRow({ label, value, copyable }: { label: string; value: string; 
   );
 }
 
-export default function ProfileModal({ isOpen, onClose, onSignOut, onEditProfile }: Props) {
+export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const user = useSelector((s: RootState) => s.userAuth.user);
   const conversations = useSelector((s: RootState) => s.chat?.chats ?? []);
 
@@ -148,6 +151,7 @@ export default function ProfileModal({ isOpen, onClose, onSignOut, onEditProfile
           </p>
           <div className="divide-y divide-border/50">
             <AccountRow label="Username" value={user.user_name} copyable />
+            <AccountRow label="UserTag" value={user.user_tag} copyable />
             <AccountRow label="Email" value={user.email} copyable />
             <AccountRow label="Member since" value={memberSince} />
             <AccountRow label="Plan" value={plan} />
@@ -164,7 +168,7 @@ export default function ProfileModal({ isOpen, onClose, onSignOut, onEditProfile
             Edit Profile
           </button>
           <button
-            onClick={onSignOut}
+            onClick={async () => { await logout(); navigate('/'); }}
             className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/20"
           >
             <LogOut className="h-3.5 w-3.5" />

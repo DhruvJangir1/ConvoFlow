@@ -88,6 +88,10 @@ export default function AddNewFriendModal({ isOpen, onClose, onSend, sending }: 
             />
           </div>
 
+          <p className="mt-6 text-xs italic leading-relaxed text-text-muted font-medium">
+            Can't find your user tag? Check your profile page. Share your user tag with friends to start connecting!
+          </p>
+
           {status === "success" ? (
             <div className="mt-5 flex items-center gap-2 rounded-lg bg-green-500/10 px-3 py-2.5 text-sm text-green-400">
               <CheckCircle className="h-4 w-4 shrink-0" />
