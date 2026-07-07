@@ -5,7 +5,7 @@
   "type": "module",
 "scripts": {
   "dev": "vite",
-  "start": "npm run build && node backend/server.js",
+  "start": "npm run build && cd backend && npx tsx server.js",
   "build": "npx prisma generate && tsc -b && vite build",
   "preview": "vite preview",
   "lint": "eslint .",
