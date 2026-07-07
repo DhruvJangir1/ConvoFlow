@@ -9,12 +9,11 @@ import { setVerificationCode } from '../services/verificationStore.js';
 import { clearAuthCookies } from '../services/authCookieSessions.js';
 import { createNewSupabaseAuthUser, createNewSupabaseUser } from './supabaseAuth.js';
 import { trackAuthAttempt } from '../services/rateLimiter.js';
-import { UserResponseDTO } from '../../dtos/UserResponseDTO.js';
+import { UserResponseDTO } from '../../dtos/UserResponseDTO.js'
 
 dotenv.config();
 
 const AuthEmailVerificaitonRouter = Router();
-
 
 AuthEmailVerificaitonRouter.post('/check-password', async (req: Request, res: Response): Promise<void> => {
   await checkPassword(req, res);
@@ -51,8 +50,6 @@ AuthEmailVerificaitonRouter.post('/signup', async (req: Request, res: Response):
     res.status(409).json({ error: 'Email already registered' });
     return;
   }
-
-  
 
   let existingName;
   try {
@@ -129,7 +126,7 @@ AuthEmailVerificaitonRouter.post('/login', async (req: Request, res: Response): 
     return;
   }
 
-  if (!trackAuthAttempt(ipAddress)) { // this checks if the amount of requests are less than or = to the max request limit
+  if (!await trackAuthAttempt(ipAddress)) {
       res.status(429).json({ error: 'Too many requests, please try again later' });
       return;
     }
@@ -191,8 +188,6 @@ AuthEmailVerificaitonRouter.post('/login', async (req: Request, res: Response): 
   });
 });
 
-
-
 AuthEmailVerificaitonRouter.post('/logout', async (req: Request, res: Response): Promise<void> => {
   const refreshToken = req.cookies?.refresh_token;
   const refreshSalt = req.cookies?.refresh_salt;
@@ -205,7 +200,7 @@ AuthEmailVerificaitonRouter.post('/logout', async (req: Request, res: Response):
       where: { refresh_token_hash: tokenHash },
       data: {
         refresh_token_hash: null,
-        refresh_token_expiry: null,
+        refresh_token_expiry: null
       },
     });
     console.log(`[/logout] invalidated ${result.count} tokens`);
