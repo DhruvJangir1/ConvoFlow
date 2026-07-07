@@ -116,11 +116,15 @@ interface VoteAnonMessageVars {
 }
 
 async function voteAnonMessageREST({ messageId, type }: VoteAnonMessageVars) {
+  console.log('[/:messageId/upvote] about to upvote voteAnonMessageREST function')
   const res = await fetch(
     `/api/anonymousChats/${messageId}/${type}`,
     { method: 'POST', credentials: 'include' },
   );
+  
   if (!res.ok) throw new Error('Failed to vote');
+
+  console.log('[/:messageId/upvote] voteAnonMessageREST function SUCCESSFUL')
   return res.json();
 }
 

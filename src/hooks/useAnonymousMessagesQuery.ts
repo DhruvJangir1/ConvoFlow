@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
+import type { MutableRefObject } from 'react';
 import type { RootState } from '../store/store';
 import { anonChatKeys } from '../lib/queryKeys';
 import type { ChatMessages } from '../types/chat';
@@ -23,9 +24,9 @@ function buildAnonMessage(
   },
   userId: string,
   userImageUrl: string | null,
-  ownIds: Set<string>,
+  ownIdsRef: MutableRefObject<Set<string>>,
 ): ChatMessages {
-  const isOwn = ownIds.has(m.id) || m.sender_id === userId;
+  const isOwn = ownIdsRef.current.has(m.id) || m.sender_id === userId;
   const isAnon = m.isAnonymous ?? true;
   return {
     id: m.id,
@@ -46,7 +47,7 @@ async function fetchAnonymousMessages(
   roomId: string,
   userId: string,
   userImageUrl: string | null,
-  ownIds: Set<string>,
+  ownIdsRef: MutableRefObject<Set<string>>,
   before?: string,
 ): Promise<AnonymousMessagesResponse> {
   const url = before
@@ -56,14 +57,14 @@ async function fetchAnonymousMessages(
   if (!res.ok) throw new Error('Failed to fetch anonymous messages');
   const data = await res.json();
   const msgs = (data.messages ?? []).map((m: Parameters<typeof buildAnonMessage>[0]) =>
-    buildAnonMessage(m, userId, userImageUrl, ownIds),
+    buildAnonMessage(m, userId, userImageUrl, ownIdsRef),
   );
   return { messages: msgs, hasMore: data.hasMore ?? false };
 }
 
 export function useAnonymousMessagesQuery(
   roomId: string | undefined,
-  ownIds: Set<string>,
+  ownIdsRef: MutableRefObject<Set<string>>,
 ) {
   const user = useSelector((s: RootState) => s.userAuth.user);
   if (!user) throw new Error('User must be authenticated to fetch anonymous messages');
@@ -72,7 +73,7 @@ export function useAnonymousMessagesQuery(
 
   return useQuery({
     queryKey: anonChatKeys.messages(roomId!),
-    queryFn: () => fetchAnonymousMessages(roomId!, user.id, user.image_url, ownIds),
+    queryFn: () => fetchAnonymousMessages(roomId!, user.id, user.image_url, ownIdsRef),
     enabled: isEnbaled,
     staleTime: 300_000,
     gcTime: 600_000,
