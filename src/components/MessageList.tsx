@@ -1,13 +1,11 @@
-import { useRef, useEffect, useLayoutEffect, useMemo, useCallback, useState } from "react";
+import { useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import { IconButton } from "@mui/material";
 import Edit from "@mui/icons-material/Edit";
 import Delete from "@mui/icons-material/Delete";
 import Check from "@mui/icons-material/Check";
 import Close from "@mui/icons-material/Close";
-import { SmilePlus, ThumbsUp, ThumbsDown } from "lucide-react";
-import data from "@emoji-mart/data";
-import Picker from "@emoji-mart/react";
-import type { ChatMessages as Message, Reaction } from "../types/chat";
+import { ThumbsUp, ThumbsDown } from "lucide-react";
+import type { ChatMessages as Message } from "../types/chat";
 
 type MessageListProps = {
   messages: Message[];
@@ -15,7 +13,7 @@ type MessageListProps = {
   loadingMore?: boolean;
   hasMore?: boolean;
   onLoadMore?: () => void;
-  streaming?: boolean;
+  streaming: boolean;
   editingMessageId: string | null;
   editText: string;
   onEditTextChange: (val: string) => void;
@@ -23,13 +21,9 @@ type MessageListProps = {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onDeleteClick: (msgId: string) => void;
-  userId: string;
-  onAddReaction: (messageId: string, emoji: string) => void;
-  onRemoveReaction: (messageId: string, reactionId: string) => void;
-  showVoting?: boolean;
-  showReactions?: boolean;
-  onUpvote?: (messageId: string) => void;
-  onDownvote?: (messageId: string) => void;
+  showVoting: boolean;
+  onUpvote: (messageId: string) => void;
+  onDownvote: (messageId: string) => void;
 };
 
 type Group = {
@@ -119,139 +113,6 @@ function TypingDots() {
   );
 }
 
-type GroupedReactions = {
-  emoji: string;
-  count: number;
-  userReacted: boolean;
-  reactionIds: string[];
-};
-
-function groupReactions(reactions: Reaction[] | undefined, userId: string): GroupedReactions[] {
-  if (!reactions || reactions.length === 0) return [];
-  const map = new Map<string, { count: number; userReacted: boolean; ids: string[] }>();
-  for (const r of reactions) {
-    const entry = map.get(r.emoji);
-    if (entry) {
-      entry.count++;
-      if (r.userId === userId) entry.userReacted = true;
-      entry.ids.push(r.id);
-    } else {
-      map.set(r.emoji, { count: 1, userReacted: r.userId === userId, ids: [r.id] });
-    }
-  }
-  return Array.from(map.entries()).map(([emoji, val]) => ({
-    emoji,
-    count: val.count,
-    userReacted: val.userReacted,
-    reactionIds: val.ids,
-  }));
-}
-
-function ReactionBar({
-  reactions,
-  userId,
-  onAddReaction,
-  onRemoveReaction,
-  messageId,
-}: {
-  reactions: Reaction[] | undefined;
-  userId: string;
-  onAddReaction: (messageId: string, emoji: string) => void;
-  onRemoveReaction: (messageId: string, reactionId: string) => void;
-  messageId: string;
-}) {
-  const grouped = groupReactions(reactions, userId);
-  if (grouped.length === 0) return null;
-
-  return (
-    <div className="mt-1.5 flex flex-wrap gap-1">
-      {grouped.map((g) => (
-        <button
-          key={g.emoji}
-          onClick={() => {
-            if (g.userReacted) {
-              onRemoveReaction(messageId, g.reactionIds[0]);
-            } else {
-              onAddReaction(messageId, g.emoji);
-            }
-          }}
-          className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs transition-colors ${
-            g.userReacted
-              ? "border-indigo-500/40 bg-indigo-600/30 text-indigo-200"
-              : "border-zinc-700/50 bg-zinc-800/50 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-700/60"
-          }`}
-        >
-          <span className="text-sm leading-none">{g.emoji}</span>
-          <span className="leading-none">{g.count}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function EmojiPickerPopover({
-  open,
-  onClose,
-  onEmojiSelect,
-  anchorEl,
-  alignRight,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onEmojiSelect: (emoji: string) => void;
-  anchorEl: HTMLElement | null;
-  alignRight?: boolean;
-}) {
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const [openUpward, setOpenUpward] = useState(true);
-
-  useEffect(() => {
-    if (!open) return;
-    if (anchorEl) {
-      const rect = anchorEl.getBoundingClientRect();
-      setOpenUpward(rect.top > window.innerHeight * 0.5);
-    }
-    function handleClickOutside(e: MouseEvent) {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node) &&
-        anchorEl &&
-        !anchorEl.contains(e.target as Node)
-      ) {
-        onClose();
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open, onClose, anchorEl]);
-
-  if (!open) return null;
-
-  return (
-    <div
-      ref={popoverRef}
-      className={`absolute z-50 animate-modal-in ${openUpward ? "bottom-full mb-2" : "top-full mt-2"} ${alignRight ? "right-0" : "left-0"}`}
-    >
-      <div className="overflow-hidden rounded-xl border border-zinc-700/50 bg-[#1c1c1f] shadow-xl shadow-black/40">
-          <Picker
-            data={data}
-            onEmojiSelect={(emoji: { native: string }) => {
-              onEmojiSelect(emoji.native);
-              onClose();
-            }}
-            theme="dark"
-            previewPosition="none"
-            skinTonePosition="none"
-            set="native"
-            perLine={7}
-            emojiSize={22}
-            maxFrequentRows={2}
-          />
-      </div>
-    </div>
-  );
-}
-
 export default function MessageList({
   messages,
   loading,
@@ -266,11 +127,7 @@ export default function MessageList({
   onSaveEdit,
   onCancelEdit,
   onDeleteClick,
-  userId,
-  onAddReaction,
-  onRemoveReaction,
   showVoting,
-  showReactions = true,
   onUpvote,
   onDownvote,
 }: MessageListProps) {
@@ -280,22 +137,8 @@ export default function MessageList({
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const prevScrollInfo = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const isPrependingRef = useRef(false);
-  const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<string | null>(null);
-  const [pickerAnchorEl, setPickerAnchorEl] = useState<HTMLButtonElement | null>(null);
 
   const { groups } = useMemo(() => groupMessages(messages), [messages]);
-
-  const handleEmojiPickerClose = useCallback(() => {
-    setEmojiPickerMsgId(null);
-    setPickerAnchorEl(null);
-  }, []);
-
-  const handleEmojiSelect = useCallback(
-    (messageId: string, emoji: string) => {
-      onAddReaction(messageId, emoji);
-    },
-    [onAddReaction],
-  );
   
   useEffect(() => {
     const el = editTextareaRef.current;
@@ -444,7 +287,6 @@ export default function MessageList({
               {group.messages.map((msg, mi) => {
                 const isLast = mi === group.messages.length - 1;
                 const isEditing = editingMessageId === String(msg.id);
-                const pickerOpen = emojiPickerMsgId === msg.id;
 
                 return (
                   <div
@@ -532,13 +374,6 @@ export default function MessageList({
                             <p className="text-sm whitespace-pre-wrap min-w-0">
                               {wrapText(msg.content ?? "")}
                             </p>
-                            <ReactionBar
-                              reactions={msg.reactions}
-                              userId={userId}
-                              onAddReaction={onAddReaction}
-                              onRemoveReaction={onRemoveReaction}
-                              messageId={msg.id}
-                            />
                             {isLast && (
                               <div className={`flex ${group.isOwn ? "justify-end" : "justify-start"} mt-0.5`}>
                                 <span className={`text-[10px] select-none whitespace-nowrap ${
@@ -569,7 +404,7 @@ export default function MessageList({
                         <div className={`flex mt-0.5 ${group.isOwn ? "justify-end" : "justify-start"}`}>
                           <div className="flex items-center gap-0.5">
                             <button
-                              onClick={() => onUpvote?.(msg.id)}
+                              onClick={() => onUpvote(msg.id)}
                               className={`flex h-6 items-center gap-1 rounded px-1.5 transition-colors ${
                                 msg.userVote === 'upvote'
                                   ? 'text-green-400 bg-green-900/20'
@@ -583,7 +418,7 @@ export default function MessageList({
                               )}
                             </button>
                             <button
-                              onClick={() => onDownvote?.(msg.id)}
+                              onClick={() => onDownvote(msg.id)}
                               className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
                                 msg.userVote === 'downvote'
                                   ? 'text-red-400 bg-red-900/20'
@@ -599,29 +434,6 @@ export default function MessageList({
 
                       {!isEditing && (
                         <div className="flex gap-0.5 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 relative">
-                          {showReactions && (
-                            <>
-                          <button
-                            onClick={(e) => {
-                              setPickerAnchorEl(e.currentTarget);
-                              setEmojiPickerMsgId((prev) =>
-                                prev === msg.id ? null : msg.id,
-                              );
-                            }}
-                            className="flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
-                            aria-label="Add reaction"
-                          >
-                            <SmilePlus className="h-3.5 w-3.5" />
-                          </button>
-                          <EmojiPickerPopover
-                            open={pickerOpen}
-                            onClose={handleEmojiPickerClose}
-                            onEmojiSelect={(emoji) => handleEmojiSelect(msg.id, emoji)}
-                            anchorEl={pickerAnchorEl}
-                            alignRight={group.isOwn}
-                          />
-                          </>
-                          )}
                           {group.isOwn && (
                             <>
                               <IconButton

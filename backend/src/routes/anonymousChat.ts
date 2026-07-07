@@ -275,20 +275,27 @@ AnonymousChatRouter.delete('/:id/messages/:messageId', authenticate, async (req:
   }
 });
 
-AnonymousChatRouter.post('/:id/messages/:messageId/upvote', authenticate, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user!.id;
+AnonymousChatRouter.post('/:messageId/upvote', authenticate, async (req: Request, res: Response): Promise<void> => {
+  if (!req.user){
+    console.log('[anonymous/:messageId/upvote] no user found')
+    return;
+  }
+
+  const userId = req.user.id;
   const messageId = req.params.messageId as string;
 
   try {
+    console.log('[anonymous/:messageId/upvote] about to upvote')
     const result = await upvote(userId, messageId);
+    console.log('[anonymous/id/messages/:messageId/upvote] successfully upvoted')
     res.json(result);
   } catch (error) {
-    console.error('[anonymousChat:POST /:id/messages/:messageId/upvote] error:', error);
+    console.error('[anonymous/:messageId/upvote] error:', error);
     res.status(500).json({ error: 'Failed to upvote' });
   }
 });
 
-AnonymousChatRouter.post('/:id/messages/:messageId/downvote', authenticate, async (req: Request, res: Response): Promise<void> => {
+AnonymousChatRouter.post('/:messageId/downvote', authenticate, async (req: Request, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const messageId = req.params.messageId as string;
 
@@ -296,7 +303,7 @@ AnonymousChatRouter.post('/:id/messages/:messageId/downvote', authenticate, asyn
     const result = await downvote(userId, messageId);
     res.json(result);
   } catch (error) {
-    console.error('[anonymousChat:POST /:id/messages/:messageId/downvote] error:', error);
+    console.error('[anonymous POST/:messageId/upvote] error:', error);
     res.status(500).json({ error: 'Failed to downvote' });
   }
 });

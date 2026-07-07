@@ -1,42 +1,27 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
-import type { RootState } from "../store/store";
-import { useWebSocket } from "../context/WebSocketContext";
-import { useAnonymousRoomQuery } from "../hooks/useAnonymousRoomQuery";
-import { useAnonymousMessagesQuery } from "../hooks/useAnonymousMessagesQuery";
+import type { RootState } from "../../store/store";
+import { useWebSocket } from "../../context/WebSocketContext";
+import { useAnonymousRoomQuery } from "../../hooks/useAnonymousRoomQuery";
+import { useAnonymousMessagesQuery } from "../../hooks/useAnonymousMessagesQuery";
 import {
   useAnonymousSendMessageMutation,
   useAnonymousEditMessageMutation,
   useAnonymousDeleteMessageMutation,
   useAnonymousVoteMutation,
-} from "../hooks/useAnonymousMutations";
-import MessageList from "../components/MessageList";
-import ChatInput from "../components/ChatInput";
-import ConfirmModal from "../modals/ConfirmModal";
-import type { ChatMessages } from "../types/chat";
-
-function getInitials(name: string): string {
-  return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-}
-
-function hashToHue(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  return Math.abs(hash) % 360;
-}
-
-function avatarGradient(name: string): string {
-  const hue = hashToHue(name);
-  return `linear-gradient(135deg, hsl(${hue}, 60%, 40%), hsl(${(hue + 60) % 360}, 50%, 30%))`;
-}
+} from "../../hooks/useAnonymousMutations";
+import MessageList from "../../components/MessageList";
+import ConfirmModal from "../../modals/ConfirmModal";
+import type { ChatMessages } from "../../types/chat";
+import AnonymousChatHeader from "./AnonymousChatHeader";
+import AnonymousChatComposer from "./AnonymousChatComposer";
 
 export default function AnonymousChat() {
   const { id: roomId } = useParams();
   const user = useSelector((s: RootState) => s.userAuth.user);
   const { subscribeToChats, onMessage } = useWebSocket();
 
-  const [roomName, setRoomName] = useState("Anonymous Chat");
   const [messages, setMessages] = useState<ChatMessages[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -54,21 +39,14 @@ export default function AnonymousChat() {
   useEffect(() => {
     if (!roomId || !user) return;
 
-    // if (prevRoomRef.current && prevRoomRef.current !== roomId) {
-    //   unsubscribeFromChats([prevRoomRef.current]);
-    // }
     prevRoomRef.current = roomId;
     subscribeToChats([roomId]);
 
-    // return () => {
-    //   if (roomId) unsubscribeFromChats([roomId]);
-    // };
   }, [roomId, user, subscribeToChats]);
 
   const { data: roomDetail } = useAnonymousRoomQuery(roomId);
-  const {
-    data: messagesData,
-  } = useAnonymousMessagesQuery(roomId, ownMessageIds.current);
+  const roomName = roomDetail?.name ?? "Anonymous Chat";
+  const { data: messagesData } = useAnonymousMessagesQuery(roomId, ownMessageIds);
   const sendMessageMutation = useAnonymousSendMessageMutation();
   const editMessageMutation = useAnonymousEditMessageMutation();
   const deleteMessageMutation = useAnonymousDeleteMessageMutation();
@@ -81,31 +59,44 @@ export default function AnonymousChat() {
       .catch((err) => console.error(err));
   }, [roomId, user]);
 
-  // Seed room name from cache
-  useEffect(() => {
-    if (roomDetail?.name) {
-      setRoomName(roomDetail.name);
-    }
-  }, [roomDetail]);
-
   // Seed messages from cache
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId) {
+      queueMicrotask(() => {
+        // Reset UI state when the room changes or disappears.
+        setLoading(true);
+        setMessages([]);
+        setHasMore(true);
+        oldestDateRef.current = null;
+        ownMessageIds.current.clear();
+      });
+      return;
+    }
 
-    if (messagesData) {
+    if (!messagesData) {
+      queueMicrotask(() => {
+        // Keep the list empty until the query resolves.
+        setLoading(true);
+        setMessages([]);
+        setHasMore(true);
+        oldestDateRef.current = null;
+        ownMessageIds.current.clear();
+      });
+      return;
+    }
+
+    queueMicrotask(() => {
+      // Hydrate the list once the fetched messages are ready.
       setMessages(messagesData.messages);
       setHasMore(messagesData.hasMore);
       setLoading(false);
       if (messagesData.messages.length > 0) {
         oldestDateRef.current = messagesData.messages[0].createdAt;
+      } else {
+        oldestDateRef.current = null;
+        ownMessageIds.current.clear();
       }
-    } else {
-      setLoading(true);
-      setMessages([]);
-      setHasMore(true);
-      oldestDateRef.current = null;
-      ownMessageIds.current.clear();
-    }
+    });
   }, [messagesData, roomId]);
 
   useEffect(() => {
@@ -276,17 +267,29 @@ export default function AnonymousChat() {
       prev.map((m) => {
         if (m.id !== messageId) return m;
         const t = m.totalUpvotes ?? 0;
-        if (m.userVote === "upvote") {
+
+        // if a user is upvoting a message they already upvoted, remove the upvote
+        if (m.userVote === "upvote" && t > 0) {
           return { ...m, totalUpvotes: t - 1, userVote: null };
         }
+        // if a message is already downvoted, then upvoting it remove the downvote from that and increases by 1
         if (m.userVote === "downvote") {
-          return { ...m, totalUpvotes: t + 2, userVote: "upvote" };
+          return { ...m, totalUpvotes: t + 1, userVote: "upvote" };
         }
+        // if nothing was previously done to it
         return { ...m, totalUpvotes: t + 1, userVote: "upvote" };
       }),
     );
 
-    if (!roomId) return;
+    if (!roomId){
+      console.log('no room found')
+    return;}
+
+    if (!user){
+console.log('no user found')
+return;
+    }
+
     voteMutation.mutate(
       { roomId, messageId, type: 'upvote' },
       {
@@ -327,15 +330,7 @@ export default function AnonymousChat() {
 
   return (
     <div className="flex flex-1 flex-col bg-surface">
-      <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface-elevated px-5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-          style={{ background: avatarGradient(roomName) }}>
-          {getInitials(roomName)}
-        </div>
-        <div className="min-w-0">
-          <h1 className="truncate text-[17px]/[1.4] font-semibold text-text-primary">{roomName}</h1>
-        </div>
-      </header>
+      <AnonymousChatHeader roomName={roomName} />
       <MessageList
         messages={messages}
         loading={loading}
@@ -353,17 +348,17 @@ export default function AnonymousChat() {
           setDeletingMessageId(msgId);
           setDeleteModalOpen(true);
         }}
-        userId={user.id}
-        onAddReaction={() => {}}
-        onRemoveReaction={() => {}}
         showVoting
-        showReactions={false}
         onUpvote={handleUpvote}
         onDownvote={handleDownvote}
       />
-      <div className="pb-4 pt-2">
-        <ChatInput value={messageText} onChange={setMessageText} onSend={sendMessage} isAnonymous={isAnonymous} onAnonymousToggle={() => setIsAnonymous((p) => !p)} />
-      </div>
+      <AnonymousChatComposer
+        value={messageText}
+        onChange={setMessageText}
+        onSend={sendMessage}
+        isAnonymous={isAnonymous}
+        onAnonymousToggle={() => setIsAnonymous((p) => !p)}
+      />
       <ConfirmModal
         isOpen={deleteModalOpen}
         onClose={() => { setDeleteModalOpen(false); setDeletingMessageId(null); }}

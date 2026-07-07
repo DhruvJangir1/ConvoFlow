@@ -9,7 +9,7 @@ import SignUpForm from "./auth/SignUpForm";
 import LandingPage from "./pages/LandingPage";
 import WelcomePage from "./pages/WelcomePage";
 import NotFoundPage from "./pages/NotFoundPage";
-import AnonymousChat from "./pages/AnonymousChat";
+import AnonymousChat from "./pages/AnonymousChats/AnonymousChat";
 import Communities from "./pages/Communities";
 import ProtectedRoute from "./components/ProtectedRoute";
 import VerificationPage from "./auth/VerificationPage";
