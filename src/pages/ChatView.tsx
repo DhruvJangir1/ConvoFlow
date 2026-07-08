@@ -13,8 +13,7 @@ import {
   useEditMessageMutation,
   useDeleteMessageMutation,
 } from "../hooks/useChatMutations";
-import type { ChatMessages, Reaction } from "../types/chat";
-
+import type { ChatMessages } from "../types/chat";
 function buildMessage(raw: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; USERS?: { user_name: string; image_url: string | null } | null }, isOwn: boolean): ChatMessages {
   return {
     id: raw.id,
@@ -285,39 +284,11 @@ export default function ChatView() {
         onSaveEdit={saveEdit}
         onCancelEdit={cancelEdit}
         onDeleteClick={(msgId) => {
-        setDeleteModalOpen(prev => !prev);
-        setDeletingMessageId(msgId)
-        }}
-        userId={user.id}
-        onAddReaction={(messageId, emoji) => {
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id !== messageId) return m;
-              const existing = m.reactions?.find(
-                (r) => r.emoji === emoji && r.userId === user.id,
-              );
-              if (existing) return m;
-              const reaction: Reaction = {
-                id: `reaction-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                userId: user.id,
-                userName: user.user_name,
-                emoji,
-                createdAt: new Date().toISOString(),
-              };
-              return { ...m, reactions: [...(m.reactions ?? []), reaction] };
-            }),
-          );
-        }}
-        onRemoveReaction={(messageId, reactionId) => {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === messageId
-                ? { ...m, reactions: m.reactions?.filter((r) => r.id !== reactionId) }
-                : m,
-            ),
-          );
-        }}
-      />
+          setDeleteModalOpen(prev => !prev);
+          setDeletingMessageId(msgId);
+        } }
+        showVoting={false} />
+        
       <div className="pb-4 pt-2">
         <ChatInput value={messageText} onChange={setMessageText} onSend={sendMessage} />
       </div>

@@ -22,8 +22,8 @@ type MessageListProps = {
   onCancelEdit: () => void;
   onDeleteClick: (msgId: string) => void;
   showVoting: boolean;
-  onUpvote: (messageId: string) => void;
-  onDownvote: (messageId: string) => void;
+  onUpvote?: (messageId: string) => void;
+  onDownvote?: (messageId: string) => void;
 };
 
 type Group = {
@@ -139,6 +139,8 @@ export default function MessageList({
   const isPrependingRef = useRef(false);
 
   const { groups } = useMemo(() => groupMessages(messages), [messages]);
+
+  const isVotable = showVoting && onUpvote && onDownvote;
   
   useEffect(() => {
     const el = editTextareaRef.current;
@@ -400,7 +402,7 @@ export default function MessageList({
                         </div>
                       )}
 
-                      {showVoting && (
+                      { isVotable && (
                         <div className={`flex mt-0.5 ${group.isOwn ? "justify-end" : "justify-start"}`}>
                           <div className="flex items-center gap-0.5">
                             <button
