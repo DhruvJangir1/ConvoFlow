@@ -22,6 +22,7 @@ function buildAnonMessage(
     sender_id: string;
     users: { id: string; user_name: string; image_url: string | null } | null;
   },
+  chatId: string,
   userId: string,
   userImageUrl: string | null,
   ownIdsRef: MutableRefObject<Set<string>>,
@@ -30,6 +31,7 @@ function buildAnonMessage(
   const isAnon = m.isAnonymous ?? true;
   return {
     id: m.id,
+    chatId,
     senderId: isOwn ? userId : (isAnon ? 'other' : (m.users?.id ?? 'other')),
     senderName: isAnon ? 'Anonymous' : (isOwn ? userId : (m.users?.user_name ?? 'Anonymous')),
     senderImage: isAnon ? null : (isOwn ? userImageUrl : (m.users?.image_url ?? null)),
@@ -57,7 +59,7 @@ async function fetchAnonymousMessages(
   if (!res.ok) throw new Error('Failed to fetch anonymous messages');
   const data = await res.json();
   const msgs = (data.messages ?? []).map((m: Parameters<typeof buildAnonMessage>[0]) =>
-    buildAnonMessage(m, userId, userImageUrl, ownIdsRef),
+    buildAnonMessage(m, roomId, userId, userImageUrl, ownIdsRef),
   );
   return { messages: msgs, hasMore: data.hasMore ?? false };
 }

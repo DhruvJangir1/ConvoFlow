@@ -119,7 +119,8 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
       where: { user_id: userId, mesage_id: { in: messageIds } },
       select: { mesage_id: true, type: true },
     });
-    const voteMap = new Map(userVotes.map(v => [v.mesage_id, v.type]));
+
+    const voteMap = new Map(userVotes.map(v => [v.mesage_id as string, v.type]));
 
     const messagesWithMeta = messages.map(m => ({
       ...m,

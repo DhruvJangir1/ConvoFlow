@@ -30,7 +30,7 @@ export async function upvote(userId: string, messageId: string) {
       return { success: true, action: 'added' };
     }
     await tx.anonymousChatMessagesUserVotes.create({
-      data: { user_id: userId, mesage_id: messageId, type: 'upvote' },
+      data: { user_id: userId, message_id: messageId, type: 'upvote' },
     });
     await tx.anonymousChatMessages.update({
       where: { id: messageId },

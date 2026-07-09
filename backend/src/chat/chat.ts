@@ -7,6 +7,7 @@ import { broadcastToRoom } from '../../ws/websocket.js';
 import { findDmChat, createDmChat } from '../services/dmChat.js';
 import { escapeHtml } from '../util/sanitize.js';
 
+
 async function requireChatMembership(userId: string, chatId: string): Promise<boolean> {
   const membership = await prisma.standardChatMembers.findUnique({
     where: { chat_id_user_id: { chat_id: chatId, user_id: userId } },
@@ -228,12 +229,28 @@ ChatRouter.post('/:chatId/:userId/appendMessage', authenticate, async (req: Requ
         sender_id: userId,
         content: sanitizedContent,
       },
+      include: {
+        USERS: {
+          select: { id: true, user_name: true, image_url: true },
+        },
+      },
     });
 
     console.log(`[chat:POST /:chatId/messages] message created with id ${newMessage.id} in chat ${chatId}`);
     console.log(`[chat:POST /:chatId/messages] the message with id ${newMessage.id} in chat ${chatId} is about to be BROADCASTED`);
 
-    broadcastToRoom(chatId,newMessage);
+    broadcastToRoom(chatId, {
+      type: 'message:new',
+      payload: {
+        id: newMessage.id,
+        chatId,
+        senderId: newMessage.sender_id,
+        senderName: newMessage.USERS.user_name ?? userId,
+        senderImage: newMessage.USERS.image_url ?? null,
+        content: newMessage.content,
+        createdAt: newMessage.created_at,
+      },
+    });
 
     await prisma.standardChats.update({
       where: { id: chatId },

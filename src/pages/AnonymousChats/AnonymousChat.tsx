@@ -110,6 +110,7 @@ export default function AnonymousChat() {
           if (prev.some((m) => m.id === msg.payload.id)) return prev;
           return [...prev, {
             id: msg.payload.id,
+            chatId: roomId,
             content: msg.payload.content,
             senderId: isOwn ? user.id : (isAnon ? "other" : (msg.payload.senderId ?? "other")),
             senderName: isAnon ? "Anonymous" : (isOwn ? user.user_name : (msg.payload.senderName ?? "Anonymous")),
@@ -139,6 +140,7 @@ export default function AnonymousChat() {
         const isAnon = m.isAnonymous ?? true;
         return {
           id: m.id,
+          chatId: roomId,
           senderId: isOwn ? user.id : (isAnon ? "other" : (m.users?.id ?? "other")),
           senderName: isAnon ? "Anonymous" : (isOwn ? user.user_name : (m.users?.user_name ?? "Anonymous")),
           senderImage: isAnon ? null : (isOwn ? (user.image_url ?? null) : (m.users?.image_url ?? null)),
@@ -172,6 +174,7 @@ export default function AnonymousChat() {
 
     const optimistic: ChatMessages = {
       id: tempId,
+      chatId: roomId,
       senderId: user.id,
       senderName: isAnonymous ? "Anonymous" : user.user_name,
       senderImage: isAnonymous ? null : (user.image_url ?? null),
@@ -194,7 +197,7 @@ export default function AnonymousChat() {
               .filter((m) => m.id !== data.message.id)
               .map((m) =>
                 m.id === tempId
-                  ? { id: data.message.id, senderId: user.id, senderName: isAnonymous ? "Anonymous" : user.user_name, senderImage: isAnonymous ? null : (user.image_url ?? null), content: data.message.content ?? '', createdAt: data.message.created_at, isOwn: true, isEdited: data.message.is_edited ?? false, isAnonymous }
+                  ? { id: data.message.id, chatId: roomId, senderId: user.id, senderName: isAnonymous ? "Anonymous" : user.user_name, senderImage: isAnonymous ? null : (user.image_url ?? null), content: data.message.content ?? '', createdAt: data.message.created_at, isOwn: true, isEdited: data.message.is_edited ?? false, isAnonymous }
                   : m,
               ),
           );

@@ -40,17 +40,19 @@ export function useSendMessageMutation() {
             : chat,
         );
       });
+
       if (data?.message) {
         const msg = data.message;
         queryClient.setQueryData<MessagesResponse>(chatKeys.messages(vars.chatId), (old) => {
           const entry: ChatMessages = {
             id: msg.id,
+            chatId: vars.chatId,
             senderId: msg.sender_id ?? vars.userId,
             content: msg.content,
             createdAt: msg.created_at ?? new Date().toISOString(),
             isOwn: true,
-            senderName: '',
-            senderImage: null,
+            senderName: msg.USERS?.user_name ?? '',
+            senderImage: msg.USERS?.image_url ?? null,
           };
           if (!old) return { messages: [entry], hasMore: false };
           if (old.messages.some((m) => m.id === entry.id)) return old;

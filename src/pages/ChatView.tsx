@@ -14,9 +14,10 @@ import {
   useDeleteMessageMutation,
 } from "../hooks/useChatMutations";
 import type { ChatMessages } from "../types/chat";
-function buildMessage(raw: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; USERS?: { user_name: string; image_url: string | null } | null }, isOwn: boolean): ChatMessages {
+function buildMessage(raw: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; USERS?: { user_name: string; image_url: string | null } | null }, isOwn: boolean, chatId: string): ChatMessages {
   return {
     id: raw.id,
+    chatId,
     senderId: raw.sender_id,
     senderName: raw.USERS?.user_name ?? raw.sender_id.slice(0, 8),
     senderImage: raw.USERS?.image_url ?? null,
@@ -92,6 +93,7 @@ export default function ChatView() {
             ...prev,
             {
               id: msg.payload.id,
+              chatId: msg.payload.chatId,
               senderId: msg.payload.senderId,
               senderName: msg.payload.senderName,
               senderImage: msg.payload.senderImage ?? null,
@@ -125,7 +127,7 @@ export default function ChatView() {
       if (!res.ok) throw new Error("Failed to fetch more messages");
       const data = await res.json();
       const newMsgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; USERS?: { user_name: string; image_url: string | null } | null }) =>
-        buildMessage(m, m.sender_id === user.id),
+        buildMessage(m, m.sender_id === user.id, chatId),
       );
       setMessages((prev) => [...newMsgs, ...prev]);
       setHasMoreMessages(data.hasMore ?? false);
@@ -146,6 +148,7 @@ export default function ChatView() {
     const tempId = `temp-${Date.now()}`;
     const optimistic: ChatMessages = {
       id: tempId,
+      chatId,
       senderId: user.id,
       content: trimmed,
       createdAt: new Date().toISOString(),
@@ -212,7 +215,7 @@ export default function ChatView() {
       {
         onSuccess: (data) => {
           setMessages((prev) =>
-            prev.map((m) => (m.id === editingMessageId ? buildMessage(data.message, true) : m)),
+            prev.map((m) => (m.id === editingMessageId ? buildMessage(data.message, true, chatId) : m)),
           );
         },
         onError: (err) => {

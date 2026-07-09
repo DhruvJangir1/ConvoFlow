@@ -5,6 +5,7 @@ import { consumeTicket, startTicketCleanup, stopTicketCleanup } from '../src/ser
 import { prisma } from '../src/lib/connectionPoolClient';
 import { escapeHtml } from '../src/util/sanitize.js';
 
+
 interface AuthenticatedSocket extends WebSocket {
   userId?: string;
   userName?: string;
