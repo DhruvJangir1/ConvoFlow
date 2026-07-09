@@ -6,9 +6,9 @@ import { prisma } from '../lib/connectionPoolClient.js';
 import { sendFriendRequestEmail } from '../services/authVerificaiton.js';
 import { notifyFriendRequest } from '../services/userNotify.js';
 import { sendToUser } from '../../ws/websocket.js';
-import { FRIEND_COOLDOWN_MS } from '../util/constants.js';
+import { FRIEND_COOLDOWN_MS, FRIEND_MAX_PENDING_OUTGOING } from '../util/constants.js';
 import { createDmChat } from '../services/dmChat.js';
-import type { Notification } from "../../../src/types/chat.js";
+import type { Notifications } from '../../../src/generated/prisma/client.js';
 
 const FriendRouter = Router();
 
@@ -72,15 +72,15 @@ FriendRouter.post('/send', authenticate, async (req: Request, res: Response): Pr
     return;
   }
 
-  // const pendingOutgoingCount = await prisma.add_Friend_Requests.count({
-  //   where: { sender_id: senderId, receiver_id:targetUser.id, status: 'pending' },
-  // });
+  const pendingOutgoingCount = await prisma.addFriendRequests.count({
+    where: { sender_id: senderId, receiver_id:targetUser.id, status: 'pending' },
+  });
 
-  // if (pendingOutgoingCount >= FRIEND_MAX_PENDING_OUTGOING) {
-  //   console.log(`[FriendRoute] 429 — sender at max pending (${pendingOutgoingCount})`);
-  //   res.status(429).json({ error: `You can only have up to ${FRIEND_MAX_PENDING_OUTGOING} pending friend requests` });
-  //   return;
-  // }
+  if (pendingOutgoingCount >= FRIEND_MAX_PENDING_OUTGOING) {
+    console.log(`[FriendRoute] 429 — sender at max pending (${pendingOutgoingCount})`);
+    res.status(429).json({ error: `You can only have up to ${FRIEND_MAX_PENDING_OUTGOING} pending friend requests` });
+    return;
+  }
 
   // forces a 5 min cooldown after a user has rejected the same sender's request.
   const recentDeclined = await prisma.addFriendRequests.findFirst({
@@ -107,13 +107,11 @@ FriendRouter.post('/send', authenticate, async (req: Request, res: Response): Pr
     targetUser.id,
     senderId,
     senderUser.user_name,
-    senderUser.user_tag,
-    targetUser.user_tag,
     requestId,
   );
   console.log(`[FriendRoute] Friend request created: ${friendRequest.id} (pending) and notification sent`);
 
-  sendFriendRequestEmail(senderUser!.user_name, senderUser.user_tag, targetUser.email);
+  sendFriendRequestEmail(senderUser.user_name, senderUser.user_tag, targetUser.email);
   console.log(`[FriendRoute] Email sent to ${targetUser.email}`);
 
   res.status(201).json({
@@ -130,7 +128,7 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
   }
 
   const userId = req.user.id;
-  const notification = req.body.notification as Notification;
+  const notification = req.body.notification as Notifications;
   console.log(notification)
   const requestId = notification.entity_id;
   const senderId = notification.sender_user_id;
@@ -196,7 +194,7 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
     return;
   }
 
-  const chat = await createDmChat(senderId, userId, userId, senderUser?.user_name, String(senderUser?.image_url || ''));
+  const chat = await createDmChat(senderId, userId, userId, senderUser.user_name, senderUser.image_url || '');
   if (!chat){
     console.log('[FriendRoute] 500 — createDmChat returned null');
     res.status(500).json({ error: 'Failed to create chat' });
@@ -301,7 +299,12 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
 });
 
 FriendRouter.patch('/:id/decline', authenticate, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user!.id;
+  if (!req.user){
+    console.log('[userAddFriend/id/decline] No User Found!')
+    return;
+  }
+
+  const userId = req.user.id;
   const id = req.params.id as string;
   console.log(`[FriendRoute] PATCH /api/friends/${id}/decline — user: ${userId}`);
 
@@ -333,15 +336,14 @@ FriendRouter.patch('/:id/decline', authenticate, async (req: Request, res: Respo
   });
   console.log(`[FriendRoute] Friend request ${id} declined`);
 
-  const declinerUserId = friendRequest.receiver_id;
-  // find the user name with that id.
+  const declinerName = friendRequest.USERS_AddFriendRequests_receiver_idToUSERS.user_name ?? 'Someone';
 
   const declinedNotification = await prisma.notifications.create({
     data: {
       receiver_user_id: friendRequest.sender_id,
       sender_user_id: userId,
       type: 'friend_request_declined',
-      content: `${declinerUserId ?? 'Someone'} declined your friend request`,
+      content: `${declinerName} declined your friend request`,
       entity_id: id,
     },
   });

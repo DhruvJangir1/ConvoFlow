@@ -15,8 +15,6 @@ export async function notifyFriendRequest(
   receiverId: string,
   senderId: string,
   senderName: string,
-  senderUserTag: string,
-  receiverUserTag: string,
   requestId: string,
 ): Promise<{ notification: Record<string, unknown>; friendRequest: Record<string, unknown> }> {
   console.log(`[notifyFriendRequest] Creating notification and friend request with entity_id=${requestId}`);
@@ -30,8 +28,6 @@ export async function notifyFriendRequest(
           id: requestId,
           sender_id: senderId,
           receiver_id: receiverId,
-          sender_user_tag: senderUserTag,
-          receiver_user_tag: receiverUserTag,
           status: 'pending',
         },
       });

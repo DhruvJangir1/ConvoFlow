@@ -66,8 +66,6 @@ model AddFriendRequests {
   created_at                                 DateTime      @default(now()) @db.Timestamptz(6)
   status                                     String        @default("pending")
   updated_at                                 DateTime?     @db.Timestamptz(6)
-  sender_user_tag                            String
-  receiver_user_tag                          String
   USERS_AddFriendRequests_receiver_idToUSERS users         @relation("AddFriendRequests_receiver_idToUSERS", fields: [receiver_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Add_Friend_Requests_receiver_id_fkey")
   USERS_AddFriendRequests_sender_idToUSERS   users         @relation("AddFriendRequests_sender_idToUSERS", fields: [sender_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Add_Friend_Requests_sender_id_fkey")
   Notifications                              Notifications @relation(fields: [id], references: [entity_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_notifications_id_bridge")
