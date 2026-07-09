@@ -26,6 +26,7 @@ model users {
   AddFriendRequests_AddFriendRequests_receiver_idToUSERS AddFriendRequests[]              @relation("AddFriendRequests_receiver_idToUSERS")
   AddFriendRequests_AddFriendRequests_sender_idToUSERS   AddFriendRequests[]              @relation("AddFriendRequests_sender_idToUSERS")
   AnonymousChatMembers                                   AnonymousChatMembers?
+  AnonymousChatMessages                                  AnonymousChatMessages[]
   AnonymousChatMessagesUserVotes                         AnonymousChatMessagesUserVotes[]
   DailyPolls                                             DailyPolls[]
   Notifications_Notifications_receiver_user_idToUSERS    Notifications[]                  @relation("Notifications_receiver_user_idToUSERS")
@@ -98,7 +99,7 @@ model AnonymousChatMessages {
   TotalUpvotes                   Int                              @default(0) @db.SmallInt
   lastVoted                      DateTime?                        @db.Timestamptz(6)
   isAnonymous                    Boolean                          @default(false)
-  user_avatar                    String?
+  USERS                          users?                           @relation(fields: [sender_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "AnonymousChatMessage_SenderId_fkey")
   AnonymousChats                 AnonymousChats                   @relation(fields: [chat_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_anonymous_chat_messages_room")
   AnonymousChatMessagesUserVotes AnonymousChatMessagesUserVotes[]
 
