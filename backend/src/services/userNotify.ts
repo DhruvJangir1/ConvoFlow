@@ -21,16 +21,8 @@ export async function notifyFriendRequest(
 
   try {
     const [notification, friendRequest] = await prisma.$transaction(async (tx) => {
-      // friend req must be created FIRST because notif.entity_id has a FK to friendreq_id
+      // Notification must be created FIRST because AddFriendRequests.id FKs to Notifications.entity_id
       
-      const req = await tx.addFriendRequests.create({
-        data: {
-          id: requestId,
-          sender_id: senderId,
-          receiver_id: receiverId,
-          status: 'pending',
-        },
-      });
       const notif = await tx.notifications.create({
         data: {
           receiver_user_id: receiverId,
@@ -38,6 +30,14 @@ export async function notifyFriendRequest(
           type: 'friend_request',
           content: `${senderName} sent you a friend request`,
           entity_id: requestId,
+        },
+      });
+      const req = await tx.addFriendRequests.create({
+        data: {
+          id: requestId,
+          sender_id: senderId,
+          receiver_id: receiverId,
+          status: 'pending',
         },
       });
       return [notif, req];
