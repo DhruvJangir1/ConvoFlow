@@ -116,11 +116,11 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
 
     // get user votes
     const userVotes = await prisma.anonymousChatMessagesUserVotes.findMany({
-      where: { user_id: userId, mesage_id: { in: messageIds } },
-      select: { mesage_id: true, type: true },
+      where: { user_id: userId, message_id: { in: messageIds } },
+      select: { message_id: true, type: true },
     });
 
-    const voteMap = new Map(userVotes.map(v => [v.mesage_id as string, v.type]));
+    const voteMap = new Map(userVotes.map(v => [v.message_id as string, v.type]));
 
     const messagesWithMeta = messages.map(m => ({
       ...m,
