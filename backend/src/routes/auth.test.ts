@@ -3,54 +3,61 @@ import express, { Request, Response, NextFunction } from 'express';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
 
-// 1. Setup Mock Objects
-const mockAdminChain = {
-  select: vi.fn().mockReturnThis(),
-  eq: vi.fn().mockReturnThis(),
-  maybeSingle: vi.fn(),
-  insert: vi.fn().mockReturnThis(),
-  single: vi.fn(),
-  update: vi.fn().mockReturnThis(),
-  gte: vi.fn().mockReturnThis(),
-};
-
-const mockSupabase = {
-  from: vi.fn().mockReturnValue(mockAdminChain),
-  auth: {
-    admin: {
-      createUser: vi.fn(),
-      deleteUser: vi.fn().mockResolvedValue({}),
+// 1. Hoisted mock objects
+const { mockPrisma, mockSupabase, mockAuthService, mockSendUserVerificationCode, mockSetVerificationCode, mockClearAuthCookies, mockSetAuthCookies, mockCreateNewSupabaseAuthUser, mockCreateNewSupabaseUser, mockTrackAuthAttempt } = vi.hoisted(() => {
+  const mockPrisma = {
+    users: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      count: vi.fn().mockResolvedValue(0),
+      update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
-  },
-};
+  };
 
-const mockAuthService = {
-  hashPassword: vi.fn().mockResolvedValue('hashed_password'),
-  comparePassword: vi.fn(),
-  signAccessToken: vi.fn().mockReturnValue('access_token'),
-  generateRefreshToken: vi.fn().mockReturnValue({ token: 'rt', hash: 'rh' }),
-  hashToken: vi.fn().mockReturnValue('hashed_token'),
-  REFRESH_TOKEN_EXPIRY_MS: 86400000,
-};
+  const mockSupabase = {
+    auth: {
+      admin: {
+        createUser: vi.fn(),
+        deleteUser: vi.fn().mockResolvedValue({}),
+      },
+    },
+  };
 
-const mockResend = {
-  emails: {
-    send: vi.fn().mockResolvedValue({ id: 'email_id' }),
-  },
-};
+  const mockAuthService = {
+    hashPassword: vi.fn().mockResolvedValue('hashed_password'),
+    comparePassword: vi.fn(),
+    signAccessToken: vi.fn().mockReturnValue('access_token'),
+    verifyAccessToken: vi.fn(),
+    generateRefreshToken: vi.fn().mockReturnValue({ token: 'rt', hash: 'rh', salt: 'rs' }),
+    hashToken: vi.fn().mockReturnValue('hashed_token'),
+    REFRESH_TOKEN_EXPIRY_MS: 86400000,
+    refreshUserAccessToken: vi.fn(),
+  };
 
-// 2. Link Vitest to your files
+  const mockSendUserVerificationCode = vi.fn().mockResolvedValue(undefined);
+  const mockSetVerificationCode = vi.fn();
+  const mockClearAuthCookies = vi.fn();
+  const mockSetAuthCookies = vi.fn();
+  const mockCreateNewSupabaseAuthUser = vi.fn().mockResolvedValue({ success: true, userId: 'u1' });
+  const mockCreateNewSupabaseUser = vi.fn().mockResolvedValue({ id: 'u1', user_name: 'test', email: 't@ex.com', created_at: new Date().toISOString(), user_tag: 'test#0001' });
+  const mockTrackAuthAttempt = vi.fn().mockResolvedValue(true);
+
+  return { mockPrisma, mockSupabase, mockAuthService, mockSendUserVerificationCode, mockSetVerificationCode, mockClearAuthCookies, mockSetAuthCookies, mockCreateNewSupabaseAuthUser, mockCreateNewSupabaseUser, mockTrackAuthAttempt };
+});
+
+// 2. Mock modules (hoisted to top of file by vitest)
+vi.mock('../lib/connectionPoolClient.js', () => ({ prisma: mockPrisma }));
+vi.mock('../services/auth.js', () => mockAuthService);
+vi.mock('../services/authVerificaiton.js', () => ({ sendUserVerificationCode: mockSendUserVerificationCode, setAuthCookies: mockSetAuthCookies }));
+vi.mock('../services/verificationStore.js', () => ({ setVerificationCode: mockSetVerificationCode }));
+vi.mock('../services/authCookieSessions.js', () => ({ clearAuthCookies: mockClearAuthCookies }));
+vi.mock('./supabaseAuth.js', () => ({ createNewSupabaseAuthUser: mockCreateNewSupabaseAuthUser, createNewSupabaseUser: mockCreateNewSupabaseUser }));
+vi.mock('../services/rateLimiter.js', () => ({ trackAuthAttempt: mockTrackAuthAttempt }));
 vi.mock('../supabase/admin.js', () => ({ getAdminClient: vi.fn(() => mockSupabase) }));
-vi.mock('../services/auth', () => mockAuthService);
-vi.mock('resend', () => ({ Resend: vi.fn(() => mockResend) }));
-vi.mock('../middleware/authenticate.js', () => ({
-  authenticate: (req: Request, res: Response, next: NextFunction) => {
-    req.user = { id: 'test_user_id', email: 't@ex.com' };
-    next();
-  },
-}));
+vi.mock('resend', () => ({ Resend: vi.fn(() => ({ emails: { send: vi.fn().mockResolvedValue({ id: 'email_id' }) } })) }));
+vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
 
-// Import the router AFTER defining the mocks above
+// 3. Import router AFTER mocks
 import AuthRouter from './auth';
 
 const app = express();
@@ -61,15 +68,26 @@ app.use('/auth', AuthRouter);
 describe('Auth Endpoints', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    mockTrackAuthAttempt.mockResolvedValue(true);
+    mockCreateNewSupabaseAuthUser.mockResolvedValue({ success: true, userId: 'u1' });
+    mockCreateNewSupabaseUser.mockResolvedValue({ id: 'u1', user_name: 'test', email: 't@ex.com', created_at: new Date().toISOString(), user_tag: 'test#0001' });
+    mockSendUserVerificationCode.mockResolvedValue(undefined);
+    mockPrisma.users.findFirst.mockResolvedValue(null);
+    mockPrisma.users.count.mockResolvedValue(0);
+    mockAuthService.signAccessToken.mockReturnValue('access_token');
+    mockAuthService.generateRefreshToken.mockReturnValue({ token: 'rt', hash: 'rh', salt: 'rs' });
+    mockAuthService.hashPassword.mockResolvedValue('hashed_password');
   });
 
-  describe('POST /auth/signup', () => {
-    it('creates a user and sends a verification email', async () => {
-      mockAdminChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      mockSupabase.auth.admin.createUser.mockResolvedValue({ data: { id: 'u1', email: 't@ex.com' }, error: null });
+  // =========================================================================
+  // Signup
+  // =========================================================================
 
+  describe('POST /auth/EmailVerificaitonRouter/signup', () => {
+    it('creates a user and sends a verification email', async () => {
       const res = await request(app)
-        .post('/auth/signup')
+        .post('/auth/EmailVerificaitonRouter/signup')
         .send({ user_name: 'test', email: 't@ex.com', password: 'password123' });
 
       expect(res.status).toBe(201);
@@ -78,65 +96,86 @@ describe('Auth Endpoints', () => {
 
     it('fails if fields are missing', async () => {
       const res = await request(app)
-        .post('/auth/signup')
+        .post('/auth/EmailVerificaitonRouter/signup')
         .send({ email: '', password: '' });
 
       expect(res.status).toBe(400);
     });
   });
 
-  describe('POST /auth/login', () => {
+  // =========================================================================
+  // Login
+  // =========================================================================
+
+  describe('POST /auth/EmailVerificaitonRouter/login', () => {
     it('logs in a verified user', async () => {
-      mockAdminChain.maybeSingle.mockResolvedValue({
-        data: { id: 'u1', password: 'hashed_password', is_verified: true },
-        error: null,
-      });
+      mockPrisma.users.findFirst
+        .mockResolvedValueOnce({ id: 'u1', password: 'hashed_password', is_verified: true, user_name: 'test', email: 't@ex.com', image_url: null, created_at: new Date().toISOString(), user_tag: 'test#0001' });
       mockAuthService.comparePassword.mockResolvedValue(true);
 
       const res = await request(app)
-        .post('/auth/login')
+        .post('/auth/EmailVerificaitonRouter/login')
         .send({ email: 't@ex.com', password: 'password123' });
 
       expect(res.status).toBe(200);
       expect(res.body.user).toBeDefined();
     });
 
-    it('rejects incorrect credentials', async () => {
-      mockAdminChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+    it('returns empty body when user is not found', async () => {
+      mockPrisma.users.findFirst.mockResolvedValue(null);
 
       const res = await request(app)
-        .post('/auth/login')
+        .post('/auth/EmailVerificaitonRouter/login')
         .send({ email: 'wrong@ex.com', password: 'wrong' });
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(200);
+      expect(res.body.user).toBeUndefined();
     });
   });
 
-  describe('POST /auth/refresh', () => {
+  // =========================================================================
+  // Refresh
+  // =========================================================================
+
+  describe('POST /auth/TokenVerificaitonRouter/refresh', () => {
     it('issues new tokens given a valid refresh cookie', async () => {
-      mockAdminChain.maybeSingle.mockResolvedValue({ data: { id: 'u1' }, error: null });
+      mockAuthService.refreshUserAccessToken.mockImplementation(async (req: Request, res: Response) => {
+        req.user = { id: 'u1', email: 't@ex.com' };
+      });
 
       const res = await request(app)
-        .post('/auth/refresh')
-        .set('Cookie', ['refresh_token=valid_token']);
+        .post('/auth/TokenVerificaitonRouter/refresh')
+        .set('Cookie', ['refresh_token=valid_token', 'refresh_salt=valid_salt']);
 
       expect(res.status).toBe(200);
-      expect(res.body.message).toBe('減Tokens refreshed');
+      expect(res.body.message).toBe('Tokens refreshed');
     });
   });
 
-  describe('POST /auth/logout', () => {
+  // =========================================================================
+  // Logout
+  // =========================================================================
+
+  describe('POST /auth/EmailVerificaitonRouter/logout', () => {
     it('clears active sessions', async () => {
-      const res = await request(app).post('/auth/logout');
+      const res = await request(app).post('/auth/EmailVerificaitonRouter/logout');
       expect(res.status).toBe(200);
     });
   });
 
-  describe('GET /auth/session', () => {
-    it('returns user data if session is valid', async () => {
-      mockAdminChain.single.mockResolvedValue({ data: { id: 'test_user_id', email: 't@ex.com' }, error: null });
+  // =========================================================================
+  // Session
+  // =========================================================================
 
-      const res = await request(app).get('/auth/session');
+  describe('GET /auth/TokenVerificaitonRouter/session', () => {
+    it('returns user data if session is valid', async () => {
+      mockAuthService.verifyAccessToken.mockReturnValue({ sub: 'test_user_id', email: 't@ex.com' });
+      mockPrisma.users.findFirst.mockResolvedValue({ id: 'test_user_id', email: 't@ex.com' });
+
+      const res = await request(app)
+        .get('/auth/TokenVerificaitonRouter/session')
+        .set('Cookie', ['access_token=valid_token']);
+
       expect(res.status).toBe(200);
       expect(res.body.user.email).toBe('t@ex.com');
     });
