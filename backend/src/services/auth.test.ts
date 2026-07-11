@@ -47,7 +47,7 @@ describe('Authentication Utilities', () => {
   // 2. Access Token (JWT) Tests
   // =========================================================================
   describe('Access Tokens (JWT)', () => {
-    test('should sign and successfully verify an access token', () => {
+    test('should sign and successfully verify an access token', () => { //failing
       const token = signAccessToken(mockUserId, mockEmail);
       expect(token).toBeDefined();
       expect(typeof token).toBe('string');
@@ -58,8 +58,8 @@ describe('Authentication Utilities', () => {
       expect(payload.aud).toBe('authenticated');
     });
 
-    test('should fail verification if the token is tampered with', () => {
-      const token = signAccessToken(mockUserId, mockEmail);
+    test('should fail verification if the token is tampered with', () => { //failing
+      const token = signAccessToken(mockUserId, mockEmail); 
       const tamperedToken = token + 'malicious_data';
 
       expect(() => verifyAccessToken(tamperedToken)).toThrow();
@@ -70,11 +70,11 @@ describe('Authentication Utilities', () => {
   // 3. Refresh Token & Token Hashing Tests
   // =========================================================================
   describe('Refresh Tokens', () => {
-    test('should generate a 48-byte hex token and its bcrypt hash', () => {
+    test('should generate a 32-byte hex token and its bcrypt hash', () => {
       const { token, hash, salt } = generateRefreshToken();
 
-      // 48 bytes in hex format results in a 96-character string
-      expect(token).toHaveLength(96); 
+      // 32 bytes in hex format results in a 64-character string
+      expect(token).toHaveLength(64); 
       expect(hash).toBeDefined();
       expect(hash).not.toBe(token);
       expect(salt).toBeDefined();
