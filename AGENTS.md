@@ -131,6 +131,7 @@ Frontend TS is strict: `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSy
 |-------|---------------|
 | Express entry | `backend/server.js` (ESM, imports routes + WS setup) |
 | Auth routes | `backend/src/routes/auth*.ts` (EmailVerification, TokenVerification, UserVerification, WsTicket routers) |
+| User routes | `backend/src/routes/users.ts` (search, profile-image upload) |
 | Chat routes | `backend/src/chat/chat.ts` |
 | WebSocket | `backend/ws/websocket.ts` (room pub/sub, port 8080) |
 | Client WS | `src/context/WebSocketContext.tsx` (reconnect, subscribe queue, Redux integration) |
@@ -138,6 +139,8 @@ Frontend TS is strict: `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSy
 | React entry | `src/main.tsx` (Redux + AuthProvider + TanStack Query) |
 | DB pool | `backend/src/lib/connectionPoolClient.ts` |
 | Redis | `backend/redis/redisClient.ts` (optional, for scaling) |
+| Image upload service | `backend/src/services/imageUpload.ts` (S3 upload via Supabase, presigned URLs) |
+| Modals | `src/modals/` (ProfileModal, ProfileImageModal, UserSearchModal, ImageModal, etc.) |
 
 ## Important Quirks
 

@@ -13,7 +13,7 @@ import {
 } from "../../hooks/useAnonymousMutations";
 import MessageList from "../../components/MessageList";
 import ConfirmModal from "../../modals/ConfirmModal";
-import type { ChatMessages } from "../../types/chat";
+import type { AnonymousChatMessages } from "../../types/chat";
 import AnonymousChatHeader from "./AnonymousChatHeader";
 import AnonymousChatComposer from "./AnonymousChatComposer";
 
@@ -22,7 +22,7 @@ export default function AnonymousChat() {
   const user = useSelector((s: RootState) => s.userAuth.user);
   const { subscribeToChats, onMessage } = useWebSocket();
 
-  const [messages, setMessages] = useState<ChatMessages[]>([]);
+  const [messages, setMessages] = useState<AnonymousChatMessages[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -117,7 +117,11 @@ export default function AnonymousChat() {
             senderImage: isAnon ? null : (msg.payload.senderImage ?? null),
             createdAt: msg.payload.createdAt,
             isOwn,
+            isEdited: false,
+            messageType: 'text',
             isAnonymous: isAnon,
+            totalUpvotes: 0,
+            userVote: null,
           }];
         });
       }
@@ -148,6 +152,7 @@ export default function AnonymousChat() {
           createdAt: m.created_at,
           isOwn,
           isEdited: m.is_edited ?? false,
+          messageType: 'text',
           totalUpvotes: m.TotalUpvotes ?? 0,
           userVote: (m.userVote as 'upvote' | 'downvote' | null) ?? null,
           isAnonymous: isAnon,
@@ -172,7 +177,7 @@ export default function AnonymousChat() {
 
     ownMessageIds.current.add(tempId);
 
-    const optimistic: ChatMessages = {
+    const optimistic: AnonymousChatMessages = {
       id: tempId,
       chatId: roomId,
       senderId: user.id,
@@ -181,7 +186,11 @@ export default function AnonymousChat() {
       content: trimmed,
       createdAt: new Date().toISOString(),
       isOwn: true,
+      isEdited: false,
+      messageType: 'text',
       isAnonymous,
+      totalUpvotes: 0,
+      userVote: null,
     };
     setMessages((prev) => [...prev, optimistic]);
     setMessageText("");
@@ -197,7 +206,7 @@ export default function AnonymousChat() {
               .filter((m) => m.id !== data.message.id)
               .map((m) =>
                 m.id === tempId
-                  ? { id: data.message.id, chatId: roomId, senderId: user.id, senderName: isAnonymous ? "Anonymous" : user.user_name, senderImage: isAnonymous ? null : (user.image_url ?? null), content: data.message.content ?? '', createdAt: data.message.created_at, isOwn: true, isEdited: data.message.is_edited ?? false, isAnonymous }
+                  ? { id: data.message.id, chatId: roomId, senderId: user.id, senderName: isAnonymous ? "Anonymous" : user.user_name, senderImage: isAnonymous ? null : (user.image_url ?? null), content: data.message.content ?? '', createdAt: data.message.created_at, isOwn: true, isEdited: data.message.is_edited ?? false, messageType: 'text', isAnonymous, totalUpvotes: 0, userVote: null }
                   : m,
               ),
           );

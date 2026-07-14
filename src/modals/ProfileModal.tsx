@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import type { RootState } from "../store/store";
 import UserAvatar from "../components/UserAvatar";
+import ProfileImageModal from "./ProfileImageModal";
 
 interface Props {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface Props {
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
+  
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(value);
@@ -59,6 +61,7 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
   const navigate = useNavigate();
   const user = useSelector((s: RootState) => s.userAuth.user);
   const conversations = useSelector((s: RootState) => s.chat?.chats ?? []);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
 
   if (!isOpen || !user) return null;
 
@@ -111,11 +114,19 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
 
           {/* Avatar overlapping banner */}
           <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
-            <div className="relative">
-              <UserAvatar imageUrl={user.image_url ?? null} userName={user.user_name} size="lg" />
+            <button
+              onClick={() => setImageModalOpen(true)}
+              className="relative cursor-pointer rounded-full transition-transform hover:scale-105 focus:outline-none"
+            >
+              {(user && user.image_url) ? (
+                <img src={user.image_url} alt="Profile" className="h-18 w-18 rounded-full" />
+              ) : (
+                <UserAvatar imageUrl={user.image_url} userName={user.user_name} size="lg" />
+              )}
+             
               {/* Online indicator */}
               <span className="absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 border-surface-elevated bg-green-400" />
-            </div>
+            </button>
           </div>
         </div>
 
@@ -176,6 +187,14 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
           </button>
         </div>
       </div>
+
+{ imageModalOpen &&
+      <ProfileImageModal
+        onClose={() => setImageModalOpen(false)}
+        imageUrl={user.image_url ?? null}
+        userName={user.user_name}
+      />
+}
     </div>
   );
 }

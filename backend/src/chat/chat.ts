@@ -1,11 +1,33 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import multer, { type FileFilterCallback } from 'multer';
 import { authenticate } from '../middleware/authenticate.js';
 import { refreshUserAccessToken } from '../services/auth.js';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { broadcastToRoom } from '../../ws/websocket.js';
 import { findDmChat, createDmChat } from '../services/dmChat.js';
 import { escapeHtml } from '../util/sanitize.js';
+import { uploadImageToStorage, signImageUrl } from '../services/imageUpload.js';
+
+type ChatUploadRequest = Request & {
+  file?: {
+    originalname: string;
+    mimetype: string;
+    buffer: Buffer;
+  };
+};
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req: Request, file: { mimetype: string }, cb: FileFilterCallback) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error('Only image files are allowed'));
+  },
+});
 
 
 async function requireChatMembership(userId: string, chatId: string): Promise<boolean> {
@@ -142,6 +164,89 @@ ChatRouter.get('/', authenticate, async (req: Request, res: Response): Promise<v
   res.json({ chats: transformed });
 });
 
+ChatRouter.post('/:chatId/image', authenticate, upload.single('image'), async (req: ChatUploadRequest, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const chatId = req.params.chatId as string;
+  const userId = req.user.id;
+  const { type = 'image' } = req.body as { type?: string };
+  const file = req.file;
+
+  if (!file) {
+    res.status(400).json({ error: 'image file is required' });
+    return;
+  }
+
+  if (!await requireChatMembership(userId, chatId)) {
+    res.status(403).json({ error: 'Not a member of this chat' });
+    return;
+  }
+
+  try {
+    const uploadResult = await uploadImageToStorage({
+      userId,
+      fileName: file.originalname,
+      contentType: file.mimetype,
+      buffer: file.buffer,
+    });
+
+    const message = await prisma.standardChatMessages.create({
+      data: {
+        chat_id: chatId,
+        sender_id: userId,
+        message_type: type,
+        content: uploadResult.path,
+      },
+      include: {
+        USERS: {
+          select: { id: true, user_name: true, image_url: true },
+        },
+      },
+    });
+
+    await prisma.standardChats.update({
+      where: { id: chatId },
+      data: { updated_at: new Date() },
+    });
+
+    broadcastToRoom(chatId, {
+      type: 'message:new',
+      payload: {
+        id: message.id,
+        chatId,
+        senderId: message.sender_id,
+        senderName: message.USERS.user_name ?? userId,
+        senderImage: message.USERS.image_url ?? null,
+        content: uploadResult.url,
+        createdAt: message.created_at,
+        messageType: message.message_type,
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: {
+        id: message.id,
+        chatId,
+        senderId: message.sender_id,
+        senderName: message.USERS.user_name ?? userId,
+        senderImage: message.USERS.image_url ?? null,
+        content: uploadResult.url,
+        messageType: message.message_type,
+        createdAt: message.created_at,
+      },
+      url: uploadResult.url,
+      path: uploadResult.path,
+    });
+  } catch (error) {
+    console.error(`[chat:POST /:chatId/image] error for chat ${chatId}:`, error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Image upload failed' });
+  }
+});
+
 ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
   const chatId = req.params.chatId as string;
   const userId = req.user?.id;
@@ -175,11 +280,21 @@ ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
 
     messages.reverse();
 
-    const hasMore = messages.length === limit;
+    const signedMessages = await Promise.all(
+      messages.map(async (msg) => {
+        if (msg.message_type === 'image' && msg.content) {
+          const signedUrl = await signImageUrl(msg.content);
+          return { ...msg, content: signedUrl };
+        }
+        return msg;
+      }),
+    );
 
-    console.log(`[chat:GET /:chatId/messages] found ${messages.length} messages for chat ${chatId} (hasMore: ${hasMore})`);
+    const hasMore = signedMessages.length === limit;
 
-    res.json({ messages, hasMore });
+    console.log(`[chat:GET /:chatId/messages] found ${signedMessages.length} messages for chat ${chatId} (hasMore: ${hasMore})`);
+
+    res.json({ messages: signedMessages, hasMore });
   } catch (error) {
     console.error(`[chat:GET /:chatId/messages] error for chat ${chatId}:`, error);
     res.status(500).json({ error: 'Failed to fetch messages' });

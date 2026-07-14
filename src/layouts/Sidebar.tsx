@@ -116,7 +116,11 @@ export default function Sidebar() {
         className={`mt-auto ${btnClass(false)}`}
         aria-label="Profile"
       >
-        <PersonOutlined fontSize="small" />
+        {(user && user.image_url)  ? (
+          <img src={user.image_url} alt="Profile" className="h-6 w-6 rounded-full" />
+        ) : (
+          <PersonOutlined fontSize="small" />
+        )}
         {expanded && <span className="text-sm whitespace-nowrap">Profile</span>}
       </button>
 

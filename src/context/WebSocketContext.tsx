@@ -119,6 +119,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
               ...rest,
               isOwn: rest.senderId === user?.id,
               senderImage: rest.senderImage ?? null,
+              isEdited: rest.isEdited ?? false,
+              messageType: rest.messageType ?? 'text',
             };
             if (!old) return { messages: [entry], hasMore: false };
             if (old.messages.some((m) => m.id === entry.id)) return old;

@@ -7,14 +7,14 @@ import ChatHeader from "../components/ChatHeader";
 import MessageList from "../components/MessageList";
 import ChatInput from "../components/ChatInput";
 import ConfirmModal from "../modals/ConfirmModal";
+import ImageModal from "../modals/ImageModal";
 import { useChatMessagesQuery } from "../hooks/useChatMessagesQuery";
 import {
-  useSendMessageMutation,
   useEditMessageMutation,
   useDeleteMessageMutation,
 } from "../hooks/useChatMutations";
 import type { ChatMessages } from "../types/chat";
-function buildMessage(raw: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; USERS?: { user_name: string; image_url: string | null } | null }, isOwn: boolean, chatId: string): ChatMessages {
+function buildMessage(raw: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; message_type?: string; USERS?: { user_name: string; image_url: string | null } | null }, isOwn: boolean, chatId: string): ChatMessages {
   return {
     id: raw.id,
     chatId,
@@ -25,11 +25,11 @@ function buildMessage(raw: { id: string; sender_id: string; content: string; cre
     createdAt: raw.created_at,
     isOwn,
     isEdited: raw.is_edited ?? false,
+    messageType: raw.message_type as string,
   };
 }
 
 export default function ChatView() {
-  const [messageText, setMessageText] = useState("");
   const [messages, setMessages] = useState<ChatMessages[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -40,19 +40,16 @@ export default function ChatView() {
   const [editText, setEditText] = useState("");
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const user = useSelector((s: RootState) => s.userAuth.user);
-  const isConnected = useSelector((s: RootState) => s.userAuth.isConnected);
   const { chatId } = useParams();
-  const sendMessageMutation = useSendMessageMutation();
   const editMessageMutation = useEditMessageMutation();
   const deleteMessageMutation = useDeleteMessageMutation();
-  const { subscribeToChats, send, onMessage } = useWebSocket();
+  const { subscribeToChats, onMessage } = useWebSocket();
   const prevChatIdRef = useRef<string | null>(null);
 
   const [deleteModalOpen,setDeleteModalOpen] = useState(false);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
-  const {
-    data: messagesData,
-  } = useChatMessagesQuery(chatId);
+  const { data: messagesData} = useChatMessagesQuery(chatId);
 
   // Subscribe/unsubscribe to chat via WebSocket when chatId changes
   useEffect(() => {
@@ -100,6 +97,8 @@ export default function ChatView() {
               content: msg.payload.content,
               createdAt: msg.payload.createdAt,
               isOwn: msg.payload.senderId === user.id,
+              isEdited: false,
+              messageType: msg.payload.messageType ?? 'text',
             },
           ];
         });
@@ -126,7 +125,7 @@ export default function ChatView() {
       );
       if (!res.ok) throw new Error("Failed to fetch more messages");
       const data = await res.json();
-      const newMsgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; USERS?: { user_name: string; image_url: string | null } | null }) =>
+      const newMsgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; message_type?: string; USERS?: { user_name: string; image_url: string | null } | null }) =>
         buildMessage(m, m.sender_id === user.id, chatId),
       );
       setMessages((prev) => [...newMsgs, ...prev]);
@@ -138,49 +137,6 @@ export default function ChatView() {
       console.error(`[ChatView] failed to load more messages:`, err);
     } finally {
       setLoadingMore(false);
-    }
-  }
-
-  async function sendMessage() {
-    if (!chatId || !messageText.trim() || !user) return;
-
-    const trimmed = messageText.trim();
-    const tempId = `temp-${Date.now()}`;
-    const optimistic: ChatMessages = {
-      id: tempId,
-      chatId,
-      senderId: user.id,
-      content: trimmed,
-      createdAt: new Date().toISOString(),
-      isOwn: true,
-      senderName: user.user_name,
-      senderImage: user.image_url ?? null,
-    };
-
-    setMessages((prev) => [...prev, optimistic]);
-    setMessageText("");
-
-    if (isConnected) {
-      send('message:send', { chatId, content: trimmed, tempId });
-    } else {
-      sendMessageMutation.mutate(
-        { chatId, content: trimmed, userId: user.id },
-        {
-          onSuccess: (data) => {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === tempId
-                  ? { ...m, id: data.message.id, createdAt: data.message.created_at }
-                  : m,
-              ),
-            );
-          },
-          onError: (err) => {
-            console.error(`[ChatView] error sending message:`, err);
-            setMessages((prev) => prev.filter((m) => m.id !== tempId));
-          },
-        },
-      );
     }
   }
 
@@ -290,10 +246,11 @@ export default function ChatView() {
           setDeleteModalOpen(prev => !prev);
           setDeletingMessageId(msgId);
         } }
-        showVoting={false} />
+        showVoting={false}
+        onImageClick={setSelectedImageUrl} />
         
       <div className="pb-4 pt-2">
-        <ChatInput value={messageText} onChange={setMessageText} onSend={sendMessage} />
+        <ChatInput setMessages={setMessages} />
       </div>
 
       <ConfirmModal
@@ -304,6 +261,12 @@ export default function ChatView() {
         message="This action cannot be undone."
         confirmLabel="Delete"
         cancelLabel="Cancel"
+      />
+
+      <ImageModal
+        isOpen={selectedImageUrl !== null}
+        onClose={() => setSelectedImageUrl(null)}
+        src={selectedImageUrl ?? ""}
       />
     </div>
   );

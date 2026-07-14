@@ -3,10 +3,10 @@ import { useSelector } from 'react-redux';
 import type { MutableRefObject } from 'react';
 import type { RootState } from '../store/store';
 import { anonChatKeys } from '../lib/queryKeys';
-import type { ChatMessages } from '../types/chat';
+import type { AnonymousChatMessages } from '../types/chat';
 
 export interface AnonymousMessagesResponse {
-  messages: ChatMessages[];
+  messages: AnonymousChatMessages[];
   hasMore: boolean;
 }
 
@@ -26,7 +26,7 @@ function buildAnonMessage(
   userId: string,
   userImageUrl: string | null,
   ownIdsRef: MutableRefObject<Set<string>>,
-): ChatMessages {
+): AnonymousChatMessages {
   const isOwn = ownIdsRef.current.has(m.id) || m.sender_id === userId;
   const isAnon = m.isAnonymous ?? true;
   return {
@@ -39,6 +39,7 @@ function buildAnonMessage(
     createdAt: m.created_at,
     isOwn,
     isEdited: m.is_edited ?? false,
+    messageType: 'text',
     totalUpvotes: m.TotalUpvotes ?? 0,
     userVote: (m.userVote as 'upvote' | 'downvote' | null) ?? null,
     isAnonymous: isAnon,

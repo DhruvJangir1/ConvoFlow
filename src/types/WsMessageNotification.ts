@@ -11,7 +11,7 @@ export type NotificationPayload ={
 
 export type WSMessage =
   { type: 'message:new'; payload: {
-    isAnonymous: boolean; id: string; chatId: string; senderId: string; senderName: string; senderImage: string | null; content: string; createdAt: string 
+    isAnonymous: boolean; id: string; chatId: string; senderId: string; senderName: string; senderImage: string | null; content: string; createdAt: string; messageType?: string 
 }}
   | { type: 'message:ack'; payload: { id: string; tempId?: string } }
   | { type: 'typing:update'; payload: { chatId: string; userId: string; isTyping: boolean } }
