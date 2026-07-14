@@ -1,13 +1,6 @@
-import { test, expect, describe } from 'vitest';
+import { test, expect, describe, beforeAll, afterAll } from 'vitest';
 import bcrypt from 'bcryptjs';
-import { 
-  hashPassword, 
-  comparePassword, 
-  signAccessToken, 
-  verifyAccessToken, 
-  generateRefreshToken, 
-  hashToken 
-} from './auth';
+import { hashPassword, comparePassword, signAccessToken, verifyAccessToken, generateRefreshToken, hashToken } from './auth';
 
 describe('Authentication Utilities', () => {
   const mockPassword = 'SuperSecretPassword123';
@@ -47,12 +40,38 @@ describe('Authentication Utilities', () => {
   // 2. Access Token (JWT) Tests
   // =========================================================================
   describe('Access Tokens (JWT)', () => {
-    test('should sign and successfully verify an access token', () => { //failing
+    const TEST_SECRET = 'test-supabase-jwt-secret-for-unit-tests';
+    let originalEnv: string | undefined;
+
+    beforeAll(() => {
+      originalEnv = process.env.SUPABASE_JWT_SECRET;
+      process.env.SUPABASE_JWT_SECRET = TEST_SECRET;
+    });
+
+    afterAll(() => {
+      if (originalEnv !== undefined) {
+        process.env.SUPABASE_JWT_SECRET = originalEnv;
+      } else {
+        delete process.env.SUPABASE_JWT_SECRET;
+      }
+    });
+
+    test('should sign and successfully verify an access token', () => {
       const token = signAccessToken(mockUserId, mockEmail);
+
+      if (!token) {
+        throw new Error('Token signing failed');
+      }
+
       expect(token).toBeDefined();
       expect(typeof token).toBe('string');
 
       const payload = verifyAccessToken(token);
+
+      if (!payload) {
+        throw new Error('Token verification failed');
+      }
+
       expect(payload.sub).toBe(mockUserId);
       expect(payload.email).toBe(mockEmail);
       expect(payload.aud).toBe('authenticated');
@@ -61,6 +80,10 @@ describe('Authentication Utilities', () => {
     test('should fail verification if the token is tampered with', () => { //failing
       const token = signAccessToken(mockUserId, mockEmail); 
       const tamperedToken = token + 'malicious_data';
+
+      if (tamperedToken === token) {
+        throw new Error('Tampering failed, tokens are identical');
+      }
 
       expect(() => verifyAccessToken(tamperedToken)).toThrow();
     });
