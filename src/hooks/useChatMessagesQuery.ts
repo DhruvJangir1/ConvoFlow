@@ -16,7 +16,7 @@ async function fetchMessages(chatId: string, userId: string, before?: string): P
   const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) throw new Error('Failed to fetch messages');
   const data = await res.json();
-  const msgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; USERS?: { user_name: string; image_url: string | null } | null }) => ({
+  const msgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; message_type?: string; USERS?: { user_name: string; image_url: string | null } | null }) => ({
     id: m.id,
     senderId: m.sender_id,
     senderName: m.USERS?.user_name ?? m.sender_id.slice(0, 8),
@@ -25,6 +25,7 @@ async function fetchMessages(chatId: string, userId: string, before?: string): P
     createdAt: m.created_at,
     isOwn: m.sender_id === userId,
     isEdited: m.is_edited ?? false,
+    messageType: m.message_type,
   }));
   return { messages: msgs, hasMore: data.hasMore ?? false };
 }

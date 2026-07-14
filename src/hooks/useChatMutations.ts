@@ -53,6 +53,8 @@ export function useSendMessageMutation() {
             isOwn: true,
             senderName: msg.USERS?.user_name ?? '',
             senderImage: msg.USERS?.image_url ?? null,
+            isEdited: false,
+            messageType: 'text',
           };
           if (!old) return { messages: [entry], hasMore: false };
           if (old.messages.some((m) => m.id === entry.id)) return old;

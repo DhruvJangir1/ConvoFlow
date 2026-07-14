@@ -42,8 +42,17 @@ const userAuthSlice = createSlice({
     resetUnreadNotif(state) {
       state.unreadNotifCount = 0;
     },
+    updateUserProfileImage(state, action: PayloadAction<string>) {
+      if (state.user) {
+        state.user.image_url = action.payload;
+        console.log("[userAuthSlice] updateUserProfileImage called, updated user image_url:", state.user.image_url);
+      }
+      else{
+        console.log("[userAuthSlice] updateUserProfileImage called but user is null");
+      }
+    },
   },
 });
 
-export const { setUser, setConnected, setUnreadNotifCount, incrementUnreadNotif, resetUnreadNotif } = userAuthSlice.actions;
+export const { setUser, setConnected, setUnreadNotifCount, incrementUnreadNotif, resetUnreadNotif, updateUserProfileImage } = userAuthSlice.actions;
 export default userAuthSlice.reducer;

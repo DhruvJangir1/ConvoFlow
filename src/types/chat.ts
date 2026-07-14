@@ -24,21 +24,25 @@ export type Reaction = {
   createdAt: string;
 };
 
-export type ChatMessages={
-  id: string,
-  chatId:string,
-  senderId: string,
-  content: string,
-  createdAt: string,
-  isOwn: boolean,
-  senderName: string,
-  senderImage: null | string,
-  isEdited?: boolean,
-  reactions?: Reaction[],
-  totalUpvotes?: number,
-  userVote?: 'upvote' | 'downvote' | null,
-  isAnonymous?: boolean,
-}
+export type ChatMessages = {
+  id: string;
+  chatId: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
+  isOwn: boolean;
+  senderName: string;
+  senderImage: null | string;
+  isEdited: boolean;
+  messageType: string;
+  reactions?: Reaction[];
+};
+
+export type AnonymousChatMessages = ChatMessages & {
+  totalUpvotes: number;
+  userVote: 'upvote' | 'downvote' | null;
+  isAnonymous: boolean;
+};
 
 export interface Notification {
   id: string;

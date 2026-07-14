@@ -5,7 +5,13 @@ import Delete from "@mui/icons-material/Delete";
 import Check from "@mui/icons-material/Check";
 import Close from "@mui/icons-material/Close";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
-import type { ChatMessages as Message } from "../types/chat";
+import type { ChatMessages, AnonymousChatMessages } from "../types/chat";
+
+type Message = ChatMessages | AnonymousChatMessages;
+
+function isAnonMsg(msg: Message): msg is AnonymousChatMessages {
+  return 'isAnonymous' in msg;
+}
 
 type MessageListProps = {
   messages: Message[];
@@ -24,6 +30,7 @@ type MessageListProps = {
   showVoting: boolean;
   onUpvote?: (messageId: string) => void;
   onDownvote?: (messageId: string) => void;
+  onImageClick?: (url: string) => void;
 };
 
 type Group = {
@@ -95,6 +102,17 @@ function wrapText(text: string, maxChars: number = 75): string {
   return parts.join("\n");
 }
 
+function isImageUrl(value: string): boolean {
+  if (!value) return false;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return Boolean(url.pathname.match(/\.(jpe?g|png|gif|webp|avif|svg|bmp)(\?.*)?$/i));
+}
+
 function formatMessageTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
 }
@@ -130,6 +148,7 @@ export default function MessageList({
   showVoting,
   onUpvote,
   onDownvote,
+  onImageClick,
 }: MessageListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -298,7 +317,7 @@ export default function MessageList({
                       justifyContent: group.isOwn ? "flex-end" : "flex-start",
                     }}
                   >
-                    {mi === 0 && !group.isOwn && !msg.isAnonymous && (
+                    {mi === 0 && !group.isOwn && !isAnonMsg(msg) && (
                       <div className="h-8 w-8 shrink-0 self-end rounded-full overflow-hidden bg-zinc-600 flex items-center justify-center text-xs font-semibold text-white">
                         {msg.senderImage ? (
                           <img src={msg.senderImage} alt="" className="h-full w-full object-cover" />
@@ -312,7 +331,7 @@ export default function MessageList({
                         group.isOwn ? "items-end" : "items-start"
                       }`}
                     >
-                      {mi === 0 && !msg.isAnonymous && !group.isOwn && (
+                      {mi === 0 && !isAnonMsg(msg) && !group.isOwn && (
                         <span className="mb-1 ml-0.5 text-[12px] font-semibold text-accent-secondary">
                           {msg.senderName}
                         </span>
@@ -321,7 +340,7 @@ export default function MessageList({
                         className={`transition-all duration-200 ${
                           isEditing
                             ? "rounded-2xl border border-border bg-surface-raised shadow-lg shadow-black/20 px-3.5 pt-3 pb-2"
-                            : msg.isAnonymous
+                            : isAnonMsg(msg)
                               ? "w-fit rounded-2xl bg-zinc-700 text-text-primary shadow-sm px-3 py-1.5"
                               : group.isOwn
                                 ? "w-fit rounded-2xl rounded-tr-sm bg-indigo-600 text-white shadow-sm px-3 py-1.5"
@@ -373,9 +392,18 @@ export default function MessageList({
                           </div>
                         ) : (
                           <>
-                            <p className="text-sm whitespace-pre-wrap min-w-0">
-                              {wrapText(msg.content ?? "")}
-                            </p>
+                            {isImageUrl(msg.content ?? "") || msg.messageType === 'image' ? (
+                              <img
+                                src={msg.content}
+                                alt="Uploaded image"
+                                onClick={() => onImageClick?.(msg.content)}
+                                className="max-h-75 w-full rounded-2xl object-contain border border-zinc-700 bg-zinc-950 cursor-pointer hover:opacity-90 transition-opacity"
+                              />
+                            ) : (
+                              <p className="text-sm whitespace-pre-wrap min-w-0">
+                                {wrapText(msg.content ?? "")}
+                              </p>
+                            )}
                             {isLast && (
                               <div className={`flex ${group.isOwn ? "justify-end" : "justify-start"} mt-0.5`}>
                                 <span className={`text-[10px] select-none whitespace-nowrap ${
@@ -392,7 +420,7 @@ export default function MessageList({
                         )}
                       </div>
 
-                      {mi === 0 && group.isOwn && !msg.isAnonymous && (
+                      {mi === 0 && group.isOwn && !isAnonMsg(msg) && (
                         <div className="h-8 w-8 shrink-0 self-end rounded-full overflow-hidden bg-zinc-600 flex items-center justify-center text-xs font-semibold text-white">
                           {msg.senderImage ? (
                             <img src={msg.senderImage} alt="" className="h-full w-full object-cover" />
@@ -402,7 +430,7 @@ export default function MessageList({
                         </div>
                       )}
 
-                      { isVotable && (
+                      { isVotable && isAnonMsg(msg) && (
                         <div className={`flex mt-0.5 ${group.isOwn ? "justify-end" : "justify-start"}`}>
                           <div className="flex items-center gap-0.5">
                             <button

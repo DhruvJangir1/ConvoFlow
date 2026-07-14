@@ -13,6 +13,20 @@ import { connectRedis, disconnectRedis } from './redis/redisClient'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function normalizeEnvVar(value) {
+  return value?.replace(/^['"]|['"]$/g, '');
+}
+
+const supabaseStorageOrigin = (() => {
+  const raw = normalizeEnvVar(process.env.SUPA_BASE_URL);
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+})();
+
 const app = express();
 app.use(express.json());
 
@@ -25,7 +39,7 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "https://apis.google.com", "https://js.stripe.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        imgSrc: ["'self'", "data:", "https://your-s3-bucket.s3.amazonaws.com"],
+        imgSrc: ["'self'", "data:", "blob:", ...(supabaseStorageOrigin ? [supabaseStorageOrigin] : [])],
         connectSrc: ["'self'", "https://api.stripe.com"],
         upgradeInsecureRequests: [], // Automatically upgrades HTTP asset links to HTTPS
       },
@@ -73,7 +87,7 @@ app.use(
 
     // USE CASE 11: Prevent loading cross-origin assets unless they explicitly grant permission via CORS/CORP
     crossOriginEmbedderPolicy: {
-      policy: "require-corp",
+      policy: "unsafe-none",
     },
 
     // USE CASE 12: Stop browsers from silently pre-resolving DNS coordinates for external links on your site
