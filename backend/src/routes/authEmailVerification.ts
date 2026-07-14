@@ -99,7 +99,10 @@ AuthEmailVerificaitonRouter.post('/signup', async (req: Request, res: Response):
 
   const newUser = await createNewSupabaseUser(req, res, authResult, insertPayload);
 
-  if (!newUser) return;
+  if (!newUser) {
+    res.status(500).json({ error: 'Failed to create user in database' });
+    return;
+  }
 
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   setVerificationCode(newUser.id, code);
@@ -146,9 +149,11 @@ AuthEmailVerificaitonRouter.post('/login', async (req: Request, res: Response): 
   console.log(`[/login] user lookup: ${user ? 'found' : 'not found'}`);
 
   if (!user){
+    res.status(404).json({ error: 'User not found' });
     return;
   }
   if (!user.password){
+    res.status(400).json({ error: 'User has no password set' });
     return;
   }
 
@@ -166,7 +171,20 @@ AuthEmailVerificaitonRouter.post('/login', async (req: Request, res: Response): 
   console.log(`[/login] password valid for user ${user.id}`);
 
   const accessToken = signAccessToken(user.id, user.email);
+
+  if (!accessToken) {
+    console.error('[/login] failed to generate access token');
+    res.status(500).json({ error: 'Failed to generate access token' });
+    return;
+  }
+
   const { token: refreshToken, hash: refreshHash, salt: refreshSalt } = generateRefreshToken();
+
+  if (!refreshToken || !refreshHash || !refreshSalt) {
+    console.error('[/login] failed to generate refresh token');
+    res.status(500).json({ error: 'Failed to generate refresh token' });
+    return;
+  }
 
   await prisma.users.update({
     where: { id: user.id },
@@ -181,6 +199,12 @@ AuthEmailVerificaitonRouter.post('/login', async (req: Request, res: Response): 
   setAuthCookies(res, accessToken, refreshToken, refreshSalt);
 
   const { id, user_name, email: userEmail, image_url, is_verified, created_at, user_tag } = user;
+
+  if (!is_verified) {
+    console.log(`[/login] user ${user.id} is not verified, sending verification code`);
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setVerificationCode(user.id, code);
+  }
 
   console.log(`[/login] successful login for ${userEmail}`);
   res.json({

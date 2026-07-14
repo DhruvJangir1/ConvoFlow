@@ -16,13 +16,12 @@ const BCRYPT_ROUNDS = 12;
 const ACCESS_TOKEN_EXPIRY = '15m';
 
 function getJwtSecret(): string {
-  const secret = process.env.SUPABASE_JWT_SECRET;
+  const secret = process.env.SUPABASE_JWT_SECRET || "";
   if (!secret) {
     throw new Error('SUPABASE_JWT_SECRET is not defined in environment variables');
   }
   return secret;
 }
-
 
 export async function checkPassword (req: Request, res: Response): Promise<void>{
   const { password } = req.body as { password?: string };
@@ -136,6 +135,13 @@ export async function refreshUserAccessToken(req: Request, res: Response): Promi
     console.log(`[refreshUserAccessToken] user found: ${user.id}`);
 
     const newAccessToken = signAccessToken(user.id, user.email);
+
+    if (!newAccessToken) {
+      console.error('[refreshUserAccessToken] failed to generate new access token');
+      res.status(500).json({ error: 'Failed to generate new access token' });
+      return;
+    }
+
     console.log(`[refreshUserAccessToken] new access token signed: ${newAccessToken}`);
 
     // making new new refresh token
@@ -143,6 +149,12 @@ export async function refreshUserAccessToken(req: Request, res: Response): Promi
     console.log(`[refreshUserAccessToken] new refresh token: ${newRefreshToken}`);
     console.log(`[refreshUserAccessToken] new refresh salt: ${newRefreshSalt}`);
     console.log(`[refreshUserAccessToken] new refresh hash: ${newRefreshHash}`);
+
+    if (!newRefreshToken || !newRefreshHash || !newRefreshSalt) {
+      console.error('[refreshUserAccessToken] failed to generate new refresh token');
+      res.status(500).json({ error: 'Failed to generate new refresh token' });
+      return;
+    }
 
     await prisma.users.update({
       where: { id: user.id },

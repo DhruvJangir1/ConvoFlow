@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response } from 'express';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
 
@@ -30,7 +30,7 @@ const { mockPrisma, mockSupabase, mockAuthService, mockSendUserVerificationCode,
     verifyAccessToken: vi.fn(),
     generateRefreshToken: vi.fn().mockReturnValue({ token: 'rt', hash: 'rh', salt: 'rs' }),
     hashToken: vi.fn().mockReturnValue('hashed_token'),
-    REFRESH_TOKEN_EXPIRY_MS: 86400000,
+    REFRESH_TOKEN_EXPIRY_MS: 2_592_000,
     refreshUserAccessToken: vi.fn(),
   };
 

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll, type Mock } from 'vitest';
-
 // =========================================================================
 // Mock Setup (must be before imports due to hoisting)
 // =========================================================================
@@ -22,16 +21,20 @@ vi.mock('./supabaseAuth.js', () => ({
   createNewSupabaseUser: vi.fn(),
 }));
 
-vi.mock('../services/auth.js', () => ({
-  hashPassword: vi.fn(),
-  comparePassword: vi.fn(),
-  signAccessToken: vi.fn(),
-  verifyAccessToken: vi.fn(),
-  generateRefreshToken: vi.fn(),
-  hashToken: vi.fn(),
-  REFRESH_TOKEN_EXPIRY_MS: 2_592_000_000,
-  checkPassword: vi.fn(),
-}));
+vi.mock('../services/auth.js', async () => {
+  const actual = await vi.importActual<typeof import('../services/auth.js')>('../services/auth.js');
+  return {
+    hashPassword: vi.fn(),
+    comparePassword: vi.fn(),
+    signAccessToken: vi.fn(),
+    verifyAccessToken: actual.verifyAccessToken,
+    generateRefreshToken: vi.fn(),
+    hashToken: vi.fn(),
+    REFRESH_TOKEN_EXPIRY_MS: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
+    checkPassword: vi.fn(),
+    refreshUserAccessToken: vi.fn(),
+  };
+});
 
 vi.mock('../services/authVerificaiton.js', () => ({
   sendUserVerificationCode: vi.fn(),
@@ -744,6 +747,7 @@ describe('Authenticate Middleware', () => {
     res.json({ user: req.user });
   });
 
+  // failing 
   it('passes through with a valid access token cookie', async () => {
     const auth = await vi.importActual<typeof import('../services/auth')>('../services/auth');
 
@@ -783,6 +787,7 @@ describe('Authenticate Middleware', () => {
     expect(res.status).toBe(401);
   });
 
+  //failing 
   it('sets req.user with correct id and email from valid token', async () => {
     const auth = await vi.importActual<typeof import('../services/auth')>('../services/auth');
 
