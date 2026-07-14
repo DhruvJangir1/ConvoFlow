@@ -29,4 +29,3 @@ export const S3_BUCKET_NAME =
   'chat-images';
 
 export default s3Client;
-
