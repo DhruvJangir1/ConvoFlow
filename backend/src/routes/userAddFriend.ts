@@ -62,7 +62,7 @@ FriendRouter.post('/send', authenticate, async (req: Request, res: Response): Pr
         { sender_id: senderId, receiver_id: targetUser.id },
         { sender_id: targetUser.id, receiver_id: senderId },
       ],
-      status: 'pending',
+      status: 'pending'
     },
   });
 
@@ -330,21 +330,28 @@ FriendRouter.patch('/:id/decline', authenticate, async (req: Request, res: Respo
     return;
   }
 
-  await prisma.addFriendRequests.update({
-    where: { id },
-    data: { status: 'declined', updated_at: new Date() },
-  });
-  console.log(`[FriendRoute] Friend request ${id} declined`);
-
   const declinerName = friendRequest.USERS_AddFriendRequests_receiver_idToUSERS.user_name ?? 'Someone';
+
+  const originalNotification = await prisma.notifications.findUnique({
+    where: { entity_id: id },
+  });
+  if (originalNotification) {
+    await prisma.notifications.update({
+      where: { id: originalNotification.id },
+      data: { read_at: new Date() },
+    });
+  }
+
+  await prisma.addFriendRequests.delete({ where: { id } });
+  console.log(`[FriendRoute] Friend request ${id} deleted`);
 
   const declinedNotification = await prisma.notifications.create({
     data: {
       receiver_user_id: friendRequest.sender_id,
       sender_user_id: userId,
       type: 'friend_request_declined',
-      content: `${declinerName} declined your friend request`,
-      entity_id: id,
+      content: `${declinerName} rejected your friend request`,
+      entity_id: crypto.randomUUID(),
     },
   });
   console.log(`[FriendRoute] Decline notification created: ${declinedNotification.id}`);
