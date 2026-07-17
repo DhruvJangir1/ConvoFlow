@@ -55,8 +55,7 @@ model AddFriendRequests {
   receiver_id       String        @db.Uuid
   created_at        DateTime      @default(now()) @db.Timestamptz(6)
   status            String        @default("pending")
-  sender_user_tag   String
-  receiver_user_tag String
+  updated_at        DateTime?     @db.Timestamptz(6)
   Notifications     Notifications @relation(fields: [id], references: [entity_id])
 }
 ```
@@ -73,21 +72,21 @@ model AddFriendRequests {
 
 ### Creating Notifications (`backend/src/services/userNotify.ts`)
 
-The `createNotification()` function inserts into the `Notifications` table. The `notifyFriendRequest()` helper does both in a single `$transaction`:
+Two exported functions:
 
-1. Creates a `Notifications` record first (FK requirement — `AddFriendRequests.id` references `Notifications.entity_id`)
-2. Creates the `AddFriendRequests` record with the same `id`
-3. Sends a real-time `notification:new` message via `sendToUser()` to the receiver's WebSocket
+- **`createNotification(data)`** — Low-level helper that inserts a single `Notifications` record. Accepts `{ receiver_user_id, sender_user_id, type, content?, entity_id }`.
+- **`notifyFriendRequest(receiverId, senderId, senderName, requestId)`** — Higher-level helper that:
+  1. Creates a `Notifications` record first (FK requirement — `AddFriendRequests.id` references `Notifications.entity_id`)
+  2. Creates the `AddFriendRequests` record with the same `id`
+  3. Sends a real-time `notification:new` message via `sendToUser()` to the receiver's WebSocket
 
 ```typescript
 export async function notifyFriendRequest(
   receiverId: string,
   senderId: string,
   senderName: string,
-  senderUserTag: string,
-  receiverUserTag: string,
   requestId: string,
-): Promise<{ notification: Notification; friendRequest: AddFriendRequest }> {
+): Promise<{ notification: Record<string, unknown>; friendRequest: Record<string, unknown> }> {
   // Both records created inside $transaction: notification first, friend request second
   const [notification, friendRequest] = await prisma.$transaction(async (tx) => {
     const notif = await tx.notifications.create({
@@ -191,9 +190,10 @@ When received (e.g., after a friend request is accepted), the client:
 
 | File | Role |
 |------|------|
-| `backend/src/services/userNotify.ts` | Notification creation and friend request notification helper |
-| `backend/src/routes/userNotification.ts` | REST API for fetching and managing notifications |
-| `backend/src/routes/userAddFriend.ts` | Friend request accept/decline with notification creation |
+| `backend/src/services/userNotify.ts` | Notification creation (`createNotification`, `notifyFriendRequest`) and real-time delivery via `sendToUser` |
+| `backend/src/routes/userNotification.ts` | REST API for fetching and managing notifications (uses `authenticate` middleware) |
+| `backend/src/routes/userAddFriend.ts` | Friend request accept/decline with notification creation (uses `authenticate` middleware) |
+| `backend/src/middleware/authenticate.ts` | JWT verification + cookie-based session refresh for all protected routes |
 | `src/pages/NotificationsPage.tsx` | Notification feed UI with accept/decline actions |
 | `src/store/userAuthSlice.tsx` | Redux state for `unreadNotifCount` |
 | `src/context/WebSocketContext.tsx` | Real-time notification delivery to the frontend |

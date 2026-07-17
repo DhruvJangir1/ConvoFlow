@@ -118,11 +118,7 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
               onClick={() => setImageModalOpen(true)}
               className="relative cursor-pointer rounded-full transition-transform hover:scale-105 focus:outline-none"
             >
-              {(user && user.image_url) ? (
-                <img src={user.image_url} alt="Profile" className="h-18 w-18 rounded-full" />
-              ) : (
-                <UserAvatar imageUrl={user.image_url} userName={user.user_name} size="lg" />
-              )}
+              <UserAvatar imageUrl={user.image_url} userName={user.user_name} size="lg" />
              
               {/* Online indicator */}
               <span className="absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 border-surface-elevated bg-green-400" />

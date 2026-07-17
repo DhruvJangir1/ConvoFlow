@@ -61,44 +61,54 @@
 ## [Scenario C] Login
 
 1. User submits `{ email, password }` to `POST /auth/EmailVerificaitonRouter/login`.
-2. **Rate limit check**: `trackAuthAttempt(ipAddress)` — allows 10 attempts per 5-minute window per IP.
-3. **Validate input**: email + password required, password >= 8 chars.
-4. **Lookup user** in `public.USERS` by email.
-5. **Compare password** with bcrypt (`comparePassword()`). Uses a **constant-time dummy hash** for non-existent users to prevent user enumeration via timing.
-6. **Issue tokens**: sign new access JWT, generate new refresh token + salt, update refresh hash in DB.
-7. **Set cookies** and respond with `{ user }`.
+2. **Validate input**: email + password required.
+3. **Rate limit check**: `trackAuthAttempt(ipAddress)` — allows 10 attempts per 1-minute window per IP.
+4. **Validate password length**: >= 8 chars.
+5. **Lookup user** in `public.USERS` by email. Returns 404 if not found.
+6. **Compare password** with bcrypt (`comparePassword()`). A constant-time dummy hash is used if the user exists but has no password set (e.g. OAuth-only account).
+7. **Issue tokens**: sign new access JWT, generate new refresh token + salt, update refresh hash in DB.
+8. **Set cookies** via `setAuthCookies(res, accessToken, refreshToken, refreshSalt, userId)`.
+9. If user is **not verified**, generate a verification code and store it (client can trigger resend from login screen).
+10. Respond with `{ user }`.
 
 - **The Goal** = to have the user never have to come to the log in page, unless if he logged out purposefully.
 - So if a user who signed up, should not have to go to the login page cuz his refresh/access token expired.
 
 ## [Scenario D] Authenticated Request (Middleware)
 
+`middleware/authenticate.ts` — used by all protected API routes (notifications, friends, chats, profile, etc.).
+
 1. Request hits `middleware/authenticate.ts`.
 2. Check `req.cookies` exists — if not, return 401.
 3. Check for `access_token` cookie:
    - **Present + valid JWT**: attach `req.user = { id, email }` and call `next()`.
-   - **Present but expired**: attempt refresh (step 4). If refresh succeeds, call `next()`. If fails, return 401 with `X-Token-Expired: true`.
-   - **Missing**: attempt refresh (step 4). If refresh succeeds, `next()`. If fails, return 401.
-4. **Refresh flow** (`auth.ts:refreshUserAccessToken()`):
-   - Read `refresh_token` + `refresh_salt` cookies.
-   - Hash the refresh token with the salt using bcrypt.
-   - Look up `public.USERS` where `refresh_token_hash` matches and `refresh_token_expiry >= now()`.
-   - If found: sign a **new access JWT**, generate a **new refresh token** (rotation), update DB, set new cookies, attach `req.user`.
-   - If not found: return without setting `req.user` — middleware then returns 401.
+   - **Present but expired**: extract `sub`/`email` from the JWT payload → set `req.user` → attempt refresh (step 4). If refresh succeeds, call `next()`. If fails, return 401 with `X-Token-Expired: true` header.
+   - **Missing**: attempt refresh (step 4). If refresh succeeds, call `next()`. If fails, return 401.
+4. **Refresh flow** (`auth.ts:refreshUserAccessToken(req, res)`):
+   - Requires `req.user` to be set (either from valid token or decoded expired token).
+   - Read `refresh_token` cookie.
+   - Look up `public.USERS` by `req.user.id`.
+   - If user not found or no `refresh_token_hash`: return 401.
+   - If `refresh_token_expiry` is past: return 401.
+   - Compare `refresh_token` against stored hash with bcrypt.
+   - If match: sign a **new access JWT**, generate a **new refresh token** (rotation), update DB, store old hash in Redis for replay detection, set new cookies, attach `req.user`.
+   - If no match: return without setting `req.user` — middleware then returns 401.
 
 ## [Scenario E] Session Check
 
-`GET /auth/TokenVerificaitonRouter/session` — called on page load to hydrate client-side auth state:
+`GET /auth/TokenVerificationRouter/session` — called on page load to hydrate client-side auth state:
 1. If `access_token` exists and is valid → look up user in DB → return `{ user }`.
-2. If `access_token` is missing or expired → attempt refresh → if successful, look up user → return `{ user }`.
-3. If all fail → return `{ user: null }` (client treats this as logged-out state).
+2. If `access_token` is present but expired → extract `sub`/`email` from the JWT payload → set `req.user` → fall through to refresh.
+3. If no access token (or expired) → read `user_id` + `refresh_token` cookies → look up user by `user_id` → compare refresh token against stored hash → if match, set `req.user`.
+4. If `req.user` is set → call `refreshUserAccessToken()` to rotate tokens → look up user → return `{ user }`.
+5. If all fail → return `{ user: null }` (client treats this as logged-out state).
 
 ## [Scenario F] Logout
 
 `POST /auth/EmailVerificaitonRouter/logout`:
 1. Hash the `refresh_token` from cookies with `refresh_salt`.
 2. `updateMany` where hash matches → set `refresh_token_hash = null, refresh_token_expiry = null`.
-3. Clear all three auth cookies.
+3. Clear all four auth cookies (`access_token`, `refresh_token`, `refresh_salt`, `user_id`).
 4. Respond with `{ message: 'Logged out' }`.
 
 ---
@@ -124,7 +134,7 @@ Applied on:
 
 # Cookie Configuration
 
-**File**: `util/constants.ts`
+**File**: `util/constants.ts` (shared `COOKIE_OPTIONS`)
 
 ```ts
 COOKIE_OPTIONS = {
@@ -135,11 +145,18 @@ COOKIE_OPTIONS = {
 }
 ```
 
+**`setAuthCookies`** is defined in two places with identical signatures (`res, accessToken, refreshToken, refreshSalt, userId`):
+- `services/authVerificaiton.ts` — primary, used by signup/verify/login flows
+- `services/authCookieSessions.ts` — used internally by the refresh flow
+
+Both set the same 4 cookies. `clearAuthCookies` (`services/authCookieSessions.ts`) clears all 4.
+
 | Cookie | Max Age |
 |--------|---------|
 | `access_token` | 15 minutes |
 | `refresh_token` | 30 days |
 | `refresh_salt` | 30 days |
+| `user_id` | 30 days |
 
 ---
 
@@ -175,8 +192,9 @@ COOKIE_OPTIONS = {
 | `/auth/EmailVerificaitonRouter/logout` | POST | Invalidate refresh token + clear cookies |
 | `/auth/UserVerificaitonRouter/verify` | POST | Verify email with 6-digit code |
 | `/auth/UserVerificaitonRouter/resend-verification` | POST | Resend verification code |
-| `/auth/TokenVerificaitonRouter/session` | GET | Hydrate client-side auth state |
-| `/auth/TokenVerificaitonRouter/refresh` | POST | Explicit token refresh |
+| `/auth/TokenVerificationRouter/session` | GET | Hydrate client-side auth state |
+| `/auth/TokenVerificationRouter/refresh` | POST | Explicit token refresh |
+| `/auth/WsTicketRouter/ws-ticket` | GET | Generate one-time WebSocket auth ticket (requires valid access token) |
 
 ---
 
@@ -186,7 +204,7 @@ COOKIE_OPTIONS = {
 |---------|------------|
 | **Stolen access token** | Short expiry (15 min). No sensitive data in JWT payload. Token bound to audience `authenticated`. |
 | **Stolen refresh token** | Rotation on every use — old token invalidated. Hash stored in DB (not plaintext). 30-day expiry window. |
-| **Brute force login** | Rate limiting per IP (10 attempts / 5 min). bcrypt (slow). Constant-time dummy hash for unknown users. |
+| **Brute force login** | Rate limiting per IP (10 attempts / 1 min). bcrypt (slow). Constant-time dummy hash for users with no password set. |
 | **Token replay** | Refresh token rotation invalidates previous tokens. Access tokens are short-lived. |
 | **XSS stealing cookies** | All cookies are `httpOnly` + `secure` + `sameSite: lax`. No token accessible via JS. |
 | **CSRF** | `sameSite: lax` prevents cross-site form submissions. Consider CSRF tokens for state-changing ops. |
@@ -206,6 +224,7 @@ COOKIE_OPTIONS = {
 - **JWT verification**: Audience (`authenticated`) + secret checked on every verify.
 - **Rate limiting**: IP-based throttling on auth endpoints (Redis-backed sliding window).
 - **HIBP integration**: Reject known compromised passwords at signup.
+- **`authenticate` middleware**: All protected routes (notifications, friends, chats, profile) go through `middleware/authenticate.ts` which verifies JWT or refreshes via cookie-based session.
 - **Chat membership checks**: All message CRUD endpoints verify user is a member of the target chat.
 - **XSS prevention**: All user message content is HTML-escaped before storage (`escapeHtml` on every write path).
 - **Refresh token replay detection**: Old token hashes stored in Redis; replayed tokens detected and invalidated.

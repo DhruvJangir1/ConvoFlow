@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Search, Loader2, MessageCircle, X } from "lucide-react";
 import { chatKeys } from "../lib/queryKeys";
+import UserAvatar from "../components/UserAvatar";
 
 interface UserResult {
   id: string;
@@ -163,16 +164,7 @@ export default function UserSearchModal({ isOpen, onClose }: Props) {
               disabled={creating === u.id}
               className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-surface-hover disabled:opacity-50"
             >
-              {u.image_url ? (
-                <img src={u.image_url} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />
-              ) : (
-                <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-                  style={{ background: avatarGradient(u.user_name) }}
-                >
-                  {getInitials(u.user_name)}
-                </div>
-              )}
+              <UserAvatar imageUrl={u.image_url ?? null} userName={u.user_name} size="md" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-[14px] font-medium text-text-primary">

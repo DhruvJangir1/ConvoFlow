@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import express, { Request, Response } from 'express';
+import express, { Request } from 'express';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
 
@@ -56,6 +56,7 @@ vi.mock('../services/rateLimiter.js', () => ({ trackAuthAttempt: mockTrackAuthAt
 vi.mock('../supabase/admin.js', () => ({ getAdminClient: vi.fn(() => mockSupabase) }));
 vi.mock('resend', () => ({ Resend: vi.fn(() => ({ emails: { send: vi.fn().mockResolvedValue({ id: 'email_id' }) } })) }));
 vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
+vi.mock('../supabase/supabaseS3Client.js', () => ({ s3Client: {}, S3_BUCKET_NAME: 'test-bucket' }));
 
 // 3. Import router AFTER mocks
 import AuthRouter from './auth';
@@ -137,14 +138,14 @@ describe('Auth Endpoints', () => {
   // Refresh
   // =========================================================================
 
-  describe('POST /auth/TokenVerificaitonRouter/refresh', () => {
+  describe('POST /auth/TokenVerificationRouter/refresh', () => {
     it('issues new tokens given a valid refresh cookie', async () => {
-      mockAuthService.refreshUserAccessToken.mockImplementation(async (req: Request, res: Response) => {
+      mockAuthService.refreshUserAccessToken.mockImplementation(async (req: Request) => {
         req.user = { id: 'u1', email: 't@ex.com' };
       });
 
       const res = await request(app)
-        .post('/auth/TokenVerificaitonRouter/refresh')
+        .post('/auth/TokenVerificationRouter/refresh')
         .set('Cookie', ['refresh_token=valid_token', 'refresh_salt=valid_salt']);
 
       expect(res.status).toBe(200);
@@ -167,13 +168,13 @@ describe('Auth Endpoints', () => {
   // Session
   // =========================================================================
 
-  describe('GET /auth/TokenVerificaitonRouter/session', () => {
+  describe('GET /auth/TokenVerificationRouter/session', () => {
     it('returns user data if session is valid', async () => {
       mockAuthService.verifyAccessToken.mockReturnValue({ sub: 'test_user_id', email: 't@ex.com' });
       mockPrisma.users.findFirst.mockResolvedValue({ id: 'test_user_id', email: 't@ex.com' });
 
       const res = await request(app)
-        .get('/auth/TokenVerificaitonRouter/session')
+        .get('/auth/TokenVerificationRouter/session')
         .set('Cookie', ['access_token=valid_token']);
 
       expect(res.status).toBe(200);

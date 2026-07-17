@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs';
+import bcrypt, { hashSync } from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import type { TokenPayload } from '../types/authTypes.js';
@@ -6,7 +6,6 @@ import dotenv from 'dotenv';
 import type { Request, Response } from 'express';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { setAuthCookies } from './authVerificaiton.js';
-import { clearAuthCookies } from './authCookieSessions.js';
 import { trackAuthAttempt } from './rateLimiter.js';
 import { client as redis } from '../../redis/redisClient.js';
 
@@ -95,97 +94,88 @@ export function generateRefreshToken(): { token: string; hash: string; salt: str
 
 export async function refreshUserAccessToken(req: Request, res: Response): Promise<void>  {
   try {
-    const refreshToken = req.cookies.refresh_token;
-    const refreshSalt = req.cookies.refresh_salt;
-
-    if (!refreshToken || !refreshSalt) {
-      console.log('[refreshUserAccessToken] missing refresh token or salt cookies');
+    if (!req.user) {
+      console.log('[refreshUserAccessToken] no req.user, returning 401');
+      res.status(401).json({ error: 'unauthorized' });
       return;
     }
-    console.log(`[refreshUserAccessToken] refresh token found: ${refreshToken}`);
-    console.log(`[refreshUserAccessToken] refresh salt found: ${refreshSalt}`);
 
-    const tokenHash = hashToken(refreshToken, refreshSalt);
-    console.log(`[refreshUserAccessToken] token hashed with salt, hash: ${tokenHash}`);
+    // check user's details
+    const refreshToken = req.cookies.refresh_token;
+    const userId = req.user.id;
 
-    const user = await prisma.users.findFirst({
-      where: {
-        refresh_token_hash: tokenHash,
-        refresh_token_expiry: { gte: new Date() },
-      },
-      select: { id: true, email: true },
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      console.log('[refreshUserAccessToken] missing refresh token cookie');
+      res.status(401).json({ error: 'Refresh token missing' });
+      return;
+    }
+    console.log(`[refreshUserAccessToken] refresh token found for user ${userId}`);
+
+    // make sure that user exists
+    const userRecord = await prisma.users.findFirst({
+      where: { id: userId },
+      select: { id: true, email: true, refresh_token_hash: true, refresh_token_expiry: true },
     });
 
-    if (!user) {
-      const reuseKey = `used_token:${tokenHash}`;
-      const replayedUserId = await redis.get(reuseKey);
-      if (replayedUserId) {
-        console.log(`[refreshUserAccessToken] REPLAY DETECTED — token already rotated for user ${replayedUserId}`);
-        await prisma.users.update({
-          where: { id: replayedUserId },
-          data: { refresh_token_hash: null, refresh_token_expiry: null },
-        });
-        clearAuthCookies(res);
-        console.log(`[refreshUserAccessToken] tokens invalidated for user ${replayedUserId} due to replay`);
-      } else {
-        console.log('[refreshUserAccessToken] no user found with matching refresh token');
-      }
-      return;
-    }
-    console.log(`[refreshUserAccessToken] user found: ${user.id}`);
-
-    const newAccessToken = signAccessToken(user.id, user.email);
-
-    if (!newAccessToken) {
-      console.error('[refreshUserAccessToken] failed to generate new access token');
-      res.status(500).json({ error: 'Failed to generate new access token' });
+    if (!userRecord || !userRecord.refresh_token_hash) {
+      console.log('[refreshUserAccessToken] no user or no stored hash found');
+      res.status(401).json({ error: 'Invalid refresh token' });
       return;
     }
 
-    console.log(`[refreshUserAccessToken] new access token signed: ${newAccessToken}`);
+    if (userRecord.refresh_token_expiry && userRecord.refresh_token_expiry < new Date()) {
+      console.log('[refreshUserAccessToken] refresh token expired');
+      res.status(401).json({ error: 'Refresh token expired' });
+      return;
+    }
 
-    // making new new refresh token
+    console.log('[refreshUserAccessToken] user record found')
+
+    const refreshTokensMatch = await bcrypt.compare(refreshToken, userRecord.refresh_token_hash);
+    console.log(`[refreshUserAccessToken] bcrypt.compare result: ${refreshTokensMatch}`);
+
+    if (!refreshTokensMatch) {
+      console.log('[refreshUserAccessToken] refresh token does not match stored hash');
+      res.status(401).json({ error: 'Invalid refresh token' });
+      return;
+    }
+
+    const newAccessToken = signAccessToken(userRecord.id, userRecord.email);
+    console.log(`[refreshUserAccessToken] new access token signed for user ${userRecord.id}`);
+
     const { token: newRefreshToken, hash: newRefreshHash, salt: newRefreshSalt } = generateRefreshToken();
-    console.log(`[refreshUserAccessToken] new refresh token: ${newRefreshToken}`);
-    console.log(`[refreshUserAccessToken] new refresh salt: ${newRefreshSalt}`);
-    console.log(`[refreshUserAccessToken] new refresh hash: ${newRefreshHash}`);
-
-    if (!newRefreshToken || !newRefreshHash || !newRefreshSalt) {
-      console.error('[refreshUserAccessToken] failed to generate new refresh token');
-      res.status(500).json({ error: 'Failed to generate new refresh token' });
-      return;
-    }
+    console.log(`[refreshUserAccessToken] new refresh token generated`);
 
     await prisma.users.update({
-      where: { id: user.id },
+      where: { id: userRecord.id },
       data: {
         refresh_token_hash: newRefreshHash,
         refresh_token_expiry: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
       },
     });
-    console.log(`[refreshUserAccessToken] db updated with new refresh hash for user ${user.id}`);
+    console.log(`[refreshUserAccessToken] db updated with new refresh hash for user ${userRecord.id}`);
 
-    // mark old token as used so replays are detected
-    await redis.set(`used_token:${tokenHash}`, user.id, { EX: Math.ceil(REFRESH_TOKEN_EXPIRY_MS / 1000) });
-    console.log(`[refreshUserAccessToken] old token hash stored in Redis for replay detection`);
+    await redis.set(`used_token:${userRecord.refresh_token_hash}`, userRecord.id, { EX: Math.ceil(REFRESH_TOKEN_EXPIRY_MS / 1000) });
+    console.log('[refreshUserAccessToken] old token hash stored in Redis for replay detection');
 
-    // set the cookies in the client's browser
-    setAuthCookies(res,newAccessToken,newRefreshToken,newRefreshSalt);
-    console.log('[refreshUserAccessToken] auth cookies set on response', { newAccessToken, newRefreshToken, newRefreshSalt });
+    setAuthCookies(res, newAccessToken, newRefreshToken, newRefreshSalt, userRecord.id);
+    console.log('[refreshUserAccessToken] auth cookies set on response');
 
-    req.user = { id: user.id, email: user.email };
-    console.log(`[refreshUserAccessToken] tokens rotated for user ${user.id}`);
+    req.user = { id: userRecord.id, email: userRecord.email };
+    console.log(`[refreshUserAccessToken] tokens rotated for user ${userRecord.id}`);
   } catch (err) {
     console.error('[refreshUserAccessToken] error:', err);
+    res.status(401).json({ error: 'Refresh failed' });
   }
 }
 
-export function hashToken(token: string, salt?: string): string {
+export function hashToken(token: string, salt: string): string {
 // If a salt is provided, use it. Otherwise, generate a proper bcrypt salt.
-  const saltToUse = salt || bcrypt.genSaltSync(10);
+  const saltToUse = salt 
   
   console.log(`[auth:hashToken] token hashed with ${salt ? 'provided' : 'new'} salt`);
   const hashedToken = bcrypt.hashSync(token, saltToUse);
+  console.log(`${hashedToken ? 'hashedToken exits' : 'hashedToken doesnt exist'}`)
   return hashedToken;
 }
 

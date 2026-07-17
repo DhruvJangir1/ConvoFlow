@@ -61,6 +61,8 @@ vi.mock('resend', () => ({
   })),
 }));
 
+vi.mock('../supabase/supabaseS3Client.js', () => ({ s3Client: {}, S3_BUCKET_NAME: 'test-bucket' }));
+
 vi.mock('../supabase/admin.js', () => ({
   getAdminClient: vi.fn(() => ({
     auth: {

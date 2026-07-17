@@ -19,7 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSession = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/TokenVerificaitonRouter/session', { credentials: 'include' });
+      const res = await fetch(`/api/auth/TokenVerificationRouter/session`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         dispatch(setUser(data.user));
@@ -33,8 +33,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [dispatch]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { refreshSession(); }, [refreshSession]);
+  useEffect(()=>{
+
+     refreshSession();
+     
+  },[refreshSession])
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await fetch('/api/auth/EmailVerificaitonRouter/login', {

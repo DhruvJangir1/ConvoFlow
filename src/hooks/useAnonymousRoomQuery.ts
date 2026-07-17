@@ -20,7 +20,7 @@ export function useAnonymousRoomQuery(roomId: string | undefined) {
 
   return useQuery({
     queryKey: anonChatKeys.detail(roomId ?? ''),
-    queryFn: () => fetchAnonymousRoomDetail(roomId!),
+    queryFn: () => fetchAnonymousRoomDetail(roomId as string ),
     enabled: isEnabled,
     staleTime: 300_000,
     gcTime: 600_000,

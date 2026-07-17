@@ -44,9 +44,9 @@ export function useMarkAllNotificationsRead() {
   });
 }
 
-/* ───── Decline Friend Request ───── */
-async function declineFriendRequest(entityId: string) {
-  const res = await fetch(`/api/friends/${entityId}/decline`, {
+/* ───── Reject Friend Request ───── */
+async function rejectFriendRequest(entityId: string) {
+  const res = await fetch(`/api/friends/${entityId}/reject`, {
     method: 'PATCH',
     credentials: 'include',
   });
@@ -56,11 +56,11 @@ async function declineFriendRequest(entityId: string) {
   }
 }
 
-export function useDeclineFriendRequest() {
+export function useRejectFriendRequest() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: declineFriendRequest,
+    mutationFn: rejectFriendRequest,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: notifKeys.lists() });
     },

@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import multer, { type FileFilterCallback } from 'multer';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
-import { uploadImageToStorage } from '../services/imageUpload.js';
+import { uploadImageToStorage, resolveImageUrl } from '../services/imageUpload.js';
 
 const UserRouter = Router();
 
@@ -84,7 +84,7 @@ UserRouter.patch('/profile-image', authenticate, upload.single('image'), async (
 
     await prisma.users.update({
       where: { id: req.user.id },
-      data: { image_url: uploadResult.url },
+      data: { image_url: uploadResult.path },
     });
 
     console.log(`[UserRouter] user ${req.user.id} image_url updated in DB`);

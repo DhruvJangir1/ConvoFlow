@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { verifyAccessToken, refreshUserAccessToken } from '../services/auth.js';
 
 declare module 'express-serve-static-core' {
@@ -52,6 +53,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     };
     console.log(`[authenticate] user ${payload.sub} authenticated successfully`);
     next();
+    return;
   } catch (err) {
     const isExpired = err instanceof Error && err.name === 'TokenExpiredError';
     console.log(`[authenticate] token validation failed: ${isExpired ? 'expired' : 'invalid'}`);
@@ -63,7 +65,13 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    console.log('[authenticate] access token expired, attempting refresh...');
+    console.log('[authenticate] access token expired, decoding payload for user lookup...');
+    const decoded = jwt.decode(accesToken) as { sub: string; email: string };
+    if (decoded && decoded.sub && decoded.email) {
+      req.user = { id: decoded.sub, email: decoded.email };
+      console.log(`[authenticate] extracted user ${decoded.sub} from expired token`);
+    }
+
     console.log('[authenticate] calling refreshUserAccessToken...');
     await refreshUserAccessToken(req, res);
     console.log('[authenticate] after refresh, req.user:', JSON.stringify(req.user));

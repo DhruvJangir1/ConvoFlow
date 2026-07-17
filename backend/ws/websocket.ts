@@ -67,7 +67,9 @@ export function broadcastToRoom(chatId: string, data: object): void {
   }
   if (!room) return;
   for (const ws of room) { // send to every single connected one in a given chat
-    sendToSocket(ws,data);
+    if(ws && ws.userId){
+      sendToUser(ws.userId,data);
+    }
   }
 }
 

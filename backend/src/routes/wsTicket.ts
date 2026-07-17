@@ -6,7 +6,7 @@ import { generateTicket } from '../services/wsTicketStore';
 const WsTicketRouter = Router();
 
 WsTicketRouter.get('/ws-ticket', (req: Request, res: Response): void => { // this creates an authorized socket connection between a user and the person who is being talked to
-  const token = req.cookies?.access_token;
+  const token = req.cookies.access_token;
   if (!token) {
     res.status(401).json({ error: 'Not authenticated' });
     return;

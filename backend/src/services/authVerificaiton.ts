@@ -66,7 +66,7 @@ export async function sendFriendRequestEmail(fromName: string, fromTag: string, 
       <strong style="color: #111827;">${fromName}</strong> (<span style="font-family: monospace;">${fromTag}</span>) wants to connect with you on ConvoFlow.
     </p>
     <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.5; color: #6b7280; text-align: center;">
-      Log in to accept or decline this request.
+      Log in to accept or reject this request.
     </p>
   </div>
 
@@ -77,7 +77,7 @@ export async function sendFriendRequestEmail(fromName: string, fromTag: string, 
   });
 }
 
-export function setAuthCookies(res: Response, accessToken: string, refreshToken: string, refreshSalt: string) {
+export function setAuthCookies(res: Response, accessToken: string, refreshToken: string, refreshSalt: string, userId: string) {
   res.cookie('access_token', accessToken, {
     ...COOKIE_OPTIONS,
     maxAge: 15 * 60 * 1000,
@@ -87,6 +87,10 @@ export function setAuthCookies(res: Response, accessToken: string, refreshToken:
     maxAge: REFRESH_TOKEN_EXPIRY_MS,
   });
   res.cookie('refresh_salt', refreshSalt, {
+    ...COOKIE_OPTIONS,
+    maxAge: REFRESH_TOKEN_EXPIRY_MS,
+  });
+  res.cookie('user_id', userId, {
     ...COOKIE_OPTIONS,
     maxAge: REFRESH_TOKEN_EXPIRY_MS,
   });

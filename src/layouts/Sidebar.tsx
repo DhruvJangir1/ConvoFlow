@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../store/store";
-import { setUnreadNotifCount, resetUnreadNotif } from "../store/userAuthSlice";
+import {  resetUnreadNotif } from "../store/userAuthSlice";
 import ProfileModal from "../modals/ProfileModal";
 import ViewSidebarIcon from '@mui/icons-material/ViewSidebar';
 import ChatIcon from '@mui/icons-material/Chat';
 import LanguageIcon from '@mui/icons-material/Language';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import PersonOutlined from "@mui/icons-material/PersonOutlined";
+import UserAvatar from "../components/UserAvatar";
 
 export default function Sidebar() {
   const navigate = useNavigate();
@@ -18,27 +19,6 @@ export default function Sidebar() {
   const unreadCount = useSelector((s: RootState) => s.userAuth.unreadNotifCount);
   const [profileOpen, setProfileOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
-
-  const refreshUnread = useCallback(() => {
-    if (!user || location.pathname === '/notification') return;
-    fetch('/api/notifications?unread=true', { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => dispatch(setUnreadNotifCount(data.notifications?.length ?? 0)))
-      .catch(() => {});
-  }, [user, location.pathname, dispatch]);
-
-  useEffect(() => { refreshUnread(); }, [refreshUnread]);
-
-  useEffect(() => {
-    const interval = setInterval(refreshUnread, 15_000);
-    return () => clearInterval(interval);
-  }, [refreshUnread]);
-
-  useEffect(() => {
-    const onFocus = () => refreshUnread();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [refreshUnread]);
 
   useEffect(() => {
     if (location.pathname === '/notification') {
@@ -117,7 +97,7 @@ export default function Sidebar() {
         aria-label="Profile"
       >
         {(user && user.image_url)  ? (
-          <img src={user.image_url} alt="Profile" className="h-6 w-6 rounded-full" />
+          <UserAvatar imageUrl={user.image_url} userName={user.user_name} size="sm" />
         ) : (
           <PersonOutlined fontSize="small" />
         )}

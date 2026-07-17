@@ -6,6 +6,7 @@ import Check from "@mui/icons-material/Check";
 import Close from "@mui/icons-material/Close";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import type { ChatMessages, AnonymousChatMessages } from "../types/chat";
+import UserAvatar from "./UserAvatar";
 
 type Message = ChatMessages | AnonymousChatMessages;
 
@@ -318,12 +319,8 @@ export default function MessageList({
                     }}
                   >
                     {mi === 0 && !group.isOwn && !isAnonMsg(msg) && (
-                      <div className="h-8 w-8 shrink-0 self-end rounded-full overflow-hidden bg-zinc-600 flex items-center justify-center text-xs font-semibold text-white">
-                        {msg.senderImage ? (
-                          <img src={msg.senderImage} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          getInitials(msg.senderName)
-                        )}
+                      <div className="shrink-0 self-end">
+                        <UserAvatar imageUrl={msg.senderImage ?? null} userName={msg.senderName} size="sm" />
                       </div>
                     )}
                     <div
@@ -421,12 +418,8 @@ export default function MessageList({
                       </div>
 
                       {mi === 0 && group.isOwn && !isAnonMsg(msg) && (
-                        <div className="h-8 w-8 shrink-0 self-end rounded-full overflow-hidden bg-zinc-600 flex items-center justify-center text-xs font-semibold text-white">
-                          {msg.senderImage ? (
-                            <img src={msg.senderImage} alt="" className="h-full w-full object-cover" />
-                          ) : (
-                            getInitials(msg.senderName)
-                          )}
+                        <div className="shrink-0 self-end">
+                          <UserAvatar imageUrl={msg.senderImage ?? null} userName={msg.senderName} size="sm" />
                         </div>
                       )}
 

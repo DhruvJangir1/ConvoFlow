@@ -8,6 +8,7 @@ import { useAnonymousRoomsQuery } from "../hooks/useAnonymousRoomsQuery";
 import { formatSmartDate } from "../lib/dateFormat";
 import UserSearchModal from "../modals/UserSearchModal";
 import AddFriendButton from "../components/AddFriendButton";
+import UserAvatar from "../components/UserAvatar";
 
 function getInitials(name: string): string {
   return name
@@ -63,7 +64,7 @@ export default function ChatList() {
     <aside className="flex h-full w-65 shrink-0 flex-col border-r border-zinc-800/40 bg-surface-elevated">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <img src="/CONVO_FLOW_LOGO.png" alt="ConvoFlow" className="h-8 w-auto" />
-        {!isAnonMode && <AddFriendButton compact />}
+        <AddFriendButton compact />
       </div>
 
       <div className="flex flex-col px-3 pt-3 pb-1">
@@ -146,11 +147,7 @@ export default function ChatList() {
                       <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-8 bg-accent rounded-r-full shadow-[0_0_8px_#7C6EF766]" />
                     )}
                     {chat.avatar_url ? (
-                      <img
-                        src={chat.avatar_url}
-                        alt=""
-                        className="h-10 w-10 shrink-0 rounded-full object-cover"
-                      />
+                      <UserAvatar imageUrl={chat.avatar_url} userName={chat.name} size="md" />
                     ) : (
                       <div
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"

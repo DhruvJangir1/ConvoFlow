@@ -29,19 +29,27 @@ const upload = multer({
   },
 });
 
+console.log('[chat module] backend/src/chat/chat.ts loaded');
 
 async function requireChatMembership(userId: string, chatId: string): Promise<boolean> {
+  console.log(`[requireChatMembership] checking membership for user ${userId} in chat ${chatId}`);
   const membership = await prisma.standardChatMembers.findUnique({
-    where: { chat_id_user_id: { chat_id: chatId, user_id: userId } },
+    where: { chat_id_user_id:{ chat_id:chatId, user_id:userId } },
     select: { user_id: true },
   });
-  return membership !== null;
+  console.log(`[requireChatMembership] membership result for user ${userId} in chat ${chatId}: ${membership ? 'FOUND' : 'NOT_FOUND'}`);
+  
+  const memberShipExists = membership !== null;
+  console.log(`[requireChatMembership] ${memberShipExists}`)
+  
+  return memberShipExists
 }
 
 const ChatRouter = Router();
 
 ChatRouter.post('/', authenticate, async (req: Request, res: Response): Promise<void> => {
   const userId = req.user!.id;
+  console.log(`[chat:POST /] user ${userId} initiating chat creation`);
   const { participantIds, name } = req.body as { participantIds?: string[]; name?: string };
 
   if (!participantIds || !Array.isArray(participantIds) || participantIds.length === 0) {
@@ -115,8 +123,16 @@ ChatRouter.post('/', authenticate, async (req: Request, res: Response): Promise<
 });
 
 ChatRouter.get('/', authenticate, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user?.id;
+  console.log('[chatRouter] just entered the get request endpoint')
+  if (!req.user) {
+    console.log('UNAUTHORIZEDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD')
+    res.status(401).json({ error: 'UNAUTHORIZEDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD' });
+    return;
+  }
 
+  const userId = req.user.id;
+
+  console.log('[chatRouter] About to get user chats')
   const memberships = await prisma.standardChatMembers.findMany({
     where: { user_id: userId },
     orderBy: { last_read_at: 'desc' },
@@ -138,7 +154,7 @@ ChatRouter.get('/', authenticate, async (req: Request, res: Response): Promise<v
       },
     },
   });
-
+  console.log('[chatRouter] just got user chats')
   const transformed = memberships.map((m) => {
     const chat = m.StandardChats;
     const otherMembers = chat.StandardChatMembers;
@@ -174,7 +190,7 @@ ChatRouter.post('/:chatId/image', authenticate, upload.single('image'), async (r
   const userId = req.user.id;
   const { type = 'image' } = req.body as { type?: string };
   const file = req.file;
-
+  console.log(`[chat:POST /:chatId/image] user ${userId} uploading image to chat ${chatId} (type=${type})`);
   if (!file) {
     res.status(400).json({ error: 'image file is required' });
     return;
@@ -248,9 +264,15 @@ ChatRouter.post('/:chatId/image', authenticate, upload.single('image'), async (r
 });
 
 ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
+
+  if (!req.user){
+    res.status(401).json({err:'Unauthorized'});
+    return;
+  }
+
   const chatId = req.params.chatId as string;
-  const userId = req.user?.id;
-  const before = req.query.before as string | undefined;
+  const userId = req.user.id;
+  const before = req.params.before as string | undefined;
 
   console.log(`[chat:GET /:chatId/messages] fetching messages for chat ${chatId} by user ${userId}${before ? ` before ${before}` : ''}`);
 

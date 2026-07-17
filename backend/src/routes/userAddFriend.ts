@@ -6,7 +6,7 @@ import { prisma } from '../lib/connectionPoolClient.js';
 import { sendFriendRequestEmail } from '../services/authVerificaiton.js';
 import { notifyFriendRequest } from '../services/userNotify.js';
 import { sendToUser } from '../../ws/websocket.js';
-import { FRIEND_COOLDOWN_MS, FRIEND_MAX_PENDING_OUTGOING } from '../util/constants.js';
+import { FRIEND_MAX_PENDING_OUTGOING } from '../util/constants.js';
 import { createDmChat } from '../services/dmChat.js';
 import type { Notifications } from '../../../src/generated/prisma/client.js';
 
@@ -82,19 +82,18 @@ FriendRouter.post('/send', authenticate, async (req: Request, res: Response): Pr
     return;
   }
 
-  // forces a 5 min cooldown after a user has rejected the same sender's request.
-  const recentDeclined = await prisma.addFriendRequests.findFirst({
+  // permanently block re-sending after a rejection
+  const previouslyRejected = await prisma.addFriendRequests.findFirst({
     where: {
       sender_id: senderId,
       receiver_id: targetUser.id,
-      status: { in: ['declined', 'cancelled'] },
-      updated_at: { gte: new Date(Date.now() - FRIEND_COOLDOWN_MS) },
+      status: 'rejected',
     },
   });
 
-  if (recentDeclined) {
-    console.log(`[FriendRoute] 429 — cooldown active (declined at ${recentDeclined.updated_at})`);
-    res.status(429).json({ error: 'Please wait before sending another request to this user' });
+  if (previouslyRejected) {
+    console.log(`[FriendRoute] 403 — sender was previously rejected by ${targetUser.user_name}`);
+    res.status(403).json({ error: 'This user has declined your friend request' });
     return;
   }
 
@@ -298,15 +297,15 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
   console.log(`[FriendRoute] 200 — accepted, chat=${chatId}`);
 });
 
-FriendRouter.patch('/:id/decline', authenticate, async (req: Request, res: Response): Promise<void> => {
+FriendRouter.patch('/:id/reject', authenticate, async (req: Request, res: Response): Promise<void> => {
   if (!req.user){
-    console.log('[userAddFriend/id/decline] No User Found!')
+    console.log('[userAddFriend/id/reject] No User Found!')
     return;
   }
 
   const userId = req.user.id;
   const id = req.params.id as string;
-  console.log(`[FriendRoute] PATCH /api/friends/${id}/decline — user: ${userId}`);
+  console.log(`[FriendRoute] PATCH /api/friends/${id}/reject — user: ${userId}`);
 
   const friendRequest = await prisma.addFriendRequests.findUnique({
     where: { id },
@@ -330,35 +329,32 @@ FriendRouter.patch('/:id/decline', authenticate, async (req: Request, res: Respo
     return;
   }
 
-  const declinerName = friendRequest.USERS_AddFriendRequests_receiver_idToUSERS.user_name ?? 'Someone';
+  const rejectorName = friendRequest.USERS_AddFriendRequests_receiver_idToUSERS.user_name ?? 'Someone';
+
+  await prisma.addFriendRequests.delete({ where: { id } });
 
   const originalNotification = await prisma.notifications.findUnique({
     where: { entity_id: id },
   });
   if (originalNotification) {
-    await prisma.notifications.update({
-      where: { id: originalNotification.id },
-      data: { read_at: new Date() },
-    });
+    await prisma.notifications.delete({ where: { id: originalNotification.id } });
   }
-
-  await prisma.addFriendRequests.delete({ where: { id } });
   console.log(`[FriendRoute] Friend request ${id} deleted`);
 
-  const declinedNotification = await prisma.notifications.create({
+  const rejectedNotification = await prisma.notifications.create({
     data: {
       receiver_user_id: friendRequest.sender_id,
       sender_user_id: userId,
-      type: 'friend_request_declined',
-      content: `${declinerName} rejected your friend request`,
+      type: 'friend_request_rejected',
+      content: `${rejectorName} rejected your friend request`,
       entity_id: crypto.randomUUID(),
     },
   });
-  console.log(`[FriendRoute] Decline notification created: ${declinedNotification.id}`);
+  console.log(`[FriendRoute] Rejected notification created: ${rejectedNotification.id}`);
 
   sendToUser(friendRequest.sender_id, {
     type: 'notification:new',
-    payload: declinedNotification,
+    payload: rejectedNotification,
   });
   console.log(`[FriendRoute] WebSocket "notification:new" sent to sender ${friendRequest.sender_id}`);
 
