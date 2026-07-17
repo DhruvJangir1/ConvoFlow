@@ -39,7 +39,7 @@ AnonymousChatRouter.get('/:id', authenticate, async (req: Request, res: Response
 
 AnonymousChatRouter.post('/:id/join', authenticate, async (req: Request, res: Response): Promise<void> => {
     if (!req.user){
-        console.log('[anonymous/id/join] NO USER FOUND')
+        res.status(401).json({ error: 'Unauthorized' });
         return;
     }
   const userId = req.user.id;

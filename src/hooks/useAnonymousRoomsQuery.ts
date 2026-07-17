@@ -18,10 +18,12 @@ async function fetchAnonymousRooms(): Promise<AnonymousRoom[]> {
 export function useAnonymousRoomsQuery() {
   const user = useSelector((s: RootState) => s.userAuth.user);
 
+  const isEnabled = user ? true : false
+
   return useQuery({
     queryKey: anonChatKeys.lists(),
     queryFn: fetchAnonymousRooms,
-    enabled: !!user,
+    enabled: isEnabled,
     staleTime: 300_000,
     gcTime: 600_000,
     refetchOnWindowFocus: false,

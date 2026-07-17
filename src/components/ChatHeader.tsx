@@ -5,6 +5,7 @@ import type { RootState } from "../store/store";
 import { useParams } from "react-router-dom";
 import { useChatDetailQuery } from "../hooks/useChatDetailQuery";
 import GroupInfoModal from "./GroupInfoModal";
+import UserAvatar from "./UserAvatar";
 
 function getInitials(name: string): string {
   return name
@@ -44,16 +45,7 @@ export default function ChatHeader() {
   return (
     <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface-elevated px-5">
       <div className="flex min-w-0 items-center gap-3">
-        {chat.avatar_url ? (
-          <img src={chat.avatar_url} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
-        ) : (
-          <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-            style={{ background: avatarGradient(chat.name) }}
-          >
-            {getInitials(chat.name)}
-          </div>
-        )}
+        <UserAvatar imageUrl={chat.avatar_url ?? null} userName={chat.name} size="sm" />
         <div className="min-w-0">
           <h1 className="truncate text-[17px]/[1.4] font-semibold text-text-primary">
             {chat.name}

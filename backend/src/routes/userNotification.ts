@@ -6,7 +6,12 @@ import { prisma } from '../lib/connectionPoolClient.js';
 const NotificationRouter = Router();
 
 NotificationRouter.get('/', authenticate, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user?.id;
+  if (!req.user){
+    res.status(401).json({err:'Unauthorized'})
+    return
+}
+
+  const userId = req.user.id;
   const { unread } = req.query;
 
   const where: Record<string, unknown> = { receiver_user_id: userId };

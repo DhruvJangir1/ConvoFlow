@@ -9,7 +9,7 @@ interface FriendRequestModalProps {
   entityId: string;
   notificationId: string;
   onAccepted: (chatId: string) => void;
-  onDeclined: (notificationId: string) => void;
+  onRejected: (notificationId: string) => void;
 }
 
 function getInitials(name: string): string {
@@ -42,7 +42,7 @@ export default function FriendRequestModal({
   entityId,
   notificationId,
   onAccepted,
-  onDeclined,
+  onRejected,
 }: FriendRequestModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,23 +74,23 @@ export default function FriendRequestModal({
     }
   };
 
-  const handleDecline = async () => {
+  const handleReject = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/friends/${entityId}/decline`, {
+      const res = await fetch(`/api/friends/${entityId}/reject`, {
         method: 'PATCH',
         credentials: 'include',
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Request failed' }));
-        setError(err.error ?? 'Failed to decline friend request');
+        setError(err.error ?? 'Failed to reject friend request');
         return;
       }
-      onDeclined(notificationId);
+      onRejected(notificationId);
     } catch (err) {
       setError('Network error — is the server running?');
-      console.error('[FriendRequestModal] Decline error:', err);
+      console.error('[FriendRequestModal] Reject error:', err);
     } finally {
       setLoading(false);
     }
@@ -135,7 +135,7 @@ export default function FriendRequestModal({
 
           <div className="mt-6 flex items-center justify-center gap-3">
             <button
-              onClick={handleDecline}
+              onClick={handleReject}
               disabled={loading}
               className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors duration-150 hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -144,7 +144,7 @@ export default function FriendRequestModal({
               ) : (
                 <UserX className="h-3.5 w-3.5" />
               )}
-              Decline
+              Reject
             </button>
             <button
               onClick={handleAccept}

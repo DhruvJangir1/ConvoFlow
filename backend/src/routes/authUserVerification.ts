@@ -58,7 +58,7 @@ authUserVerification.post('/verify', async (req: Request, res: Response): Promis
   console.log(`[/verify] tokens issued for user ${foundUserId}`);
 
   // set new user's tokens in cookies
-  setAuthCookies(res, accessToken, refreshToken, refreshSalt);
+  setAuthCookies(res, accessToken, refreshToken, refreshSalt, foundUserId);
 
   // Remove verification entry
   deleteVerificationCode(foundUserId);

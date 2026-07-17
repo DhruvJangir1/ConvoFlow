@@ -100,6 +100,17 @@ export async function signImageUrl(key: string): Promise<string> {
   );
 }
 
+export async function resolveImageUrl(stored: string | null): Promise<string | null> {
+  if (!stored) return null;
+  if (stored.startsWith('http')) {
+    try {
+      const key = new URL(stored).pathname.slice(1);
+      if (key) return signImageUrl(key);
+    } catch { /* not a valid URL, treat as key */ }
+  }
+  return signImageUrl(stored);
+}
+
 export async function uploadImageToStorage(input: ImageUploadInput): Promise<ImageUploadResult> {
   const { buffer, contentType } = normalizeUploadBuffer(input);
   const storagePath = buildStorageObjectPath(input.userId, input.fileName, contentType);

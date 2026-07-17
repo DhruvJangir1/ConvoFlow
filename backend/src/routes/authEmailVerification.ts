@@ -10,6 +10,7 @@ import { clearAuthCookies } from '../services/authCookieSessions.js';
 import { createNewSupabaseAuthUser, createNewSupabaseUser } from './supabaseAuth.js';
 import { trackAuthAttempt } from '../services/rateLimiter.js';
 import { UserResponseDTO } from '../../dtos/UserResponseDTO.js'
+import { resolveImageUrl } from '../services/imageUpload.js';
 
 dotenv.config();
 
@@ -118,7 +119,7 @@ AuthEmailVerificaitonRouter.post('/signup', async (req: Request, res: Response):
   res.status(201).json({ user: UserResponseDTO.mapUser(newUser), message: 'verification_sent' });
 });
 
-AuthEmailVerificaitonRouter.post('/login', async (req: Request, res: Response): Promise<void> => {
+AuthEmailVerificaitonRouter.post('/login',async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
   const ipAddress = req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown';
   console.log(`[/login] attempt for ${email?.trim()?.toLowerCase()} from ${ipAddress}`);
@@ -196,7 +197,7 @@ AuthEmailVerificaitonRouter.post('/login', async (req: Request, res: Response): 
   });
   console.log(`[/login] user ${user.id} session updated`);
 
-  setAuthCookies(res, accessToken, refreshToken, refreshSalt);
+  setAuthCookies(res, accessToken, refreshToken, refreshSalt, user.id);
 
   const { id, user_name, email: userEmail, image_url, is_verified, created_at, user_tag } = user;
 
@@ -208,7 +209,7 @@ AuthEmailVerificaitonRouter.post('/login', async (req: Request, res: Response): 
 
   console.log(`[/login] successful login for ${userEmail}`);
   res.json({
-    user: { id, user_name, email: userEmail, image_url, is_verified, created_at, user_tag },
+    user: { id, user_name, email: userEmail, image_url: await resolveImageUrl(image_url), is_verified, created_at, user_tag },
   });
 });
 

@@ -9,7 +9,7 @@ import { useNotificationsQuery } from "../hooks/useNotificationsQuery";
 import {
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
-  useDeclineFriendRequest,
+  useRejectFriendRequest,
   useAcceptFriendRequest,
 } from "../hooks/useNotificationMutations";
 import AddFriendModal from "../modals/AddFriendModal";
@@ -30,7 +30,7 @@ const typeConfig: Record<string, { icon: typeof Bell; color: string; bg: string 
     color: "text-emerald-400",
     bg: "bg-emerald-500/10",
   },
-  friend_request_declined: {
+  friend_request_rejected: {
     icon: UserX,
     color: "text-red-400",
     bg: "bg-red-500/10",
@@ -55,7 +55,7 @@ export default function NotificationsPage() {
   const { data: notifData, isLoading: notifLoading } = useNotificationsQuery();
   const markReadMutation = useMarkNotificationRead();
   const markAllReadMutation = useMarkAllNotificationsRead();
-  const declineMutation = useDeclineFriendRequest();
+  const rejectMutation = useRejectFriendRequest();
   const acceptMutation = useAcceptFriendRequest();
   const { subscribeToChats } = useWebSocket();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -93,18 +93,18 @@ export default function NotificationsPage() {
     dispatch(resetUnreadNotif());
   }, [markAllReadMutation, dispatch]);
 
-  const handleDecline = useCallback(async (notification: Notification) => {
+  const handleReject = useCallback(async (notification: Notification) => {
     setActionLoading(notification.id);
-    declineMutation.mutate(notification.entity_id, {
+    rejectMutation.mutate(notification.entity_id, {
       onError: (err) => {
-        console.error('[NotificationsPage] Decline failed:', err);
+        console.error('[NotificationsPage] Reject failed:', err);
       },
       onSettled: () => {
         removeNotification(notification.id);
         setActionLoading(null);
       },
     });
-  }, [declineMutation]);
+  }, [rejectMutation]);
 
   const handleAccept = useCallback(async (notification: Notification) => {
     const senderName = notification.content?.replace(' sent you a friend request', '') ?? 'Friend';
@@ -225,14 +225,14 @@ export default function NotificationsPage() {
                 )}
               </button>
               <button
-                onClick={() => handleDecline(n)}
+                onClick={() => handleReject(n)}
                 disabled={actionLoading === n.id}
                 className="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {actionLoading === n.id ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
-                  'Decline'
+                  'Reject'
                 )}
               </button>
             </div>

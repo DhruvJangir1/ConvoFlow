@@ -1,27 +1,38 @@
 import { Router } from 'express';
+import jwt from 'jsonwebtoken';
 import type { Request, Response } from 'express';
 import {  verifyAccessToken, refreshUserAccessToken, } from '../services/auth.js';
 import { PRISMA_SAFE_SELECT } from '../util/constants.js';
 import { prisma } from "../lib/connectionPoolClient.js";
 import { clearAuthCookies } from '../services/authCookieSessions.js';
+import { resolveImageUrl } from '../services/imageUpload.js';
 import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
 
 dotenv.config();
 
-const AuthTokenVerificaitonRouter = Router();
+const AuthTokenVerificationRouter = Router();
 
-AuthTokenVerificaitonRouter.get('/session', async (req: Request, res: Response): Promise<void> => {
+async function withSignedImageUrl<T extends { image_url: string | null }>(user: T): Promise<T> {
+  if (user.image_url) {
+    return { ...user, image_url: await resolveImageUrl(user.image_url) };
+  }
+  return user;
+}
+
+AuthTokenVerificationRouter.get('/session', async (req: Request, res: Response): Promise<void> => {
   if (!req.cookies) {
+    res.status(400).json({ error: 'No cookies found' });
     return;
   }
   console.log('[/session] === SESSION CHECK STARTED ===');
   console.log('[/session] cookies present:', req.cookies);
-  console.log('[/session] headers:', JSON.stringify(req.headers));
 
-  const accessToken = req.cookies?.access_token;  
-  console.log('[/session] access_token present:', accessToken);
+  const accessToken = req.cookies.access_token;
 
+  // Path 1: access token present — verify it and return user
   if (accessToken) {
+    console.log('[/session] access_token present:', accessToken);
     console.log('[/session] attempting to verify access token...');
     try {
       const payload = verifyAccessToken(accessToken);
@@ -40,23 +51,71 @@ AuthTokenVerificaitonRouter.get('/session', async (req: Request, res: Response):
         return;
       }
       console.log('[/session] user found, returning user data');
-      res.json({ user });
+
+      res.json({ user: await withSignedImageUrl(user) });
       return;
     } catch (err) {
       const isExpired = err instanceof Error && err.name === 'TokenExpiredError';
       console.log('[/session] access token verification failed, expired:', isExpired, 'error:', err instanceof Error ? err.message : err);
+
       if (!isExpired) {
         console.log('[/session] token is not expired (invalid), returning null');
         res.json({ user: null });
         return;
       }
+
       console.log('[/session] token expired, falling through to refresh...');
+      const decoded = jwt.decode(accessToken) as { sub: string; email: string } | null;
+      if (decoded && decoded.sub && decoded.email) {
+        req.user = { id: decoded.sub, email: decoded.email };
+        console.log(`[/session] extracted user ${decoded.sub} from expired token`);
+      }
     }
   }
 
-  console.log('[/session] === ATTEMPTING REFRESH FLOW ===');
+  // Path 2: no access token (or expired) — fall back to user_id + refresh_token cookies
+  if (!req.user) {
+    console.log('[/session] === ATTEMPTING COOKIE REFRESH ===');
+    const userId = req.cookies.user_id;
+    const refreshToken = req.cookies.refresh_token;
 
+    if (!userId || !refreshToken) {
+      console.log('[/session] missing user_id or refresh_token cookie, returning null');
+      res.json({ user: null });
+      return;
+    }
+
+    console.log('[/session] looking up user by id:', userId);
+    const userRecord = await prisma.users.findFirst({
+      where: { id: userId },
+      select: { id: true, email: true, refresh_token_hash: true },
+    });
+
+    if (!userRecord || !userRecord.refresh_token_hash) {
+      console.log('[/session] user not found or no refresh_token_hash, returning null');
+      res.json({ user: null });
+      return;
+    }
+
+    console.log('[/session] comparing refresh token against stored hash...');
+    const tokensMatch = await bcrypt.compare(refreshToken, userRecord.refresh_token_hash);
+    console.log(`[/session] bcrypt.compare result: ${tokensMatch}`);
+
+    if (!tokensMatch) {
+      console.log('[/session] refresh token does not match, returning null');
+      res.json({ user: null });
+      return;
+    }
+
+    console.log(`[/session] refresh token verified for user ${userRecord.id}, setting req.user`);
+    req.user = { id: userRecord.id, email: userRecord.email };
+  }
+
+  // Path 3: req.user is set — rotate tokens
+  console.log('[/session] === ATTEMPTING REFRESH FLOW ===');
   await refreshUserAccessToken(req, res);
+
+  if (res.headersSent) return;
 
   if (!req.user) {
     console.log('[/session] refresh failed, returning null');
@@ -77,12 +136,10 @@ AuthTokenVerificaitonRouter.get('/session', async (req: Request, res: Response):
   }
 
   console.log('[/session] returning user data to client');
-  res.json({ user });
+  res.json({ user: await withSignedImageUrl(user) });
 });
 
-
-
-AuthTokenVerificaitonRouter.post('/refresh', async (req: Request, res: Response): Promise<void> => {
+AuthTokenVerificationRouter.post('/refresh', async (req: Request, res: Response): Promise<void> => {
   if (!req.cookies) {
     return;
   }
@@ -106,4 +163,4 @@ AuthTokenVerificaitonRouter.post('/refresh', async (req: Request, res: Response)
   res.json({ message: 'Tokens refreshed' });
 });
 
-export default AuthTokenVerificaitonRouter
+export default AuthTokenVerificationRouter

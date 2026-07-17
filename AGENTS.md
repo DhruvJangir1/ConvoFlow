@@ -150,3 +150,29 @@ Frontend TS is strict: `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSy
 - `documentation/` dir has authoritative design docs (WebSocket protocol, auth flow, anonymous chat, notification system, routing)
 - Prisma models have `@@schema("auth")` and `@@schema("public")` — cross-schema queries work via generated client
 - RLS is enabled on most models (requires additional migration setup)
+- Never Push/ add/commit/pull add code on or from github without asking.
+
+## Testing Patterns & Gotchas
+
+### WebSocket Tests (`backend/ws/websockets.test.ts`)
+
+- `setupWsAndConnect()` is **async** — the connection handler in `websocket.ts` is async (it `await`s a DB profile lookup before registering `ws.on('message')`/`ws.on('close')`/`ws.on('error')` handlers and populating `userSockets`). Always `await` it.
+- The `vi.mock('ws')` mock for `WebSocketServer` must use a **regular `function`** (not an arrow) in `mockImplementation` so it can be called with `new`. Arrow functions are not constructable.
+- The mock WSS instance is accessed via the hoisted `getMockWss()` helper. When simulating a new connection, emit `'connection'` on the WSS mock (not on the individual ws instance), since that's where the handler is registered:
+  ```ts
+  const { wss } = getMockWss();
+  wss.emit('connection', ws, { url: `/ws?ticket=${ticket}` });
+  ```
+- `broadcastToRoom()` uses the internal `chatRooms` Map (populated via the `subscribe` message flow), not `ws.subscribedRooms`. To test broadcasting, emit subscribe messages rather than manually adding to `subscribedRooms`.
+- The `chatRooms` and `userSockets` Maps are module-level and persist across tests within a single file run. Use unique `chatId`/`userId` values across tests to avoid cross-test contamination.
+
+### S3 Client Mock Requirement
+
+- `backend/src/supabase/supabaseS3Client.ts` **throws at module load** when S3 env vars (`SUPABASE_S3_BUCKET_ENDPOINT`, `SUPABASE_S3_ACCESS_KEY_ID`, `SUPABASE_S3_SECRET_ACCESS_KEY`) are missing. Any test that transitively imports `imageUpload.ts` (via `authEmailVerification.ts`, `users.ts`, etc.) must mock it:
+  ```ts
+  vi.mock('../supabase/supabaseS3Client.js', () => ({
+    s3Client: {},
+    S3_BUCKET_NAME: 'test-bucket',
+  }));
+  ```
+- Place the mock **before** any imports that could reach `imageUpload.ts`.
