@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "tsx watch server.js",
     "start": "tsx server.js",
+    "build": "npx prisma generate --schema=../prisma/schema.prisma",
+    "postinstall": "npx prisma generate --schema=../prisma/schema.prisma",
     "test-jest": "jest",
     "test-vitest": "vitest"
   },
