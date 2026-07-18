@@ -6,6 +6,7 @@ import { prisma } from '../lib/connectionPoolClient.js';
 import { sendFriendRequestEmail } from '../services/authVerificaiton.js';
 import { notifyFriendRequest } from '../services/userNotify.js';
 import { sendToUser } from '../../ws/websocket.js';
+import { resolveImageUrl } from '../services/imageUpload.js';
 import { FRIEND_MAX_PENDING_OUTGOING } from '../util/constants.js';
 import { createDmChat } from '../services/dmChat.js';
 import type { Notifications } from '../../../src/generated/prisma/client.js';
@@ -246,6 +247,9 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
 
     //NOTE: these 2 prisma queries dont add any messages but they show the chat in the user's UI for UX.
 
+    const signedMyImage = await resolveImageUrl(myMember.USERS.image_url);
+    const signedOtherImage = await resolveImageUrl(otherMember.USERS.image_url);
+
     // the guy who sent the request
     sendToUser(senderId, {
       type: 'chat:new',
@@ -253,13 +257,13 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
         chat: {
           id: chatId,
           name: myMember.USERS.user_name ?? 'Unknown',
-          avatar_url: myMember.USERS.image_url ?? null,
+          avatar_url: signedMyImage,
           lastMessage: '',
           timestamp: now,
           unread: 0,
           type: 'dm',
           messageCount: 0,
-          members: [{ id: userId, user_name: myMember.USERS.user_name ?? 'Unknown', image_url: myMember.USERS.image_url ?? null }],
+          members: [{ id: userId, user_name: myMember.USERS.user_name ?? 'Unknown', image_url: signedMyImage }],
         },
       },
     });
@@ -272,13 +276,13 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
         chat: {
           id: chatId,
           name: otherMember.USERS.user_name,
-          avatar_url: otherMember.USERS.image_url,
+          avatar_url: signedOtherImage,
           lastMessage: '',
           timestamp: now,
           unread: 0,
           type: 'dm',
           messageCount: 0,
-          members: [{ id: senderId, user_name: otherMember.USERS.user_name, image_url: otherMember.USERS.image_url }],
+          members: [{ id: senderId, user_name: otherMember.USERS.user_name, image_url: signedOtherImage }],
         },
       },
     });
@@ -289,7 +293,7 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
     chat: {
       id: chatId,
       name: otherMember.USERS.user_name,
-      avatar_url: otherMember.USERS.image_url,
+      avatar_url: signedOtherImage,
       messageCount: 0,
     },
     senderName: otherMember.USERS.user_name,

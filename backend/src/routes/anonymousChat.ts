@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { broadcastToRoom } from '../../ws/websocket.js';
+import { resolveImageUrl } from '../services/imageUpload.js';
 import { upvote, downvote } from '../services/userMessageVote.js';
 
 
@@ -109,7 +110,7 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
         where: { id: { in: senderIds } },
         select: { id: true, user_name: true, image_url: true },
       });
-      for (const u of users) userMap.set(u.id, u);
+      for (const u of users) userMap.set(u.id, { ...u, image_url: await resolveImageUrl(u.image_url) });
     }
 
     const messageIds = messages.map(m => m.id);
@@ -168,7 +169,7 @@ AnonymousChatRouter.post('/:id/messages/:userId/:isAnonymous', authenticate, asy
         select: { user_name: true, image_url: true },
       });
       senderName = userInfo?.user_name ?? null;
-      senderImage = userInfo?.image_url ?? null;
+      senderImage = await resolveImageUrl(userInfo?.image_url ?? null);
     }
 
     broadcastToRoom(chatId, {

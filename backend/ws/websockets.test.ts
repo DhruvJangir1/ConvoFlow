@@ -165,6 +165,16 @@ vi.mock('../src/lib/connectionPoolClient', () => ({
 
 vi.mock('../src/util/sanitize.js', () => ({}));
 
+vi.mock('../src/supabase/supabaseS3Client.js', () => ({
+  s3Client: {},
+  S3_BUCKET_NAME: 'test-bucket',
+}));
+
+vi.mock('../src/services/imageUpload.js', () => ({
+  resolveImageUrl: (url: string | null) => Promise.resolve(url),
+  signImageUrl: (url: string) => Promise.resolve(url),
+}));
+
 vi.mock('ws', () => {
   const { wss, clients } = createMockWss();
   return {

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
-import { uploadImageToStorage } from '../services/imageUpload.js';
+import { uploadImageToStorage, resolveImageUrl } from '../services/imageUpload.js';
 import { broadcastToRoom } from '../../ws/websocket.js';
 
 const ImageUploadRouter = Router();
@@ -59,6 +59,8 @@ ImageUploadRouter.post('/image', authenticate, async (req: Request, res: Respons
       data: { updated_at: new Date() },
     });
 
+    const signedSenderImage = await resolveImageUrl(message.USERS.image_url ?? null);
+
     broadcastToRoom(chatId, {
       type: 'message:new',
       payload: {
@@ -66,7 +68,7 @@ ImageUploadRouter.post('/image', authenticate, async (req: Request, res: Respons
         chatId,
         senderId: message.sender_id,
         senderName: message.USERS.user_name ?? userId,
-        senderImage: message.USERS.image_url ?? null,
+        senderImage: signedSenderImage,
         content: message.content,
         createdAt: message.created_at,
         messageType: message.message_type,
@@ -80,7 +82,7 @@ ImageUploadRouter.post('/image', authenticate, async (req: Request, res: Respons
         chatId,
         senderId: message.sender_id,
         senderName: message.USERS.user_name ?? userId,
-        senderImage: message.USERS.image_url ?? null,
+        senderImage: signedSenderImage,
         content: message.content,
         messageType: message.message_type,
         createdAt: message.created_at,

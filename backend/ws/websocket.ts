@@ -3,6 +3,7 @@ import http from 'http';
 import type { IncomingMessage } from 'http';
 import { consumeTicket, startTicketCleanup, stopTicketCleanup } from '../src/services/wsTicketStore';
 import { prisma } from '../src/lib/connectionPoolClient';
+import { resolveImageUrl } from '../src/services/imageUpload.js';
 
 
 
@@ -356,7 +357,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
       });
       if (user !== null) {
         ws.userName = user.user_name;
-        ws.userImage = user.image_url;
+        ws.userImage = user.image_url ? await resolveImageUrl(user.image_url) : null;
         console.log(`[ws:setup] User profile loaded: name="${user.user_name}"`);
       } else {
         ws.userName = userId;

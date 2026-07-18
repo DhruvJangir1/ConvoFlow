@@ -6,6 +6,7 @@ import { prisma } from '../lib/connectionPoolClient.js';
 import { broadcastToRoom } from '../../ws/websocket.js';
 import { findDmChat, createDmChat } from '../services/dmChat.js';
 import { uploadImageToStorage, signImageUrl } from '../services/imageUpload.js';
+import { signChatAvatar, signMemberImages, signSenderImage } from './chatImageHelpers.js';
 
 type ChatUploadRequest = Request & {
   file?: {
@@ -100,7 +101,14 @@ ChatRouter.post('/', authenticate, async (req: Request, res: Response): Promise<
 
     const otherMembers = chat.StandardChatMembers.filter((member) => member.user_id !== userId);
     const displayName = chat.name || otherMembers.map((member) => member.USERS.user_name).join(', ') || 'Unknown';
-    const avatarUrl = chat.avatar_url || otherMembers[0]?.USERS?.image_url || null;
+    const avatarUrl = await signChatAvatar(chat.avatar_url, otherMembers[0]?.USERS?.image_url ?? null);
+    const signedMembers = await signMemberImages(
+      chat.StandardChatMembers.map((m) => ({
+        id: m.USERS.id,
+        user_name: m.USERS.user_name,
+        image_url: m.USERS.image_url,
+      }))
+    );
 
     res.json({
       chat: {
@@ -112,11 +120,7 @@ ChatRouter.post('/', authenticate, async (req: Request, res: Response): Promise<
         unread: 0,
         type: chat.type,
         messageCount: 0,
-        members: chat.StandardChatMembers.map((m) => ({
-          id: m.USERS.id,
-          user_name: m.USERS.user_name,
-          image_url: m.USERS.image_url,
-        })),
+        members: signedMembers,
       },
     });
   } catch (error) {
@@ -158,27 +162,32 @@ ChatRouter.get('/', authenticate, async (req: Request, res: Response): Promise<v
     },
   });
   console.log('[chatRouter] just got user chats')
-  const transformed = memberships.map((m) => {
+  const transformed = await Promise.all(memberships.map(async (m) => {
     const chat = m.StandardChats;
     const otherMembers = chat.StandardChatMembers;
     const lastMsg = chat.StandardChatMessages[0];
 
+    const avatarUrl = await signChatAvatar(chat.avatar_url, otherMembers[0]?.USERS?.image_url ?? null);
+    const signedMembers = await signMemberImages(
+      otherMembers.map((cm) => ({
+        id: cm.USERS.id,
+        user_name: cm.USERS.user_name,
+        image_url: cm.USERS.image_url,
+      }))
+    );
+
     return {
       id: chat.id,
       name: chat.name || otherMembers.map((o) => o.USERS.user_name).join(', ') || 'Unknown',
-      avatar_url: chat.avatar_url || otherMembers[0]?.USERS?.image_url || null,
+      avatar_url: avatarUrl,
       lastMessage: lastMsg?.content || '',
       timestamp: (lastMsg?.created_at ?? chat.updated_at).getTime(),
       unread: 0,
       type: chat.type,
       messageCount: 0,
-      members: otherMembers.map((cm) => ({
-        id: cm.USERS.id,
-        user_name: cm.USERS.user_name,
-        image_url: cm.USERS.image_url,
-      })),
+      members: signedMembers,
     };
-  });
+  }));
   
   res.json({ chats: transformed });
 });
@@ -231,6 +240,8 @@ ChatRouter.post('/:chatId/image', authenticate, upload.single('image'), async (r
       data: { updated_at: new Date() },
     });
 
+    const signedSenderImage = await signSenderImage(message.USERS.image_url ?? null);
+
     broadcastToRoom(chatId, {
       type: 'message:new',
       payload: {
@@ -238,7 +249,7 @@ ChatRouter.post('/:chatId/image', authenticate, upload.single('image'), async (r
         chatId,
         senderId: message.sender_id,
         senderName: message.USERS.user_name ?? userId,
-        senderImage: message.USERS.image_url ?? null,
+        senderImage: signedSenderImage,
         content: uploadResult.url,
         createdAt: message.created_at,
         messageType: message.message_type,
@@ -252,7 +263,7 @@ ChatRouter.post('/:chatId/image', authenticate, upload.single('image'), async (r
         chatId,
         senderId: message.sender_id,
         senderName: message.USERS.user_name ?? userId,
-        senderImage: message.USERS.image_url ?? null,
+        senderImage: signedSenderImage,
         content: uploadResult.url,
         messageType: message.message_type,
         createdAt: message.created_at,
@@ -307,11 +318,11 @@ ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
 
     const signedMessages = await Promise.all(
       messages.map(async (msg) => {
-        if (msg.message_type === 'image' && msg.content) {
-          const signedUrl = await signImageUrl(msg.content);
-          return { ...msg, content: signedUrl };
-        }
-        return msg;
+        const signedContent = (msg.message_type === 'image' && msg.content)
+          ? await signImageUrl(msg.content)
+          : msg.content;
+        const signedSenderImage = await signSenderImage(msg.USERS.image_url ?? null);
+        return { ...msg, content: signedContent, USERS: { ...msg.USERS, image_url: signedSenderImage } };
       }),
     );
 
@@ -375,6 +386,8 @@ ChatRouter.post('/:chatId/:userId/appendMessage', authenticate, async (req: Requ
     console.log(`[chat:POST /:chatId/messages] message created with id ${newMessage.id} in chat ${chatId}`);
     console.log(`[chat:POST /:chatId/messages] the message with id ${newMessage.id} in chat ${chatId} is about to be BROADCASTED`);
 
+    const signedSenderImage = await signSenderImage(newMessage.USERS.image_url ?? null);
+
     broadcastToRoom(chatId, {
       type: 'message:new',
       payload: {
@@ -382,7 +395,7 @@ ChatRouter.post('/:chatId/:userId/appendMessage', authenticate, async (req: Requ
         chatId,
         senderId: newMessage.sender_id,
         senderName: newMessage.USERS.user_name ?? userId,
-        senderImage: newMessage.USERS.image_url ?? null,
+        senderImage: signedSenderImage,
         content: newMessage.content,
         createdAt: newMessage.created_at,
       },
