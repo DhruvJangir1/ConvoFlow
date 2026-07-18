@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConvoFlow — Architecture Board</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#0d0d14;--surface:#13131d;--border:#2a2a3a;
+    --text:#e8e8f0;--text2:#8a8aa0;--text3:#55556a;
+    --blue:#4a9eff;--green:#34d399;--orange:#f7a26e;
+    --purple:#7c6ef7;--red:#f87171;--cyan:#22d3ee;
+  }
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:13px}
+
+  #topbar{position:fixed;top:0;left:0;right:0;height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;z-index:100;gap:12px}
+  #topbar h1{font-size:15px;font-weight:700;letter-spacing:-.3px;white-space:nowrap}
+  #topbar .sep{width:1px;height:24px;background:var(--border)}
+  #search{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text);font-size:12px;width:200px;outline:none}
+  #search:focus{border-color:var(--purple)}
+  .legend{display:flex;gap:10px;margin-left:auto;align-items:center}
+  .legend-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2)}
+  .legend-dot{width:8px;height:8px;border-radius:50%}
+  .btn{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text2);cursor:pointer;font-size:11px;transition:all .15s}
+  .btn:hover{border-color:var(--purple);color:var(--text)}
+  .btn.active{background:var(--purple);border-color:var(--purple);color:#fff}
+
+  #canvas-wrap{position:fixed;top:48px;left:0;right:0;bottom:0;overflow:hidden;cursor:grab}
+  #canvas-wrap.grabbing{cursor:grabbing}
+  #canvas{position:absolute;top:0;left:0;transform-origin:0 0}
+
+  .node{position:absolute;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;transition:box-shadow .2s,border-color .2s;overflow:hidden}
+  .node:hover{border-color:var(--purple);box-shadow:0 0 20px rgba(124,110,247,.15)}
+  .node.selected{border-color:var(--purple);box-shadow:0 0 0 2px rgba(124,110,247,.3)}
+  .node-header{padding:8px 12px;display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--border);font-weight:600;font-size:12px}
+  .node-header .icon{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .node-body{padding:6px 12px 8px}
+  .node-tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:500;margin:1px 2px}
+  .node-detail{font-size:11px;color:var(--text2);margin-top:3px;line-height:1.4}
+
+  .group{position:absolute;border-radius:12px;border:1px dashed var(--border);background:rgba(19,19,29,.5);transition:opacity .3s}
+  .group-label{position:absolute;top:-12px;left:14px;padding:3px 10px;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;border-radius:5px}
+  .group-label .collapse-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:0 4px;margin-left:4px;line-height:1}
+  .group-label .collapse-btn:hover{color:var(--text)}
+  .group.collapsed{opacity:.5}
+  .group.collapsed .node{display:none}
+
+  #connections{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
+  .conn{stroke-width:1.2;fill:none;opacity:.35;transition:opacity .2s,stroke-width .2s}
+  .conn.highlighted{opacity:1;stroke-width:2.5}
+
+  #detail-panel{position:fixed;right:0;top:48px;width:340px;bottom:0;background:var(--surface);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .3s;z-index:90;overflow-y:auto}
+  #detail-panel.open{transform:translateX(0)}
+  #detail-panel .panel-header{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+  #detail-panel .panel-header h2{font-size:14px;font-weight:700}
+  #detail-panel .panel-header .close{margin-left:auto;background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px}
+  #detail-panel .panel-body{padding:16px}
+  #detail-panel .dep-section{margin-bottom:14px}
+  #detail-panel .dep-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:4px;font-weight:600}
+  #detail-panel .dep-item{font-size:12px;color:var(--text2);padding:3px 0;cursor:pointer;display:flex;align-items:center;gap:5px}
+  #detail-panel .dep-item:hover{color:var(--text)}
+  #detail-panel .dep-item .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+  #detail-panel .func-list{list-style:none}
+  #detail-panel .func-list li{font-size:11px;color:var(--text2);padding:2px 0;font-family:'JetBrains Mono',monospace}
+
+  #minimap{position:fixed;bottom:16px;right:16px;width:200px;height:130px;background:var(--surface);border:1px solid var(--border);border-radius:8px;z-index:80;overflow:hidden}
+  #minimap canvas{width:100%;height:100%}
+  #minimap .viewport{position:absolute;border:1.5px solid var(--purple);border-radius:2px;pointer-events:none}
+
+  #zoom-controls{position:fixed;bottom:16px;left:16px;display:flex;gap:4px;z-index:80}
+  #zoom-controls .btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;padding:0}
+  #zoom-label{position:fixed;bottom:52px;left:16px;font-size:10px;color:var(--text3);z-index:80;text-align:center;width:32px}
+
+  .tooltip{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--text);pointer-events:none;z-index:200;max-width:300px;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+
+  ::-webkit-scrollbar{width:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1>ConvoFlow Architecture</h1>
+  <div class="sep"></div>
+  <input type="text" id="search" placeholder="Search nodes... (Ctrl+K)">
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>UI</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Logic</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>Database</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>External</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Critical</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cyan)"></div>Infra</div>
+  </div>
+  <div class="sep"></div>
+  <button class="btn" onclick="fitAll()">Fit All</button>
+  <button class="btn" id="btn-conn" onclick="toggleConnections()">Connections</button>
+</div>
+
+<div id="canvas-wrap">
+  <div id="canvas"><svg id="connections"></svg></div>
+</div>
+
+<div id="detail-panel">
+  <div class="panel-header">
+    <span id="panel-icon" style="width:10px;height:10px;border-radius:50%"></span>
+    <h2 id="panel-title">Node</h2>
+    <button class="close" onclick="closePanel()">&times;</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+</div>
+
+<div id="minimap"><canvas id="minimap-canvas" width="400" height="260"></canvas><div class="viewport" id="minimap-vp"></div></div>
+
+<div id="zoom-controls">
+  <button class="btn" onclick="zoomIn()">+</button>
+  <button class="btn" onclick="zoomOut()">&minus;</button>
+  <button class="btn" onclick="fitAll()" title="Fit all">⊙</button>
+</div>
+<div id="zoom-label">100%</div>
+
+<div class="tooltip" id="tooltip" style="display:none"></div>
+
+<script>
+const C={ui:'#4a9eff',green:'#34d399',orange:'#f7a26e',purple:'#7c6ef7',red:'#f87171',cyan:'#22d3ee'};
+const BG={ui:'rgba(74,158,255,.1)',green:'rgba(52,211,153,.1)',orange:'rgba(247,162,110,.1)',purple:'rgba(124,110,247,.1)',red:'rgba(248,113,113,.1)',cyan:'rgba(34,211,238,.1)'};
+
+// ============================================================
+// SERVICE FLOW GROUPS — each titled with "[Service] Flow"
+// ============================================================
+const groups = [
+  // Row 1: Core Flows
+  {id:'g-auth', x:40, y:40, w:920, h:700, label:'Authentication Flow', color:'#34d399'},
+  {id:'g-chat', x:1000, y:40, w:920, h:700, label:'Chat & Messaging Flow', color:'#4a9eff'},
+  {id:'g-ws', x:1960, y:40, w:620, h:700, label:'WebSocket Flow', color:'#f87171'},
+
+  // Row 2: Social & Features
+  {id:'g-social', x:40, y:790, w:920, h:580, label:'Friend & Social Flow', color:'#22d3ee'},
+  {id:'g-anon', x:1000, y:790, w:580, h:580, label:'Anonymous Chat Flow', color:'#7c6ef7'},
+  {id:'g-storage', x:1620, y:790, w:420, h:580, label:'Image & Storage Flow', color:'#f7a26e'},
+
+  // Row 3: Infrastructure
+  {id:'g-db', x:2080, y:790, w:740, h:580, label:'Database Flow', color:'#f7a26e'},
+  {id:'g-infra', x:40, y:1420, w:2780, h:280, label:'Infrastructure & Middleware', color:'#22d3ee'},
+];
+
+// ============================================================
+// NODES — laid out with generous spacing inside service groups
+// ============================================================
+const nodes = [
+  // ═══════════════════════════════════════════════
+  //  AUTHENTICATION FLOW
+  // ═══════════════════════════════════════════════
+  // Frontend auth (left column)
+  {id:'fe-entry',x:80,y:80,w:240,h:60,name:'main.tsx',cat:'ui',group:'g-auth',
+   purpose:'React bootstrap. Mounts QueryClientProvider → Redux → AuthProvider → App.',
+   funcs:['render()'],incoming:[],outgoing:['fe-app','fe-auth-ctx'],tags:['entry point']},
+  {id:'fe-app',x:80,y:160,w:240,h:60,name:'App.tsx',cat:'ui',group:'g-auth',
+   purpose:'Top-level router. Public routes + protected routes wrapped in ProtectedRoute → RootLayout.',
+   funcs:['App()'],incoming:['fe-entry'],outgoing:['fe-protected'],tags:['router']},
+  {id:'fe-auth-ctx',x:80,y:240,w:240,h:60,name:'AuthContext.tsx',cat:'green',group:'g-auth',
+   purpose:'Provides login/signup/logout/refreshSession. On mount refreshes session from cookie.',
+   funcs:['AuthProvider','useAuth()','login()','signup()','logout()','refreshSession()'],incoming:['fe-entry'],outgoing:['be-auth-session','be-auth-login','be-auth-signup','be-auth-logout'],tags:['context']},
+  {id:'fe-login',x:80,y:340,w:240,h:56,name:'LoginForm.tsx',cat:'ui',group:'g-auth',
+   purpose:'Login form. Email + password. Client validation, redirects to /home on success.',
+   funcs:['LoginForm()'],incoming:['fe-app'],outgoing:['fe-auth-ctx'],tags:['form']},
+  {id:'fe-signup',x:80,y:420,w:240,h:56,name:'SignUpForm.tsx',cat:'ui',group:'g-auth',
+   purpose:'Registration form. HIBP breach check on blur. Redirects to /verification.',
+   funcs:['SignUpForm()'],incoming:['fe-app'],outgoing:['fe-auth-ctx','be-hibp'],tags:['form']},
+  {id:'fe-verify',x:80,y:500,w:240,h:56,name:'VerificationPage.tsx',cat:'ui',group:'g-auth',
+   purpose:'6-digit OTP input with auto-focus, paste support, 15-minute countdown timer.',
+   funcs:['VerificationPage()'],incoming:['fe-app'],outgoing:['be-auth-verify','be-auth-resend'],tags:['form']},
+  {id:'fe-protected',x:80,y:590,w:240,h:50,name:'ProtectedRoute.tsx',cat:'ui',group:'g-auth',
+   purpose:'Auth guard. Spinner while loading, redirects to /login if unauthenticated.',
+   funcs:['ProtectedRoute()'],incoming:['fe-app'],outgoing:['fe-auth-ctx'],tags:['guard']},
+
+  // Backend auth routes (middle column)
+  {id:'be-auth-router',x:400,y:80,w:260,h:50,name:'auth.ts (Router Hub)',cat:'green',group:'g-auth',
+   purpose:'Aggregates auth sub-routers: EmailVerification, TokenVerification, UserVerification, WsTicket.',
+   funcs:['AuthRouter'],incoming:['be-entry'],outgoing:['be-auth-email','be-auth-token','be-auth-user','be-ws-ticket'],tags:['router']},
+  {id:'be-auth-email',x:400,y:160,w:280,h:60,name:'authEmailVerification.ts',cat:'green',group:'g-auth',
+   purpose:'Signup, login, logout, password breach check. Rate-limited (10/min/IP via Redis). JWT + cookie issuance.',
+   funcs:['POST /check-password','POST /signup','POST /login','POST /logout'],incoming:['be-auth-router','fe-signup','fe-login'],outgoing:['be-service-auth','be-service-verify-store','be-supabase-admin','be-service-email','be-hibp','be-redis'],tags:['route','critical']},
+  {id:'be-auth-token',x:400,y:250,w:280,h:56,name:'authTokenVerification.ts',cat:'green',group:'g-auth',
+   purpose:'Session check + transparent token refresh. Reads cookies, validates JWT or refresh token hash, rotates tokens.',
+   funcs:['GET /session','POST /refresh'],incoming:['be-auth-router','fe-auth-ctx'],outgoing:['be-service-auth'],tags:['route','critical']},
+  {id:'be-auth-user',x:400,y:330,w:280,h:56,name:'authUserVerification.ts',cat:'green',group:'g-auth',
+   purpose:'Email verification. Verify 6-digit code, mark user verified, issue tokens, set cookies.',
+   funcs:['POST /verify','POST /resend-verification'],incoming:['be-auth-router','fe-verify'],outgoing:['be-service-verify-store','be-service-auth','be-service-email'],tags:['route']},
+
+  // Auth services (right column)
+  {id:'be-service-auth',x:740,y:80,w:200,h:60,name:'auth.ts (Service)',cat:'green',group:'g-auth',
+   purpose:'Core auth: JWT sign/verify (15min), bcrypt (12 rounds), refresh token rotation with replay detection via Redis.',
+   funcs:['hashPassword()','signAccessToken()','verifyAccessToken()','refreshUserAccessToken()','hashToken()'],incoming:['be-auth-email','be-auth-token','be-auth-user','be-middleware-auth'],outgoing:['be-redis','be-hibp'],tags:['service','critical']},
+  {id:'be-service-verify-store',x:740,y:170,w:200,h:50,name:'verificationStore.ts',cat:'green',group:'g-auth',
+   purpose:'In-memory Map for 6-digit verification codes. 15min TTL. Cleanup every 15 minutes.',
+   funcs:['setVerificationCode()','findUserIdByCode()','deleteVerificationCode()'],incoming:['be-auth-email','be-auth-user'],outgoing:[],tags:['service']},
+  {id:'be-service-ratelimit',x:740,y:250,w:200,h:50,name:'rateLimiter.ts',cat:'red',group:'g-auth',
+   purpose:'Redis sorted set rate limiter. 10 attempts/min/IP, 5-minute block on exceed.',
+   funcs:['trackAuthAttempt()'],incoming:['be-auth-email'],outgoing:['be-redis'],tags:['service','critical']},
+  {id:'be-middleware-auth',x:740,y:340,w:200,h:50,name:'authenticate.ts',cat:'red',group:'g-auth',
+   purpose:'JWT auth middleware. Checks access_token → refresh → 401. Augments req.user.',
+   funcs:['authenticate()'],incoming:['be-entry'],outgoing:['be-service-auth'],tags:['middleware','critical']},
+
+  // External auth deps (bottom)
+  {id:'be-hibp',x:400,y:500,w:200,h:50,name:'HIBP API',cat:'purple',group:'g-auth',
+   purpose:'Have I Been Pwned. k-Anonymity breach password check during signup.',
+   funcs:['queryPwnedCount()','checkPassword()'],incoming:['be-service-auth','fe-signup'],outgoing:[],tags:['external','security']},
+  {id:'be-supabase-admin',x:640,y:500,w:200,h:50,name:'Supabase Auth Admin',cat:'purple',group:'g-auth',
+   purpose:'Service role key. Creates/deletes auth.users. Manages auth schema.',
+   funcs:['getAdminClient()','auth.admin.createUser()'],incoming:['be-auth-email'],outgoing:[],tags:['external']},
+
+  // ═══════════════════════════════════════════════
+  //  CHAT & MESSAGING FLOW
+  // ═══════════════════════════════════════════════
+  // Frontend chat
+  {id:'fe-pages-chat',x:1040,y:80,w:260,h:60,name:'ChatView.tsx',cat:'ui',group:'g-chat',
+   purpose:'Main chat view. Manages local message state, subscribes to WS, handles send/edit/delete/image/pagination.',
+   funcs:['ChatView()','handleSendMessage()','handleEditMessage()','loadMoreMessages()'],incoming:['fe-app'],outgoing:['fe-ws-ctx','fe-query-chat-msgs','fe-comp-msglist','fe-comp-chatinput'],tags:['page','critical']},
+  {id:'fe-comp-msglist',x:1040,y:170,w:260,h:56,name:'MessageList.tsx',cat:'ui',group:'g-chat',
+   purpose:'Shared message rendering. Groups messages, date separators, images, edit/delete hover, infinite scroll.',
+   funcs:['MessageList()','isAnonMsg()'],incoming:['fe-pages-chat','fe-pages-anon'],outgoing:['fe-comp-avatar'],tags:['component']},
+  {id:'fe-comp-chatinput',x:1040,y:256,w:260,h:56,name:'ChatInput.tsx',cat:'ui',group:'g-chat',
+   purpose:'Message composer. Dual mode: internal / controlled. Image paste, auto-resize, Enter to send.',
+   funcs:['ChatInput()','handleSend()','handlePaste()'],incoming:['fe-pages-chat'],outgoing:['fe-ws-ctx','fe-query-chat-mutations','be-chat-image'],tags:['component']},
+  {id:'fe-comp-chatheader',x:1040,y:340,w:260,h:50,name:'ChatHeader.tsx',cat:'ui',group:'g-chat',
+   purpose:'Chat header bar. Shows name, avatar, online status, info button.',
+   funcs:['ChatHeader()'],incoming:['fe-pages-chat'],outgoing:['fe-query-chat-detail'],tags:['component']},
+  {id:'fe-comp-avatar',x:1040,y:420,w:260,h:50,name:'UserAvatar.tsx',cat:'ui',group:'g-chat',
+   purpose:'Reusable avatar. Image or gradient+initials. sm/md/lg sizes. Deterministic hue from username.',
+   funcs:['UserAvatar()'],incoming:['fe-comp-msglist','fe-comp-chatheader'],outgoing:[],tags:['component']},
+
+  // Chat hooks
+  {id:'fe-query-chats',x:1340,y:80,w:240,h:50,name:'useChatsQuery',cat:'green',group:'g-chat',
+   purpose:'GET /api/chats. 5min stale time. Provides chat list to ChatContext → Redux.',
+   funcs:['useChatsQuery()'],incoming:['fe-chat-ctx'],outgoing:['be-chat-list'],tags:['hook','query']},
+  {id:'fe-query-chat-msgs',x:1340,y:160,w:240,h:50,name:'useChatMessagesQuery',cat:'green',group:'g-chat',
+   purpose:'GET /api/chats/:id/messages. Paginated cursor, 5min stale.',
+   funcs:['useChatMessagesQuery()'],incoming:['fe-pages-chat','fe-ws-ctx'],outgoing:['be-chat-messages'],tags:['hook','query']},
+  {id:'fe-query-chat-mutations',x:1340,y:240,w:240,h:60,name:'useChatMutations',cat:'green',group:'g-chat',
+   purpose:'Send/edit/delete/create chat mutations with optimistic updates and cache invalidation.',
+   funcs:['useSendMessageMutation','useEditMessageMutation','useDeleteMessageMutation','useCreateChatMutation'],incoming:['fe-pages-chat'],outgoing:['be-chat-send','be-chat-edit','be-chat-delete','be-chat-create'],tags:['hook','mutation']},
+
+  // Layouts
+  {id:'fe-rootlayout',x:1340,y:340,w:240,h:50,name:'RootLayout.tsx',cat:'ui',group:'g-chat',
+   purpose:'Authenticated shell. Wraps in WebSocketProvider → ChatProvider. Renders Sidebar | ChatList | Outlet.',
+   funcs:['RootLayout()'],incoming:['fe-app'],outgoing:['fe-ws-ctx','fe-chat-ctx','fe-sidebar','fe-chatlist'],tags:['layout']},
+  {id:'fe-sidebar',x:1340,y:420,w:240,h:50,name:'Sidebar.tsx',cat:'ui',group:'g-chat',
+   purpose:'Left icon sidebar. Expandable/collapsible. Nav: Chats, Communities, Notifications, Profile.',
+   funcs:['Sidebar()'],incoming:['fe-rootlayout'],outgoing:[],tags:['layout']},
+  {id:'fe-chatlist',x:1340,y:500,w:240,h:50,name:'ChatList.tsx',cat:'ui',group:'g-chat',
+   purpose:'Conversation list panel (264px). Regular or anonymous chats. Search, avatars, timestamps, unread badges.',
+   funcs:['ChatList()'],incoming:['fe-rootlayout'],outgoing:['fe-query-chats'],tags:['layout']},
+  {id:'fe-chat-ctx',x:1340,y:580,w:240,h:50,name:'ChatContext.tsx',cat:'green',group:'g-chat',
+   purpose:'Fetches chats via useChatsQuery and syncs to Redux via setChats.',
+   funcs:['ChatProvider','useChats()','refetchChats()'],incoming:[],outgoing:['fe-store','fe-query-chats'],tags:['context']},
+
+  // Backend chat routes
+  {id:'be-chat-router',x:1640,y:80,w:260,h:60,name:'chat.ts (Routes)',cat:'green',group:'g-chat',
+   purpose:'Standard chat CRUD. Create DM/group, list chats, send/edit/delete messages, image upload via S3.',
+   funcs:['POST / (create)','GET / (list)','POST /:chatId/image','GET /:chatId/messages','POST /:chatId/:userId/appendMessage','PATCH /:chatId/messages/:msgId/:userId','DELETE /:chatId/messages/:msgId/:userId'],incoming:['be-entry','fe-query-chats','fe-query-chat-msgs','fe-query-chat-mutations'],outgoing:['be-service-dm','be-service-imageupload','be-ws','be-prisma'],tags:['route','critical']},
+  {id:'be-service-dm',x:1640,y:180,w:260,h:50,name:'dmChat.ts',cat:'green',group:'g-chat',
+   purpose:'DM chat find (intersect memberships) and create (StandardChats + StandardChatMembers).',
+   funcs:['findDmChat()','createDmChat()'],incoming:['be-chat-router','be-friends-router'],outgoing:['be-prisma'],tags:['service']},
+
+  // ═══════════════════════════════════════════════
+  //  WEBSOCKET FLOW
+  // ═══════════════════════════════════════════════
+  {id:'fe-ws-ctx',x:2000,y:80,w:280,h:70,name:'WebSocketContext.tsx',cat:'red',group:'g-ws',
+   purpose:'Persistent WS connection with ticket-based auth. Auto-reconnect 2s. Handles real-time messages, presence, typing, notifications.',
+   funcs:['WebSocketProvider','useWebSocket()','send()','subscribeToChats()','onMessage()','handleMessage()'],incoming:['fe-rootlayout'],outgoing:['fe-store','fe-query-chat-msgs','fe-query-notif','be-ws-ticket'],tags:['context','critical']},
+  {id:'be-ws',x:2000,y:200,w:280,h:64,name:'websocket.ts (Server)',cat:'red',group:'g-ws',
+   purpose:'Separate HTTP server on port 8080. Ticket-based auth. Room pub/sub. 30s heartbeat ping/pong.',
+   funcs:['setupWebSocket()','shutdownWebSocket()','broadcastToRoom()','sendToUser()','removeSocketFromAllRooms()','handleSendMessage()'],incoming:['be-entry','be-chat-router','be-friends-router','be-anon-router'],outgoing:['be-ws-ticket-store','be-prisma'],tags:['server','critical']},
+  {id:'be-ws-protocol',x:2000,y:300,w:280,h:70,name:'WS Protocol Messages',cat:'red',group:'g-ws',
+   purpose:'Client→Server: subscribe, unsubscribe, message:send, typing:start/stop. Server→Client: message:new, message:ack, typing:update, user:online/offline, chat:online-users, notification:new, chat:new.',
+   funcs:['subscribe','unsubscribe','message:send','typing:start/stop','message:new','message:ack','typing:update','user:online/offline','chat:online-users','notification:new','chat:new'],incoming:['fe-ws-ctx'],outgoing:['fe-ws-ctx'],tags:['protocol','critical']},
+  {id:'be-ws-rooms',x:2000,y:410,w:280,h:50,name:'Room Pub/Sub Maps',cat:'green',group:'g-ws',
+   purpose:'In-memory Maps: chatRooms (chatId → Set<ws>), userSockets (userId → ws).',
+   funcs:['chatRooms Map','userSockets Map'],incoming:['be-ws'],outgoing:[],tags:['data structure']},
+  {id:'be-ws-ticket',x:2340,y:200,w:220,h:50,name:'wsTicket.ts (Route)',cat:'green',group:'g-ws',
+   purpose:'Issues one-time WebSocket connection tickets. 60s TTL, in-memory, consumed on use.',
+   funcs:['GET /ws-ticket'],incoming:['be-auth-router','fe-ws-ctx'],outgoing:['be-service-ws-ticket'],tags:['route']},
+  {id:'be-service-ws-ticket',x:2340,y:280,w:220,h:50,name:'wsTicketStore.ts',cat:'green',group:'g-ws',
+   purpose:'In-memory Map for one-time WS tickets. UUID, 60s TTL. Cleanup every 30 seconds.',
+   funcs:['generateTicket()','consumeTicket()'],incoming:['be-ws-ticket'],outgoing:[],tags:['service']},
+
+  // ═══════════════════════════════════════════════
+  //  FRIEND & SOCIAL FLOW
+  // ═══════════════════════════════════════════════
+  {id:'fe-pages-notif',x:80,y:830,w:260,h:56,name:'NotificationsPage.tsx',cat:'ui',group:'g-social',
+   purpose:'Notification feed. Accept/reject friend requests, marks read, creates DM chat on accept.',
+   funcs:['NotificationsPage()','handleAccept()','handleReject()'],incoming:['fe-app'],outgoing:['fe-query-notif','fe-query-notif-mutations','fe-ws-ctx'],tags:['page']},
+  {id:'fe-comp-addfriend',x:80,y:920,w:260,h:50,name:'AddFriendButton.tsx',cat:'ui',group:'g-social',
+   purpose:'Button to send friend requests. Opens AddNewFriendModal for userTag input.',
+   funcs:['AddFriendButton()'],incoming:[],outgoing:['be-friends-send'],tags:['component']},
+  {id:'fe-mod-fr',x:80,y:1000,w:260,h:50,name:'FriendRequestModal',cat:'ui',group:'g-social',
+   purpose:'Accept/reject friend request dialog.',
+   funcs:['FriendRequestModal()'],incoming:[],outgoing:['be-friends-accept','be-friends-reject'],tags:['modal']},
+  {id:'fe-mod-usersearch',x:80,y:1080,w:260,h:50,name:'UserSearchModal',cat:'ui',group:'g-social',
+   purpose:'Search users by name/email. Start DM conversation.',
+   funcs:['UserSearchModal()'],incoming:[],outgoing:['be-users-search','be-chat-create'],tags:['modal']},
+  {id:'fe-mod-addfr',x:80,y:1160,w:260,h:50,name:'AddFriendModals',cat:'ui',group:'g-social',
+   purpose:'AddNewFriendModal (tag input) + AddFriendModal (loading overlay) + AcceptLoadingModal.',
+   funcs:['AddNewFriendModal()','AddFriendModal()','AcceptLoadingModal()'],incoming:[],outgoing:[],tags:['modal']},
+
+  // Social hooks
+  {id:'fe-query-notif',x:380,y:830,w:240,h:50,name:'useNotificationsQuery',cat:'green',group:'g-social',
+   purpose:'GET /api/notifications. 5min stale. Optionally filtered by unread.',
+   funcs:['useNotificationsQuery()'],incoming:['fe-pages-notif','fe-ws-ctx'],outgoing:['be-notif-list'],tags:['hook','query']},
+  {id:'fe-query-notif-mutations',x:380,y:920,w:240,h:60,name:'useNotificationMutations',cat:'green',group:'g-social',
+   purpose:'Mark read, mark all read, accept/reject friend request mutations.',
+   funcs:['useMarkNotificationRead','useMarkAllNotificationsRead','useAcceptFriendRequest','useRejectFriendRequest'],incoming:['fe-pages-notif'],outgoing:['be-notif-read','be-friends-accept','be-friends-reject'],tags:['hook','mutation']},
+  {id:'fe-mod-profile',x:380,y:1020,w:240,h:50,name:'ProfileModal',cat:'ui',group:'g-social',
+   purpose:'User profile display with stats, account details, edit/logout buttons.',
+   funcs:['ProfileModal()'],incoming:[],outgoing:[],tags:['modal']},
+  {id:'fe-mod-profileimg',x:380,y:1100,w:240,h:50,name:'ProfileImageModal',cat:'ui',group:'g-social',
+   purpose:'Profile photo view/change/upload. FormData multipart upload.',
+   funcs:['ProfileImageModal()'],incoming:[],outgoing:['be-users-profile-img'],tags:['modal']},
+
+  // Backend social routes
+  {id:'be-friends-router',x:660,y:830,w:280,h:56,name:'userAddFriend.ts',cat:'green',group:'g-social',
+   purpose:'Friend request lifecycle. Send (by userTag), accept (creates DM + notifies both via WS), reject.',
+   funcs:['POST /send','PATCH /accept','PATCH /:id/reject'],incoming:['be-entry','fe-comp-addfriend','fe-mod-fr','fe-query-notif-mutations'],outgoing:['be-service-notify','be-ws','be-service-dm','be-service-email'],tags:['route']},
+  {id:'be-notif-router',x:660,y:920,w:280,h:50,name:'userNotification.ts',cat:'green',group:'g-social',
+   purpose:'Notification CRUD. List (max 50, newest first), mark single read, mark all read.',
+   funcs:['GET /','PATCH /:id/read','PATCH /read-all'],incoming:['be-entry','fe-query-notif','fe-query-notif-mutations'],outgoing:['be-prisma'],tags:['route']},
+  {id:'be-users-router',x:660,y:1000,w:280,h:56,name:'users.ts',cat:'green',group:'g-social',
+   purpose:'User search by name/email (max 20, excludes self). Profile image upload via multer + S3.',
+   funcs:['GET /search?q=','PATCH /profile-image'],incoming:['be-entry','fe-mod-usersearch','fe-mod-profileimg'],outgoing:['be-service-imageupload','be-prisma'],tags:['route']},
+  {id:'be-service-notify',x:660,y:1100,w:280,h:50,name:'userNotify.ts',cat:'green',group:'g-social',
+   purpose:'Create notification + friend request in Prisma transaction. Push real-time via WebSocket.',
+   funcs:['createNotification()','notifyFriendRequest()'],incoming:['be-friends-router'],outgoing:['be-prisma','be-ws'],tags:['service']},
+
+  // ═══════════════════════════════════════════════
+  //  ANONYMOUS CHAT FLOW
+  // ═══════════════════════════════════════════════
+  {id:'fe-pages-anon',x:1040,y:830,w:260,h:56,name:'AnonymousChat.tsx',cat:'ui',group:'g-anon',
+   purpose:'Anonymous chat room. Joins on mount, real-time WS messages, upvote/downvote voting.',
+   funcs:['AnonymousChat()','handleSend()','handleVote()'],incoming:['fe-app'],outgoing:['fe-ws-ctx','fe-query-anon-msgs','fe-query-anon-mutations'],tags:['page']},
+  {id:'fe-pages-anon-head',x:1040,y:920,w:260,h:50,name:'AnonymousChatHeader.tsx',cat:'ui',group:'g-anon',
+   purpose:'Header for anonymous rooms. Shows room name with generated avatar gradient.',
+   funcs:['AnonymousChatHeader()'],incoming:['fe-pages-anon'],outgoing:[],tags:['component']},
+  {id:'fe-pages-anon-comp',x:1040,y:1000,w:260,h:50,name:'AnonymousChatComposer.tsx',cat:'ui',group:'g-anon',
+   purpose:'Wrapper around ChatInput with anonymous identity toggle.',
+   funcs:['AnonymousChatComposer()'],incoming:['fe-pages-anon'],outgoing:['fe-comp-chatinput'],tags:['component']},
+
+  // Anon hooks
+  {id:'fe-query-anon-msgs',x:1040,y:1090,w:260,h:50,name:'useAnonymousMessagesQuery',cat:'green',group:'g-anon',
+   purpose:'GET /api/anonymousChats/:id/messages. Paginated. ownIdsRef for ownership tracking.',
+   funcs:['useAnonymousMessagesQuery()'],incoming:['fe-pages-anon'],outgoing:['be-anon-messages'],tags:['hook','query']},
+  {id:'fe-query-anon-mutations',x:1040,y:1170,w:260,h:60,name:'useAnonymousMutations',cat:'green',group:'g-anon',
+   purpose:'Send/edit/delete/vote anonymous messages with cache invalidation.',
+   funcs:['useAnonymousSendMessageMutation','useAnonymousEditMessageMutation','useAnonymousDeleteMessageMutation','useAnonymousVoteMutation'],incoming:['fe-pages-anon'],outgoing:['be-anon-send','be-anon-vote'],tags:['hook','mutation']},
+
+  // Backend anon routes
+  {id:'be-anon-router',x:1340,y:830,w:240,h:56,name:'anonymousChat.ts',cat:'green',group:'g-anon',
+   purpose:'Anonymous rooms CRUD, join, messages, upvote/downvote. HTML sanitization.',
+   funcs:['GET /','GET /:id','POST /:id/join','GET /:id/messages','POST /:id/messages/:userId/:isAnon','PATCH /:id/messages/:msgId','DELETE /:id/messages/:msgId','POST /:msgId/upvote','POST /:msgId/downvote'],incoming:['be-entry','fe-query-anon-msgs','fe-query-anon-mutations'],outgoing:['be-service-vote','be-ws','be-prisma'],tags:['route']},
+  {id:'be-service-vote',x:1340,y:930,w:240,h:50,name:'userMessageVote.ts',cat:'green',group:'g-anon',
+   purpose:'Upvote/downvote with Prisma interactive transactions. Toggle (remove) or switch (+2/-2 delta).',
+   funcs:['upvote()','downvote()'],incoming:['be-anon-router'],outgoing:['be-prisma'],tags:['service']},
+
+  // ═══════════════════════════════════════════════
+  //  IMAGE & STORAGE FLOW
+  // ═══════════════════════════════════════════════
+  {id:'be-chat-image',x:1660,y:830,w:260,h:50,name:'POST /:chatId/image',cat:'green',group:'g-storage',
+   purpose:'Chat image upload endpoint. Multer memory storage (5MB, image-only). S3 upload + WS broadcast.',
+   funcs:['multer (memoryStorage)','POST /:chatId/image'],incoming:['fe-comp-chatinput'],outgoing:['be-service-imageupload','be-ws'],tags:['endpoint','critical']},
+  {id:'be-service-imageupload',x:1660,y:920,w:260,h:60,name:'imageUpload.ts',cat:'green',group:'g-storage',
+   purpose:'S3 upload + presigned URL generation. Validates MIME (png/jpeg/gif/webp/avif). Path: {userId}/{timestamp}-{uuid}-{filename}.',
+   funcs:['uploadImageToStorage()','signImageUrl()','resolveImageUrl()','normalizeUploadBuffer()','buildStorageObjectPath()'],incoming:['be-chat-image','be-users-router'],outgoing:['be-supabase-s3'],tags:['service']},
+  {id:'be-supabase-s3',x:1660,y:1020,w:260,h:56,name:'Supabase Storage (S3)',cat:'purple',group:'g-storage',
+   purpose:'S3-compatible image storage. Presigned URLs with 1-hour expiry. png/jpeg/gif/webp/avif.',
+   funcs:['s3Client','S3_BUCKET_NAME','PutObjectCommand','getSignedUrl()'],incoming:['be-service-imageupload'],outgoing:[],tags:['external','storage']},
+
+  // ═══════════════════════════════════════════════
+  //  DATABASE FLOW
+  // ═══════════════════════════════════════════════
+  {id:'be-prisma',x:2120,y:830,w:260,h:60,name:'Prisma Client + pg.Pool',cat:'orange',group:'g-db',
+   purpose:'Primary DB connection via pg.Pool + PrismaPg adapter. Dynamic pool sizing. SSL. Min 5, idle 30s, max 7500 uses/connection.',
+   funcs:['pool','prisma','shutdownDb()','calculatePoolSize()'],incoming:['be-chat-router','be-notif-router','be-users-router','be-anon-router','be-service-dm','be-service-notify','be-service-vote','be-ws'],outgoing:['be-pg'],tags:['database','critical']},
+  {id:'be-pg',x:2120,y:930,w:260,h:60,name:'PostgreSQL (Supabase)',cat:'orange',group:'g-db',
+   purpose:'Dual-schema: auth (Supabase-managed) + public (application). 12+ models. RLS enabled.',
+   funcs:['auth.users','public.USERS','StandardChats','StandardChatMembers','StandardChatMessages','Notifications','AddFriendRequests','AnonymousChats','AnonymousChatMembers','AnonymousChatMessages','AnonymousChatMessagesUserVotes','DailyPolls','UserPollVotes'],incoming:['be-prisma'],outgoing:[],tags:['database']},
+  {id:'be-pg-models',x:2120,y:1030,w:340,h:120,name:'DB Model Relationships',cat:'orange',group:'g-db',
+   purpose:'auth.users ↔ public.USERS (1:1 cascade). USERS → StandardChats ↔ StandardChatMembers ↔ StandardChatMessages. USERS → AddFriendRequests ↔ Notifications (entity_id unique FK). USERS → AnonymousChats ↔ AnonymousChatMessages ↔ UserVotes. USERS → Notifications (sender/receiver).',
+   funcs:['users↔auth_users (1:1 cascade)','users→StandardChats (many)','StandardChatMembers (composite PK)','users→AddFriendRequests (sender/receiver)','AddFriendRequests→Notifications (entity_id unique FK)','users→AnonymousChats (many)','AnonymousChatMessages→UserVotes (many)','DailyPolls↔AnonymousChats (1:1)','UserPollVotes (unique poll+voter)'],incoming:[],outgoing:[],tags:['schema']},
+  {id:'be-pg-health',x:2500,y:830,w:220,h:50,name:'healthCheckPool.ts',cat:'cyan',group:'g-db',
+   purpose:'DB health check via SELECT 1. Exposed at GET /health/db.',
+   funcs:['checkPoolHealth()'],incoming:[],outgoing:['be-prisma'],tags:['util']},
+  {id:'be-supabase-config',x:2500,y:920,w:220,h:50,name:'Supabase Public Client',cat:'purple',group:'g-db',
+   purpose:'Anon key. getUserById() for direct user lookups (legacy).',
+   funcs:['getUserById()'],incoming:[],outgoing:[],tags:['external']},
+  {id:'fe-querykeys',x:2500,y:1010,w:220,h:50,name:'queryKeys.ts',cat:'green',group:'g-db',
+   purpose:'React Query key factories. chatKeys, anonChatKeys, notifKeys hierarchies for cache management.',
+   funcs:['chatKeys','anonChatKeys','notifKeys'],incoming:[],outgoing:[],tags:['util']},
+
+  // ═══════════════════════════════════════════════
+  //  INFRASTRUCTURE & MIDDLEWARE
+  // ═══════════════════════════════════════════════
+  {id:'be-entry',x:80,y:1460,w:300,h:60,name:'server.js (Entry)',cat:'red',group:'g-infra',
+   purpose:'Express entry (ESM). Middleware (helmet, CORS, cookie-parser, CSRF). Mounts 6 route groups. Starts WS on port 8080. Graceful shutdown.',
+   funcs:['createApp()','listen(3000)','setupWebSocket()','shutdownWebSocket()'],incoming:[],outgoing:['be-auth-router','be-chat-router','be-users-router','be-friends-router','be-notif-router','be-anon-router','be-middleware-auth','be-middleware-csrf','be-ws'],tags:['entry point','critical']},
+  {id:'be-middleware-csrf',x:420,y:1460,w:220,h:50,name:'validateOrigin.ts',cat:'red',group:'g-infra',
+   purpose:'CSRF protection via Origin/Referer header validation. Skips safe methods (GET/OPTIONS/HEAD).',
+   funcs:['validateOrigin()'],incoming:['be-entry'],outgoing:[],tags:['middleware']},
+  {id:'be-redis',x:680,y:1460,w:220,h:56,name:'Redis',cat:'cyan',group:'g-infra',
+   purpose:'Rate limiting (sorted sets), refresh token replay detection (used_token:* keys).',
+   funcs:['connectRedis()','disconnectRedis()','client'],incoming:['be-service-auth','be-service-ratelimit'],outgoing:[],tags:['cache']},
+  {id:'be-prometheus',x:940,y:1460,w:220,h:56,name:'promtheusTime.ts',cat:'cyan',group:'g-infra',
+   purpose:'Prometheus metrics: pg_pool_connections, query_duration histogram, Node.js default metrics. Exposed at GET /metrics.',
+   funcs:['timedQuery()','collectDefaultMetrics()'],incoming:[],outgoing:[],tags:['monitoring']},
+  {id:'be-service-email',x:1200,y:1460,w:240,h:56,name:'authVerification.ts (Email)',cat:'purple',group:'g-infra',
+   purpose:'Resend API: verification codes, friend request notifications. Also manages setAuthCookies.',
+   funcs:['sendUserVerificationCode()','sendFriendRequestEmail()','setAuthCookies()'],incoming:['be-auth-email','be-auth-user','be-friends-router'],outgoing:['be-resend'],tags:['service']},
+  {id:'be-resend',x:1480,y:1460,w:200,h:50,name:'Resend (Email)',cat:'purple',group:'g-infra',
+   purpose:'Transactional email service. Verification codes, friend request notifications.',
+   funcs:['send()'],incoming:['be-service-email'],outgoing:[],tags:['external']},
+  {id:'fe-store',x:1720,y:1460,w:240,h:56,name:'Redux Store',cat:'green',group:'g-infra',
+   purpose:'userAuth slice (user, isConnected, unreadNotifCount) + chat slice (chats, onlineUsers).',
+   funcs:['configureStore','RootState','AppDispatch'],incoming:['fe-auth-ctx','fe-ws-ctx','fe-chat-ctx'],outgoing:[],tags:['state']},
+  {id:'fe-auth-slice',x:1720,y:1540,w:240,h:50,name:'userAuthSlice',cat:'green',group:'g-infra',
+   purpose:'Manages user object, WS connection status, unread notification count.',
+   funcs:['setUser','setConnected','setUnreadNotifCount','incrementUnreadNotif','resetUnreadNotif','updateUserProfileImage'],incoming:['fe-store'],outgoing:[],tags:['slice']},
+  {id:'fe-chat-slice',x:1720,y:1610,w:240,h:50,name:'chatSlice',cat:'green',group:'g-infra',
+   purpose:'Manages chat list and per-chat online user tracking.',
+   funcs:['setChats','addChat','setOnlineUsers','addOnlineUser','removeOnlineUser'],incoming:['fe-store'],outgoing:[],tags:['slice']},
+];
+
+// ============================================================
+// CONNECTIONS
+// ============================================================
+const connections = [
+  // FE entry → auth
+  ['fe-entry','fe-app',C.ui],['fe-entry','fe-auth-ctx',C.green],
+  ['fe-app','fe-protected',C.ui],
+  // Auth forms → context
+  ['fe-login','fe-auth-ctx',C.green],['fe-signup','fe-auth-ctx',C.green],
+  ['fe-signup','be-hibp',C.purple],['fe-verify','be-auth-user',C.green],
+  ['fe-protected','fe-auth-ctx',C.green],
+  // Auth context → backend
+  ['fe-auth-ctx','be-auth-session',C.green],['fe-auth-ctx','be-auth-login',C.green],
+  ['fe-auth-ctx','be-auth-signup',C.green],['fe-auth-ctx','be-auth-logout',C.green],
+  // Backend auth hub → sub-routers
+  ['be-auth-router','be-auth-email',C.green],['be-auth-router','be-auth-token',C.green],
+  ['be-auth-router','be-auth-user',C.green],['be-auth-router','be-ws-ticket',C.green],
+  // Auth routes → services
+  ['be-auth-email','be-service-auth',C.green],['be-auth-email','be-service-verify-store',C.green],
+  ['be-auth-email','be-service-ratelimit',C.red],['be-auth-email','be-supabase-admin',C.purple],
+  ['be-auth-token','be-service-auth',C.green],['be-auth-user','be-service-auth',C.green],
+  ['be-auth-user','be-service-verify-store',C.green],
+  // Auth service → deps
+  ['be-service-auth','be-redis',C.cyan],['be-service-auth','be-hibp',C.purple],
+  ['be-service-ratelimit','be-redis',C.cyan],
+  // Middleware
+  ['be-middleware-auth','be-service-auth',C.red],
+
+  // ── Chat flow ──
+  ['fe-app','fe-pages-chat',C.ui],
+  ['fe-pages-chat','fe-comp-msglist',C.ui],['fe-pages-chat','fe-comp-chatinput',C.ui],
+  ['fe-pages-chat','fe-comp-chatheader',C.ui],
+  ['fe-comp-msglist','fe-comp-avatar',C.ui],
+  ['fe-query-chats','be-chat-list',C.green],
+  ['fe-query-chat-msgs','be-chat-messages',C.green],
+  ['fe-query-chat-mutations','be-chat-send',C.green],
+  ['fe-chat-ctx','fe-store',C.green],['fe-chat-ctx','fe-query-chats',C.green],
+  ['be-chat-router','be-service-dm',C.green],['be-chat-router','be-service-imageupload',C.green],
+  ['be-chat-router','be-ws',C.red],['be-chat-router','be-prisma',C.orange],
+  ['be-service-dm','be-prisma',C.orange],
+
+  // ── WS flow ──
+  ['fe-rootlayout','fe-ws-ctx',C.red],['fe-rootlayout','fe-chat-ctx',C.green],
+  ['fe-rootlayout','fe-sidebar',C.ui],['fe-rootlayout','fe-chatlist',C.ui],
+  ['fe-ws-ctx','fe-store',C.red],['fe-ws-ctx','fe-query-chat-msgs',C.red],
+  ['fe-ws-ctx','fe-query-notif',C.red],
+  ['fe-ws-ctx','be-ws-ticket',C.red],['be-ws-ticket','be-service-ws-ticket',C.green],
+  ['be-entry','be-ws',C.red],['be-chat-router','be-ws',C.red],
+  ['be-friends-router','be-ws',C.red],['be-anon-router','be-ws',C.red],
+  ['be-ws','be-ws-protocol',C.red],['be-ws','be-ws-rooms',C.green],
+  ['be-ws','be-prisma',C.orange],
+
+  // ── Social flow ──
+  ['fe-app','fe-pages-notif',C.ui],
+  ['fe-comp-addfriend','be-friends-send',C.green],
+  ['fe-mod-fr','be-friends-accept',C.green],['fe-mod-fr','be-friends-reject',C.green],
+  ['fe-mod-usersearch','be-users-search',C.green],
+  ['fe-mod-profileimg','be-users-profile-img',C.green],
+  ['fe-query-notif','be-notif-list',C.green],
+  ['fe-query-notif-mutations','be-notif-read',C.green],
+  ['fe-query-notif-mutations','be-friends-accept',C.green],
+  ['fe-query-notif-mutations','be-friends-reject',C.green],
+  ['be-friends-router','be-service-notify',C.green],['be-friends-router','be-service-dm',C.green],
+  ['be-friends-router','be-service-email',C.purple],
+  ['be-notif-router','be-prisma',C.orange],
+  ['be-users-router','be-service-imageupload',C.green],['be-users-router','be-prisma',C.orange],
+  ['be-service-notify','be-prisma',C.orange],['be-service-notify','be-ws',C.red],
+
+  // ── Anon flow ──
+  ['fe-app','fe-pages-anon',C.ui],
+  ['fe-pages-anon','fe-query-anon-msgs',C.green],['fe-pages-anon','fe-query-anon-mutations',C.green],
+  ['fe-pages-anon-comp','fe-comp-chatinput',C.ui],
+  ['fe-query-anon-msgs','be-anon-messages',C.green],
+  ['fe-query-anon-mutations','be-anon-send',C.green],
+  ['be-anon-router','be-service-vote',C.green],['be-anon-router','be-ws',C.red],
+  ['be-anon-router','be-prisma',C.orange],
+  ['be-service-vote','be-prisma',C.orange],
+
+  // ── Storage flow ──
+  ['fe-comp-chatinput','be-chat-image',C.green],
+  ['be-chat-image','be-service-imageupload',C.green],['be-chat-image','be-ws',C.red],
+  ['be-service-imageupload','be-supabase-s3',C.purple],
+
+  // ── DB flow ──
+  ['be-prisma','be-pg',C.orange],
+
+  // ── Infra ──
+  ['be-service-email','be-resend',C.purple],
+];
+
+// ============================================================
+// RENDERING ENGINE
+// ============================================================
+let scale=1,panX=0,panY=0;
+let isDragging=false,dragStartX,dragStartY,panStartX,panStartY;
+let selectedNode=null,showConnections=true;
+const canvas=document.getElementById('canvas');
+const canvasWrap=document.getElementById('canvas-wrap');
+const svgEl=document.getElementById('connections');
+
+let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+groups.forEach(g=>{minX=Math.min(minX,g.x);minY=Math.min(minY,g.y);maxX=Math.max(maxX,g.x+g.w);maxY=Math.max(maxY,g.y+g.h)});
+nodes.forEach(n=>{minX=Math.min(minX,n.x);minY=Math.min(minY,n.y);maxX=Math.max(maxX,n.x+n.w);maxY=Math.max(maxY,n.y+n.h)});
+const pad=60;
+
+function renderGroups(){
+  groups.forEach(g=>{
+    const el=document.createElement('div');
+    el.className='group';el.id=g.id;
+    el.style.cssText=`left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px;border-color:${g.color}30`;
+    el.innerHTML=`<div class="group-label" style="background:${g.color};color:#0d0d14;border:2px solid ${g.color}">${g.label} <span class="collapse-btn" onclick="event.stopPropagation();toggleGroup('${g.id}')" style="color:#0d0d14">−</span></div>`;
+    canvas.appendChild(el);
+  });
+}
+
+function renderNodes(){
+  nodes.forEach(n=>{
+    const el=document.createElement('div');
+    el.className='node';el.id=n.id;
+    el.style.cssText=`left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px;border-color:${C[n.cat]}30;background:${BG[n.cat]}`;
+    el.dataset.cat=n.cat;
+    el.dataset.searchtext=`${n.name} ${n.purpose} ${n.funcs.join(' ')} ${(n.tags||[]).join(' ')}`.toLowerCase();
+    el.innerHTML=`
+      <div class="node-header"><div class="icon" style="background:${C[n.cat]}"></div><span>${n.name}</span></div>
+      <div class="node-body">
+        <div class="node-detail">${n.purpose.substring(0,90)}${n.purpose.length>90?'...':''}</div>
+        ${n.tags?`<div style="margin-top:4px">${n.tags.map(t=>`<span class="node-tag" style="background:${C[n.cat]}20;color:${C[n.cat]}">${t}</span>`).join('')}</div>`:''}
+      </div>`;
+    el.addEventListener('click',()=>selectNode(n));
+    el.addEventListener('mouseenter',e=>showTooltip(e,n));
+    el.addEventListener('mouseleave',hideTooltip);
+    canvas.appendChild(el);
+  });
+}
+
+function nodeCenter(id){const n=nodes.find(x=>x.id===id);return n?{x:n.x+n.w/2,y:n.y+n.h/2}:{x:0,y:0}}
+
+function edgePoint(n,angle){
+  const hw=n.w/2,hh=n.h/2;
+  const cos=Math.cos(angle),sin=Math.sin(angle);
+  const absCos=Math.abs(cos),absSin=Math.abs(sin);
+  const r=absCos>0.001&&absSin>0.001?Math.min(hw/absCos,hh/absSin):Math.sqrt(hw*hw+hh*hh);
+  return{x:n.x+hw+cos*r*0.95,y:n.y+hh+sin*r*0.95};
+}
+
+function renderConnections(){
+  if(!showConnections){svgEl.innerHTML='';return;}
+  const bb={x:minX-100,y:minY-100,w:maxX-minX+200,h:maxY-minY+200};
+  svgEl.setAttribute('viewBox',`${bb.x} ${bb.y} ${bb.w} ${bb.h}`);
+  svgEl.style.width=bb.w+'px';svgEl.style.height=bb.h+'px';
+  svgEl.style.left=bb.x+'px';svgEl.style.top=bb.y+'px';
+
+  let defs='<defs>';
+  Object.entries(C).forEach(([k,v])=>{
+    defs+=`<marker id="a-${k}" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto"><path d="M0,0 L7,2.5 L0,5" fill="${v}" opacity=".7"/></marker>`;
+  });
+  defs+='</defs>';
+
+  let paths='';
+  const cToK={};Object.entries(C).forEach(([k,v])=>cToK[v]=k);
+
+  connections.forEach(([from,to,color])=>{
+    const fc=nodeCenter(from),tc=nodeCenter(to);
+    if(!fc.x&&!fc.y||!tc.x&&!tc.y) return;
+    const sn=nodes.find(n=>n.id===from),tn=nodes.find(n=>n.id===to);
+    const angle=Math.atan2(tc.y-fc.y,tc.x-fc.x);
+    const sx=sn?edgePoint(sn,angle).x:fc.x;
+    const sy=sn?edgePoint(sn,angle).y:fc.y;
+    const tx=tn?edgePoint(tn,angle+Math.PI).x:tc.x;
+    const ty=tn?edgePoint(tn,angle+Math.PI).y:tc.y;
+
+    const mx=(sx+tx)/2,my=(sy+ty)/2;
+    const pd=-(ty-sy)*.08,pd2=(tx-sx)*.08;
+    const k=cToK[color]||'green';
+    paths+=`<path class="conn" data-from="${from}" data-to="${to}" d="M${sx},${sy} Q${mx+pd},${my+pd2} ${tx},${ty}" stroke="${color}" marker-end="url(#a-${k})"/>`;
+  });
+  svgEl.innerHTML=defs+paths;
+}
+
+// ============================================================
+// INTERACTION
+// ============================================================
+function applyTransform(){
+  canvas.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`;
+  document.getElementById('zoom-label').textContent=Math.round(scale*100)+'%';
+  updateMinimap();
+}
+
+canvasWrap.addEventListener('mousedown',e=>{
+  if(e.target.closest('.node')||e.target.closest('.group-label')||e.target.closest('.collapse-btn'))return;
+  isDragging=true;dragStartX=e.clientX;dragStartY=e.clientY;panStartX=panX;panStartY=panY;
+  canvasWrap.classList.add('grabbing');
+});
+window.addEventListener('mousemove',e=>{if(!isDragging)return;panX=panStartX+(e.clientX-dragStartX);panY=panStartY+(e.clientY-dragStartY);applyTransform()});
+window.addEventListener('mouseup',()=>{isDragging=false;canvasWrap.classList.remove('grabbing')});
+
+canvasWrap.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const rect=canvasWrap.getBoundingClientRect();
+  const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  const d=e.deltaY>0?.92:1.08;
+  const ns=Math.max(.08,Math.min(4,scale*d));
+  const r=ns/scale;panX=mx-r*(mx-panX);panY=my-r*(my-panY);scale=ns;applyTransform();
+},{passive:false});
+
+function zoomIn(){scale=Math.min(4,scale*1.25);applyTransform()}
+function zoomOut(){scale=Math.max(.08,scale/1.25);applyTransform()}
+function fitAll(){
+  const rect=canvasWrap.getBoundingClientRect();
+  const cw=maxX-minX+pad*2,ch=maxY-minY+pad*2;
+  scale=Math.min(rect.width/cw,rect.height/ch)*.92;
+  panX=(rect.width-cw*scale)/2-(minX-pad)*scale;
+  panY=(rect.height-ch*scale)/2-(minY-pad)*scale;
+  applyTransform();
+}
+
+function selectNode(n){
+  document.querySelectorAll('.node.selected').forEach(el=>el.classList.remove('selected'));
+  selectedNode=n;
+  const el=document.getElementById(n.id);if(el)el.classList.add('selected');
+  document.querySelectorAll('.conn').forEach(c=>c.classList.toggle('highlighted',c.dataset.from===n.id||c.dataset.to===n.id));
+
+  const panel=document.getElementById('detail-panel');
+  document.getElementById('panel-title').textContent=n.name;
+  document.getElementById('panel-icon').style.background=C[n.cat];
+
+  let h=`<div class="dep-section"><div class="dep-label">Purpose</div><div style="font-size:12px;color:var(--text2);line-height:1.5">${n.purpose}</div></div>`;
+  if(n.funcs&&n.funcs.length) h+=`<div class="dep-section"><div class="dep-label">Functions / Classes</div><ul class="func-list">${n.funcs.map(f=>`<li>${f}</li>`).join('')}</ul></div>`;
+  if(n.outgoing&&n.outgoing.length){const d=n.outgoing.map(id=>nodes.find(x=>x.id===id)).filter(Boolean);
+    h+=`<div class="dep-section"><div class="dep-label">Outgoing (${d.length})</div>${d.map(x=>`<div class="dep-item" onclick="navigateTo('${x.id}')"><div class="dot" style="background:${C[x.cat]}"></div>${x.name}</div>`).join('')}</div>`;}
+  if(n.incoming&&n.incoming.length){const d=n.incoming.map(id=>nodes.find(x=>x.id===id)).filter(Boolean);
+    h+=`<div class="dep-section"><div class="dep-label">Incoming (${d.length})</div>${d.map(x=>`<div class="dep-item" onclick="navigateTo('${x.id}')"><div class="dot" style="background:${C[x.cat]}"></div>${x.name}</div>`).join('')}</div>`;}
+  if(n.tags&&n.tags.length) h+=`<div class="dep-section"><div class="dep-label">Tags</div><div>${n.tags.map(t=>`<span class="node-tag" style="background:${C[n.cat]}20;color:${C[n.cat]}">${t}</span>`).join(' ')}</div></div>`;
+  document.getElementById('panel-body').innerHTML=h;panel.classList.add('open');
+}
+
+function closePanel(){document.getElementById('detail-panel').classList.remove('open');document.querySelectorAll('.node.selected').forEach(el=>el.classList.remove('selected'));document.querySelectorAll('.conn.highlighted').forEach(c=>c.classList.remove('highlighted'));selectedNode=null}
+
+function navigateTo(id){const n=nodes.find(x=>x.id===id);if(!n)return;const rect=canvasWrap.getBoundingClientRect();panX=rect.width/2-(n.x+n.w/2)*scale;panY=rect.height/2-(n.y+n.h/2)*scale;applyTransform();selectNode(n)}
+
+function showTooltip(e,n){const tt=document.getElementById('tooltip');tt.style.display='block';tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY+14)+'px';tt.innerHTML=`<strong>${n.name}</strong><br><span style="color:${C[n.cat]}">${n.cat.toUpperCase()}</span><br><span style="color:var(--text2)">${n.purpose.substring(0,140)}${n.purpose.length>140?'...':''}</span>`}
+function hideTooltip(){document.getElementById('tooltip').style.display='none'}
+
+function toggleGroup(id){const g=groups.find(x=>x.id===id);if(!g)return;g.collapsed=!g.collapsed;const el=document.getElementById(id);
+  if(g.collapsed){el.classList.add('collapsed');el.querySelector('.collapse-btn').textContent='+';nodes.filter(n=>n.group===id).forEach(n=>{const ne=document.getElementById(n.id);if(ne)ne.style.display='none'})}
+  else{el.classList.remove('collapsed');el.querySelector('.collapse-btn').textContent='−';nodes.filter(n=>n.group===id).forEach(n=>{const ne=document.getElementById(n.id);if(ne)ne.style.display=''})}}
+
+const searchInput=document.getElementById('search');
+searchInput.addEventListener('input',e=>{const q=e.target.value.toLowerCase();document.querySelectorAll('.node').forEach(el=>{if(!q){el.style.opacity='';return}el.style.opacity=el.dataset.searchtext.includes(q)?'1':'.12'})});
+document.addEventListener('keydown',e=>{(e.ctrlKey||e.metaKey)&&e.key==='k'&&(e.preventDefault(),searchInput.focus());e.key==='Escape'&&(closePanel(),searchInput.blur(),searchInput.value='',document.querySelectorAll('.node').forEach(el=>el.style.opacity=''))});
+
+function toggleConnections(){showConnections=!showConnections;document.getElementById('btn-conn').classList.toggle('active',showConnections);renderConnections()}
+
+function updateMinimap(){
+  const mc=document.getElementById('minimap-canvas'),ctx=mc.getContext('2d'),mw=mc.width,mh=mc.height;
+  const cw=maxX-minX+pad*2,ch=maxY-minY+pad*2,ms=Math.min(mw/cw,mh/ch)*.85;
+  const mx2=(mw-cw*ms)/2,my2=(mh-ch*ms)/2;
+  ctx.clearRect(0,0,mw,mh);ctx.fillStyle='#0d0d14';ctx.fillRect(0,0,mw,mh);
+  groups.forEach(g=>{ctx.strokeStyle='#2a2a3a';ctx.lineWidth=1;ctx.strokeRect(mx2+(g.x-minX+pad)*ms,my2+(g.y-minY+pad)*ms,g.w*ms,g.h*ms)});
+  nodes.forEach(n=>{ctx.fillStyle=C[n.cat]+'50';ctx.fillRect(mx2+(n.x-minX+pad)*ms,my2+(n.y-minY+pad)*ms,n.w*ms,n.h*ms)});
+  const rect=canvasWrap.getBoundingClientRect();
+  const vpw=rect.width/scale,vph=rect.height/scale;
+  const vpx=(-panX/scale-minX+pad)*ms+mx2,vpy=(-panY/scale-minY+pad)*ms+my2;
+  const vp=document.getElementById('minimap-vp');
+  vp.style.left=(vpx/mw*100)+'%';vp.style.top=(vpy/mh*100)+'%';
+  vp.style.width=(vpw*ms/mw*100)+'%';vp.style.height=(vph*ms/mh*100)+'%';
+}
+
+canvasWrap.addEventListener('click',e=>{if(!e.target.closest('.node')&&!e.target.closest('.group'))closePanel()});
+
+// ============================================================
+// INIT
+// ============================================================
+renderGroups();renderNodes();renderConnections();
+document.getElementById('btn-conn').classList.add('active');
+setTimeout(fitAll,100);
+</script>
+</body>
+</html>
