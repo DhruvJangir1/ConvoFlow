@@ -9,7 +9,6 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { validateOrigin } from './src/middleware/validateOrigin';
 import { setupWebSocket, shutdownWebSocket } from './ws/websocket';
-import { checkPoolHealth } from './src/lib/healthCheckPool'
 import { connectRedis, disconnectRedis } from './redis/redisClient'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -137,29 +136,6 @@ app.use((req, res, next) => {
     return validateOrigin(req, res, next);
   }
   return next();
-});
-
-// Health check endpoint - expose for monitoring systems
-app.get('/health/db', async (req, res) => {
-  const health = await checkPoolHealth();
-  res.status(health.healthy ? 200 : 503).json({
-    ...health,
-    pool: {
-      total: pool.totalCount,     // Total connections in pool
-      idle: pool.idleCount,       // Available connections
-      waiting: pool.waitingCount, // Queries waiting for a connection
-    },
-  });
-});
-
-// 6. THE METRICS ENDPOINT: Prometheus requests this route to scrape data
-app.get('/metrics', async (req, res) => {
-  try {
-    res.set('Content-Type', client.register.contentType);
-    res.end(await client.register.metrics());
-  } catch (err) {
-    res.status(500).end(err.message);
-  }
 });
 
 import AuthRouter from "./src/routes/auth";

@@ -19,7 +19,8 @@ interface WebSocketContextValue {
 
 const WebSocketContext = createContext<WebSocketContextValue | null>(null);
 
-const WS_URL = 'ws://localhost:8080/ws';
+const WS_URL = import.meta.env.VITE_WS_URL
+  ?? (() => { throw new Error('VITE_WS_URL is required'); })();
 const TICKET_ENDPOINT = '/api/auth/WsTicketRouter/ws-ticket';
 const RECONNECT_DELAY_MS = 2000;
 

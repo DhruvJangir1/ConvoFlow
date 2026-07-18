@@ -38,6 +38,7 @@ export default function ProfileImageModal({ onClose, imageUrl, userName }: Props
       const res = await fetch("/api/users/profile-image", {
         method: "PATCH",
         body: formData,
+        credentials: "include",
       });
 
       if (!res.ok) {
