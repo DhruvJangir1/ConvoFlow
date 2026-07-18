@@ -1,31 +1,22 @@
-import { createClient } from 'redis';
+import { Redis } from '@upstash/redis';
 
-const REDIS_PASSWORD = process.env.REDIS_PASSWORD || undefined;
-
-const client = createClient({
-
-  ...(REDIS_PASSWORD ? { password: REDIS_PASSWORD } : {}),
+export const client = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-client.on('error', (err) => console.error('[redis] Client Error:', err));
-client.on('connect', () => console.log('[redis] Connected'));
-client.on('reconnecting', () => console.log('[redis] Reconnecting...'));
-
 export async function connectRedis(): Promise<void> {
-  if (!client.isOpen) {
-    await client.connect();
-    console.log('[redis] Client connected successfully');
-  } else {
-    console.log('[redis] Client already connected');
+  try {
+    await client.ping();
+    console.log('[redis] Connected successfully');
+  } catch (err) {
+    console.error('[redis] Connection failed:', err);
+    throw err;
   }
 }
 
 export async function disconnectRedis(): Promise<void> {
-  if (client.isOpen) {
-    await client.quit();
-    console.log('[redis] Client disconnected');
-  }
+  console.log('[redis] No persistent connection to close (REST-based)');
 }
 
-export { client };
 export default client;

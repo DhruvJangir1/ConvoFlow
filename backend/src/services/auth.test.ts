@@ -1,5 +1,17 @@
 import { test, expect, describe, beforeAll, afterAll } from 'vitest';
 import bcrypt from 'bcryptjs';
+import { vi } from 'vitest';
+
+vi.mock('../../redis/redisClient.js', () => ({
+  client: {
+    set: vi.fn(),
+    get: vi.fn(),
+    del: vi.fn(),
+  },
+  connectRedis: vi.fn(),
+  disconnectRedis: vi.fn(),
+}));
+
 import { hashPassword, comparePassword, signAccessToken, verifyAccessToken, generateRefreshToken, hashToken } from './auth';
 
 describe('Authentication Utilities', () => {

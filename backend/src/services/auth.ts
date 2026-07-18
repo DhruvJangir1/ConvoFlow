@@ -143,7 +143,7 @@ export async function rotateRefreshToken(
     },
   });
 
-  await redis.set(`used_token:${userRecord.refresh_token_hash}`, userRecord.id, { EX: Math.ceil(REFRESH_TOKEN_EXPIRY_MS / 1000) });
+  await redis.set(`used_token:${userRecord.refresh_token_hash}`, userRecord.id, { ex: Math.ceil(REFRESH_TOKEN_EXPIRY_MS / 1000) });
   console.log('[rotateRefreshToken] old token hash stored in Redis for replay detection');
 
   console.log(`[rotateRefreshToken] tokens rotated for user ${userRecord.id}`);

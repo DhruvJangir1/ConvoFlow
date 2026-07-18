@@ -16,6 +16,16 @@ const { mockPrisma } = vi.hoisted(() => {
 
 vi.mock('../lib/connectionPoolClient.js', () => ({ prisma: mockPrisma }));
 
+vi.mock('../../redis/redisClient.js', () => ({
+  client: {
+    set: vi.fn(),
+    get: vi.fn(),
+    del: vi.fn(),
+  },
+  connectRedis: vi.fn(),
+  disconnectRedis: vi.fn(),
+}));
+
 vi.mock('./supabaseAuth.js', () => ({
   createNewSupabaseAuthUser: vi.fn(),
   createNewSupabaseUser: vi.fn(),

@@ -204,7 +204,11 @@ if (fs.existsSync(distPath)) {
 console.log('[server.js] about to start the server');
 
 (async () => {
-  await connectRedis();
+  try {
+    await connectRedis();
+  } catch (err) {
+    console.warn('[server] Redis unavailable — running without cache:', err.message);
+  }
   const server = http.createServer(app);
   setupWebSocket(server);
   server.listen(PORT, '0.0.0.0', () => {

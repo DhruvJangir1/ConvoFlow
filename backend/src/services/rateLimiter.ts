@@ -31,7 +31,7 @@ export async function trackAuthAttempt(ip: string): Promise<boolean> {
 
     if (attemptCount >= MAX_ATTEMPTS) {
       console.log(`[rateLimiter] ${ip} exceeded ${MAX_ATTEMPTS} attempts in 1 min — blocking for 5 min`);
-      await client.set(blKey, '1', { EX: BLOCK_SECONDS });
+      await client.set(blKey, '1', { ex: BLOCK_SECONDS });
       await client.del(rlKey);
       return false;
     }
