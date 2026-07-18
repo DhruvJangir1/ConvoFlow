@@ -117,9 +117,14 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           const { chatId, ...rest } = payload;
           queryClient.setQueryData<MessagesResponse>(chatKeys.messages(chatId), (old) => {
             const entry: ChatMessages = {
-              ...rest,
-              isOwn: rest.senderId === user?.id,
+              id: rest.id,
+              chatId,
+              senderId: rest.senderId,
+              senderName: rest.senderName,
               senderImage: rest.senderImage ?? null,
+              content: rest.content,
+              createdAt: rest.createdAt,
+              isOwn: rest.senderId === user?.id,
               isEdited: rest.isEdited ?? false,
               messageType: rest.messageType ?? 'text',
             };

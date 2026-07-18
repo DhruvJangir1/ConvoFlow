@@ -62,11 +62,10 @@ function getOnlineUsersInChat(chatId: string): string[] {
 export function broadcastToRoom(chatId: string, data: object): void {
   const room = chatRooms.get(chatId);
   console.log(`[ws:broadcast] Broadcasting to room "${chatId}" — ${room ? room.size : 0} sockets in room`);
-  if (!room) {
+  if (!room || room.size === 0) {
     console.log(`[ws:broadcast] Room "${chatId}" doesn't exist or is empty, skipping`);
     return;
   }
-  if (!room) return;
   for (const ws of room) { // send to every single connected one in a given chat
     if(ws && ws.userId){
       sendToUser(ws.userId,data);
@@ -349,33 +348,6 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
     ws.isAlive = true;
     ws.subscribedRooms = new Set();
 
-    console.log(`[ws:setup] Fetching user profile from DB for ${userId}`);
-    try {
-      const user = await prisma.users.findUnique({
-        where: { id: userId },
-        select: { user_name: true, image_url: true },
-      });
-      if (user !== null) {
-        ws.userName = user.user_name;
-        ws.userImage = user.image_url ? await resolveImageUrl(user.image_url) : null;
-        console.log(`[ws:setup] User profile loaded: name="${user.user_name}"`);
-      } else {
-        ws.userName = userId;
-        ws.userImage = null;
-        console.log(`[ws:setup] No user profile found, using ID as name`);
-      }
-    } catch {
-      ws.userName = userId;
-      ws.userImage = null;
-      console.log(`[ws:setup] DB error loading profile, using ID as name`);
-    }
-
-    userSockets.set(userId, ws);
-    console.log(`[ws:setup] Socket stored for ${ws.userName} (${userId}) — ${userSockets.size} total unique users connected`);
-
-    // Register socket-level event listeners
-    console.log(`[ws:setup] Registering event listeners on socket for ${userId}`);
-
     ws.on('pong', () => {
       console.log(`[ws:pong] Received pong from ${ws.userId}`);
       ws.isAlive = true;
@@ -395,6 +367,29 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
       console.log(`[ws:setup] Socket 'error' event for ${ws.userId}: ${err}`);
       handleClose(ws);
     });
+
+    console.log(`[ws:setup] Event listeners registered for ${userId} — fetching profile from DB`);
+    userSockets.set(userId, ws);
+    console.log(`[ws:setup] Socket stored for ${userId} — ${userSockets.size} total unique users connected`);
+    try {
+      const user = await prisma.users.findUnique({
+        where: { id: userId },
+        select: { user_name: true, image_url: true },
+      });
+      if (user !== null) {
+        ws.userName = user.user_name;
+        ws.userImage = user.image_url ? await resolveImageUrl(user.image_url) : null;
+        console.log(`[ws:setup] User profile loaded: name="${user.user_name}"`);
+      } else {
+        ws.userName = userId;
+        ws.userImage = null;
+        console.log(`[ws:setup] No user profile found, using ID as name`);
+      }
+    } catch {
+      ws.userName = userId;
+      ws.userImage = null;
+      console.log(`[ws:setup] DB error loading profile, using ID as name`);
+    }
 
     console.log(`[ws:setup] === CONNECTION FULLY ESTABLISHED for ${ws.userName} (${userId}) ===`);
   });
