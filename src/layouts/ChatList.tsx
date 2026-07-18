@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { Loader2, Search, Shield } from "lucide-react";
 import { useSelector } from "react-redux";
@@ -9,6 +9,7 @@ import { formatSmartDate } from "../lib/dateFormat";
 import UserSearchModal from "../modals/UserSearchModal";
 import AddFriendButton from "../components/AddFriendButton";
 import UserAvatar from "../components/UserAvatar";
+import { useWebSocket } from "../context/WebSocketContext";
 
 function getInitials(name: string): string {
   return name
@@ -54,6 +55,13 @@ export default function ChatList() {
   );
 
   const { data: anonRooms = [] } = useAnonymousRoomsQuery();
+  const { subscribeToChats } = useWebSocket();
+
+  useEffect(() => {
+    if (anonRooms.length > 0) {
+      subscribeToChats(anonRooms.map(r => r.id));
+    }
+  }, [anonRooms, subscribeToChats]);
 
   const filteredAnon = useMemo(
     () => anonRooms.filter((room) => (room.name ?? "").toLowerCase().includes(searchQuery.toLowerCase())),
