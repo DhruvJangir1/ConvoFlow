@@ -91,10 +91,6 @@ function formatDateSeparator(dateStr: string): string {
   return date.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
 }
 
-function getInitials(name: string): string {
-  return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-}
-
 function wrapText(text: string, maxChars: number = 75): string {
   const parts: string[] = [];
   for (let i = 0; i < text.length; i += maxChars) {

@@ -1,8 +1,7 @@
 import { X, Eye, Camera, Upload, Trash2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import UserAvatar from "../components/UserAvatar";
-import type { RootState } from "../store/store";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
 import { updateUserProfileImage } from "../store/userAuthSlice";
 
 interface Props {
@@ -16,12 +15,6 @@ export default function ProfileImageModal({ onClose, imageUrl, userName }: Props
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const dispatch = useDispatch();
-  const user = useSelector((s: RootState) => s.userAuth.user);
-
-  function handleupdateUserProfileImage(newImageUrl: string) {
-    if (!user) return;
-    dispatch(updateUserProfileImage(newImageUrl));
-  }
 
   useEffect(() => {
     return () => {

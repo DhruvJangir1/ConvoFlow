@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "start": "npm run build && cd backend && npx tsx server.js",
-    "build": "npx prisma generate && tsc -b && vite build",
+    "build": "npx prisma generate && npx tsc -b && npx vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "test-jest": "jest",
