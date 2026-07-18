@@ -165,14 +165,6 @@ vi.mock('../src/lib/connectionPoolClient', () => ({
 
 vi.mock('../src/util/sanitize.js', () => ({}));
 
-vi.mock('http', () => {
-  const server = getMockHttpServer();
-  return {
-    default: { createServer: vi.fn(() => server) },
-    createServer: vi.fn(() => server),
-  };
-});
-
 vi.mock('ws', () => {
   const { wss, clients } = createMockWss();
   return {
@@ -213,7 +205,7 @@ async function connectAndAuth(ticket: string, userId: string): Promise<MockWs> {
 }
 
 async function setupWsAndConnect(ticket: string, userId: string): Promise<MockWs> {
-  setupWebSocket();
+  setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
   return connectAndAuth(ticket, userId);
 }
 
@@ -239,17 +231,15 @@ afterEach(() => {
 // =============================================================================
 
 describe('setupWebSocket / shutdownWebSocket', () => {
-  it('creates HTTP server and WebSocketServer on port 8080', () => {
-    setupWebSocket();
-    const httpServer = getMockHttpServer();
-    expect(httpServer.listen).toHaveBeenCalledWith(8080, '0.0.0.0', expect.any(Function));
+  it('attaches WebSocketServer to provided HTTP server and starts ticket cleanup', () => {
+    setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
     expect(mockStartTicketCleanup).toHaveBeenCalled();
     shutdownWebSocket();
     expect(mockStopTicketCleanup).toHaveBeenCalled();
   });
 
   it('shutdownWebSocket closes the WSS', () => {
-    setupWebSocket();
+    setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
     shutdownWebSocket();
   });
 });
@@ -268,7 +258,7 @@ describe('Authentication', () => {
   });
 
   it('closes socket with code 4001 on invalid ticket', () => {
-    setupWebSocket();
+    setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
     const ws = createMockWs();
     ws.url = '/ws?ticket=bad';
     mockConsumeTicket.mockReturnValue(null);
@@ -281,7 +271,7 @@ describe('Authentication', () => {
   });
 
   it('closes socket with code 4001 when no ticket', () => {
-    setupWebSocket();
+    setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
     const ws = createMockWs();
     const closeSpy = vi.spyOn(ws, 'close');
     const { wss } = getMockWss();
@@ -498,7 +488,7 @@ describe('Subscribe / Unsubscribe', () => {
   });
 
   it('ignores subscribe when userId is undefined', async () => {
-    setupWebSocket();
+    setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
     const ws = createMockWs();
     ws.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
     expect(ws.sent).toHaveLength(0);
@@ -562,7 +552,7 @@ describe('Typing Indicators', () => {
   });
 
   it('ignores typing when userId is undefined', async () => {
-    setupWebSocket();
+    setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
     const ws = createMockWs();
     ws.emit('message', Buffer.from(JSON.stringify({ type: 'typing:start', payload: { chatId: 'chat-1' } })));
     expect(ws.sent).toHaveLength(0);

@@ -322,13 +322,10 @@ function startHeartbeat(): void {
   }
 }
 
-const WS_PORT = 8080;
-
-export function setupWebSocket(): WebSocketServer {
+export function setupWebSocket(server: http.Server): WebSocketServer {
   console.log('[ws:setup] ===== SETUP WEBSOCKET CALLED =====');
-  console.log('[ws:setup] Creating raw HTTP server for WS');
+  console.log('[ws:setup] Attaching WebSocketServer to provided HTTP server');
 
-  const server = http.createServer();
   console.log('[ws:setup] Creating WebSocketServer on path /ws');
 
   wss = new WebSocketServer({ server, path: '/ws' });
@@ -399,10 +396,6 @@ export function setupWebSocket(): WebSocketServer {
     });
 
     console.log(`[ws:setup] === CONNECTION FULLY ESTABLISHED for ${ws.userName} (${userId}) ===`);
-  });
-
-  server.listen(WS_PORT, '0.0.0.0', () => {
-    console.log(`[ws:setup] ===== WS SERVER LISTENING on ws://localhost:${WS_PORT}/ws =====`);
   });
 
   console.log('[ws:setup] Starting ticket cleanup & heartbeat');

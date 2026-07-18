@@ -1,4 +1,5 @@
 import express from "express";
+import http from "http";
 import cors from "cors";
 import helmet from 'helmet'
 import cookieParser from "cookie-parser";
@@ -204,8 +205,9 @@ console.log('[server.js] about to start the server');
 
 (async () => {
   await connectRedis();
-  setupWebSocket();
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = http.createServer(app);
+  setupWebSocket(server);
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`[server] CORS origin: ${corsOrigin}`);
     console.log(`[server] Environment: ${process.env.NODE_ENV || 'development'}`);
