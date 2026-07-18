@@ -121,7 +121,8 @@ AuthEmailVerificaitonRouter.post('/signup', async (req: Request, res: Response):
 
 AuthEmailVerificaitonRouter.post('/login',async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
-  const ipAddress = req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown';
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const ipAddress = (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor?.split(',')[0]?.trim()) || req.ip || 'unknown';
   console.log(`[/login] attempt for ${email?.trim()?.toLowerCase()} from ${ipAddress}`);
 
   if (!email || !email.trim() || !password) {

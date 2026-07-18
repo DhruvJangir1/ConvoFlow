@@ -23,7 +23,8 @@ function getJwtSecret(): string {
 
 export async function checkPassword (req: Request, res: Response): Promise<void>{
   const { password } = req.body as { password?: string };
-  const ipAddress = req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown';
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const ipAddress = (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor?.split(',')[0]?.trim()) || req.ip || 'unknown';
 
   if (!await trackAuthAttempt(ipAddress)) {
     res.status(429).json({ error: 'Too many requests, please try again later' });

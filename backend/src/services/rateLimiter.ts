@@ -13,6 +13,32 @@ function blockKey(ip: string): string {
   return `rate_limit:blocked:${ip}`;
 }
 
+const memoryAttempts = new Map<string, number[]>();
+const memoryBlocks = new Map<string, number>();
+
+function memoryRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const blockExpiry = memoryBlocks.get(ip);
+  if (blockExpiry && blockExpiry > now) {
+    console.log(`[rateLimiter-memory] Request blocked for ${ip} — still in block period`);
+    return false;
+  }
+  memoryBlocks.delete(ip);
+
+  const timestamps = (memoryAttempts.get(ip) || []).filter(t => t > now - WINDOW_MS);
+  if (timestamps.length >= MAX_ATTEMPTS) {
+    console.log(`[rateLimiter-memory] ${ip} exceeded ${MAX_ATTEMPTS} attempts — blocking for 5 min`);
+    memoryBlocks.set(ip, now + BLOCK_SECONDS * 1000);
+    memoryAttempts.delete(ip);
+    return false;
+  }
+
+  timestamps.push(now);
+  memoryAttempts.set(ip, timestamps);
+  console.log(`[rateLimiter-memory] ${ip} — attempt ${timestamps.length}/${MAX_ATTEMPTS} recorded`);
+  return true;
+}
+
 export async function trackAuthAttempt(ip: string): Promise<boolean> {
   const now = Date.now();
   const rlKey = rateLimitKey(ip);
@@ -43,7 +69,7 @@ export async function trackAuthAttempt(ip: string): Promise<boolean> {
     return true;
 
   } catch (err) {
-    console.error(`[rateLimiter] Redis error for IP ${ip}:`, err);
-    return false;
+    console.error(`[rateLimiter] Redis error for IP ${ip} — falling back to memory:`, err.message);
+    return memoryRateLimit(ip);
   }
 }
