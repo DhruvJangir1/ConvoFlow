@@ -3,7 +3,7 @@ import http from 'http';
 import type { IncomingMessage } from 'http';
 import { consumeTicket, startTicketCleanup, stopTicketCleanup } from '../src/services/wsTicketStore';
 import { prisma } from '../src/lib/connectionPoolClient';
-import { escapeHtml } from '../src/util/sanitize.js';
+
 
 
 interface AuthenticatedSocket extends WebSocket {
@@ -156,9 +156,8 @@ export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chat
   }
 
   try {
-    const sanitizedContent = escapeHtml(content);
     const message = await prisma.standardChatMessages.create({
-      data: { chat_id: chatId, sender_id: ws.userId, content: sanitizedContent },
+      data: { chat_id: chatId, sender_id: ws.userId, content },
     });
     console.log(`[ws:message] Message ${message.id} saved to DB`);
 

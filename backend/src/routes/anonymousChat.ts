@@ -4,7 +4,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { broadcastToRoom } from '../../ws/websocket.js';
 import { upvote, downvote } from '../services/userMessageVote.js';
-import { escapeHtml } from '../util/sanitize.js';
+
 
 const AnonymousChatRouter = Router();
 
@@ -151,12 +151,10 @@ AnonymousChatRouter.post('/:id/messages/:userId/:isAnonymous', authenticate, asy
   }
 
   try {
-    const sanitizedContent = escapeHtml(content.trim());
-
     const message = await prisma.anonymousChatMessages.create({
       data: {
         chat_id: chatId,
-        content: sanitizedContent,
+        content: content.trim(),
         sender_id: userId,
         isAnonymous: isAnon,
       },
@@ -224,12 +222,10 @@ AnonymousChatRouter.patch('/:id/messages/:messageId', authenticate, async (req: 
       return;
     }
 
-    const sanitizedContent = escapeHtml(content.trim());
-
     const updated = await prisma.anonymousChatMessages.update({
       where: { id: messageId },
       data: {
-        content: sanitizedContent,
+        content: content.trim(),
         is_edited: true,
       },
     });

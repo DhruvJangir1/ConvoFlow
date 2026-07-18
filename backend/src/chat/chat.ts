@@ -2,11 +2,9 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import multer, { type FileFilterCallback } from 'multer';
 import { authenticate } from '../middleware/authenticate.js';
-import { refreshUserAccessToken } from '../services/auth.js';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { broadcastToRoom } from '../../ws/websocket.js';
 import { findDmChat, createDmChat } from '../services/dmChat.js';
-import { escapeHtml } from '../util/sanitize.js';
 import { uploadImageToStorage, signImageUrl } from '../services/imageUpload.js';
 
 type ChatUploadRequest = Request & {
@@ -48,7 +46,12 @@ async function requireChatMembership(userId: string, chatId: string): Promise<bo
 const ChatRouter = Router();
 
 ChatRouter.post('/', authenticate, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user!.id;
+  if (!req.user){
+    res.status(401).json({error:'Unauthorized'});
+    return;
+  }
+
+  const userId = req.user.id;
   console.log(`[chat:POST /] user ${userId} initiating chat creation`);
   const { participantIds, name } = req.body as { participantIds?: string[]; name?: string };
 
@@ -325,11 +328,8 @@ ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
 
 ChatRouter.post('/:chatId/:userId/appendMessage', authenticate, async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
-    await refreshUserAccessToken(req, res);
-    if (!req.user) {
-      res.status(401).json({error: 'Unauthorized' });
-      return;
-    }
+    res.status(401).json({error: 'Unauthorized' });
+    return;
   }
   if (!req.params.userId){
     res.status(400).json({error:'UserId is required'});
@@ -358,13 +358,12 @@ ChatRouter.post('/:chatId/:userId/appendMessage', authenticate, async (req: Requ
   }
 
   try {
-    const sanitizedContent = escapeHtml(content);
 
     const newMessage = await prisma.standardChatMessages.create({
       data: {
         chat_id: chatId,
         sender_id: userId,
-        content: sanitizedContent,
+        content: content,
       },
       include: {
         USERS: {
@@ -404,11 +403,8 @@ ChatRouter.post('/:chatId/:userId/appendMessage', authenticate, async (req: Requ
 
 ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
-    await refreshUserAccessToken(req, res);
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
 
   if (!req.params.chatId){
@@ -455,12 +451,10 @@ ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (re
       return;
     }
 
-    const sanitizedContent = escapeHtml(content);
-
     const updated = await prisma.standardChatMessages.update({
       where: { id: messageId },
       data: {
-        content: sanitizedContent,
+        content,
         is_edited: true,
       },
       include: {
@@ -486,11 +480,8 @@ ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (re
 
 ChatRouter.delete('/:chatId/messages/:messageId/:userId', authenticate, async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
-    await refreshUserAccessToken(req, res);
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
 
   if (!req.params.chatId){

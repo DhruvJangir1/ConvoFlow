@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useDispatch } from 'react-redux';
 import { setUser } from '../store/userAuthSlice';
 
@@ -12,32 +12,74 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const REFRESH_BUFFER_MS = 60 * 1000;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const dispatch = useDispatch();
   const [loading, setLoading] = useState(true);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshSessionRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const inflightRef = useRef<Promise<void> | null>(null);
+
+  const scheduleRefresh = useCallback((expiresAt: number) => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
+
+    const delay = expiresAt - Date.now() - REFRESH_BUFFER_MS;
+
+    if (delay <= 0) {
+      refreshSessionRef.current();
+      return;
+    }
+
+    refreshTimerRef.current = setTimeout(() => {
+      refreshSessionRef.current();
+    }, delay);
+  }, []);
 
   const refreshSession = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/auth/TokenVerificationRouter/session`, { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        dispatch(setUser(data.user));
-      } else {
+    if (inflightRef.current) return inflightRef.current;
+
+    const promise = (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/auth/TokenVerificationRouter/session`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          dispatch(setUser(data.user));
+          if (data.accessTokenExpiresAt) {
+            scheduleRefresh(data.accessTokenExpiresAt);
+          }
+        } else {
+          dispatch(setUser(null));
+          if (refreshTimerRef.current) {
+            clearTimeout(refreshTimerRef.current);
+            refreshTimerRef.current = null;
+          }
+        }
+      } catch {
         dispatch(setUser(null));
+      } finally {
+        setLoading(false);
+        inflightRef.current = null;
       }
-    } catch {
-      dispatch(setUser(null));
-    } finally {
-      setLoading(false);
-    }
-  }, [dispatch]);
+    })();
 
-  useEffect(()=>{
+    inflightRef.current = promise;
+    return promise;
+  }, [dispatch, scheduleRefresh]);
 
-     refreshSession();
-     
-  },[refreshSession])
+  refreshSessionRef.current = refreshSession;
+
+  useEffect(() => {
+    refreshSession();
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+    };
+  }, [refreshSession]);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await fetch('/api/auth/EmailVerificaitonRouter/login', {
@@ -74,6 +116,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
     await fetch('/api/auth/EmailVerificaitonRouter/logout', {
       method: 'POST',
       credentials: 'include',

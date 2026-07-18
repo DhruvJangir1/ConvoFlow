@@ -32,7 +32,7 @@ vi.mock('../services/auth.js', async () => {
     hashToken: vi.fn(),
     REFRESH_TOKEN_EXPIRY_MS: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
     checkPassword: vi.fn(),
-    refreshUserAccessToken: vi.fn(),
+    rotateRefreshToken: vi.fn(),
   };
 });
 

@@ -11,7 +11,6 @@ const {
   mockPrismaCreate,
   mockPrismaUpdate,
   mockPrismaFindUnique,
-  mockEscapeHtml,
   createMockWs,
   createMockWss,
   getMockWss,
@@ -139,7 +138,6 @@ const {
     mockPrismaCreate: vi.fn(),
     mockPrismaUpdate: vi.fn(),
     mockPrismaFindUnique: vi.fn(),
-    mockEscapeHtml: vi.fn((s: string) => s),
     createMockWs: () => new MockWsInstance(),
     createMockWss,
     getMockWss,
@@ -165,9 +163,7 @@ vi.mock('../src/lib/connectionPoolClient', () => ({
   },
 }));
 
-vi.mock('../src/util/sanitize.js', () => ({
-  escapeHtml: (...args: unknown[]) => mockEscapeHtml(...args),
-}));
+vi.mock('../src/util/sanitize.js', () => ({}));
 
 vi.mock('http', () => {
   const server = getMockHttpServer();
@@ -231,7 +227,6 @@ beforeEach(() => {
   mockPrismaCreate.mockReset();
   mockPrismaUpdate.mockReset();
   mockPrismaFindUnique.mockReset();
-  mockEscapeHtml.mockImplementation((s: string) => s);
   mockPrismaFindUnique.mockResolvedValue({ user_name: 'Alice', image_url: null });
 });
 
@@ -436,17 +431,15 @@ describe('Message Sending', () => {
     });
   });
 
-  it('sanitizes content with escapeHtml', async () => {
+  it('stores message content as-is without sanitization', async () => {
     const ws = await setupWsAndConnect('t1', 'user-1');
-    mockEscapeHtml.mockReturnValue('sanitized');
-    mockPrismaCreate.mockResolvedValue({ id: 'msg-1', content: 'sanitized', created_at: new Date() });
+    mockPrismaCreate.mockResolvedValue({ id: 'msg-1', content: '<script>alert("xss")</script>', created_at: new Date() });
     mockPrismaUpdate.mockResolvedValue({});
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'message:send', payload: { chatId: 'chat-1', content: '<script>' } })));
+    ws.emit('message', Buffer.from(JSON.stringify({ type: 'message:send', payload: { chatId: 'chat-1', content: '<script>alert("xss")</script>' } })));
 
     await vi.waitFor(() => {
-      expect(mockEscapeHtml).toHaveBeenCalledWith('<script>');
       expect(mockPrismaCreate).toHaveBeenCalledWith({
-        data: { chat_id: 'chat-1', sender_id: 'user-1', content: 'sanitized' },
+        data: { chat_id: 'chat-1', sender_id: 'user-1', content: '<script>alert("xss")</script>' },
       });
     });
   });
