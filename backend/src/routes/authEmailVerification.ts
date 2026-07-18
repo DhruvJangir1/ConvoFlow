@@ -179,25 +179,19 @@ AuthEmailVerificaitonRouter.post('/login',async (req: Request, res: Response): P
     return;
   }
 
-  const { token: refreshToken, hash: refreshHash, salt: refreshSalt } = generateRefreshToken();
-
-  if (!refreshToken || !refreshHash || !refreshSalt) {
-    console.error('[/login] failed to generate refresh token');
-    res.status(500).json({ error: 'Failed to generate refresh token' });
-    return;
-  }
+  const { token: newRefreshToken, hash: newRefreshHash, salt: newRefreshSalt } = generateRefreshToken();
 
   await prisma.users.update({
     where: { id: user.id },
     data: {
-      last_login: new Date(),
-      refresh_token_hash: refreshHash,
+      refresh_token_hash: newRefreshHash,
       refresh_token_expiry: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
     },
   });
+
   console.log(`[/login] user ${user.id} session updated`);
 
-  setAuthCookies(res, accessToken, refreshToken, refreshSalt, user.id);
+  setAuthCookies(res, accessToken, newRefreshToken, newRefreshSalt, user.id);
 
   const { id, user_name, email: userEmail, image_url, is_verified, created_at, user_tag } = user;
 

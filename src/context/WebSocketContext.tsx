@@ -162,10 +162,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   connectRef.current = connect;
 
   useEffect(() => {
-    if (user) {
-      connect();
-    } else {
-      cleanup();
+   if (user) {
+    const timer = setTimeout(() => connect(), 100); 
+    return () => clearTimeout(timer);
+  } else {
+    cleanup();
+
     }
     return () => cleanup();
   }, [cleanup, connect, user]);
@@ -176,10 +178,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // const unsubscribeFromChats = useCallback((chatIds: string[]) => {
-  //   for (const id of chatIds) subscribedChatsRef.current.delete(id);
-  //   send('unsubscribe', { chatIds });
-  // }, [send]);
 
   const onMessage = useCallback((handler: (msg: WSMessage) => void) => {
     messageHandlers.current.add(handler);

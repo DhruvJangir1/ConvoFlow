@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import express, { Request } from 'express';
+import express from 'express';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
 
@@ -31,7 +31,7 @@ const { mockPrisma, mockSupabase, mockAuthService, mockSendUserVerificationCode,
     generateRefreshToken: vi.fn().mockReturnValue({ token: 'rt', hash: 'rh', salt: 'rs' }),
     hashToken: vi.fn().mockReturnValue('hashed_token'),
     REFRESH_TOKEN_EXPIRY_MS: 2_592_000,
-    refreshUserAccessToken: vi.fn(),
+    rotateRefreshToken: vi.fn(),
   };
 
   const mockSendUserVerificationCode = vi.fn().mockResolvedValue(undefined);
@@ -50,7 +50,7 @@ vi.mock('../lib/connectionPoolClient.js', () => ({ prisma: mockPrisma }));
 vi.mock('../services/auth.js', () => mockAuthService);
 vi.mock('../services/authVerificaiton.js', () => ({ sendUserVerificationCode: mockSendUserVerificationCode, setAuthCookies: mockSetAuthCookies }));
 vi.mock('../services/verificationStore.js', () => ({ setVerificationCode: mockSetVerificationCode }));
-vi.mock('../services/authCookieSessions.js', () => ({ clearAuthCookies: mockClearAuthCookies }));
+vi.mock('../services/authCookieSessions.js', () => ({ clearAuthCookies: mockClearAuthCookies, setAuthCookies: mockSetAuthCookies }));
 vi.mock('./supabaseAuth.js', () => ({ createNewSupabaseAuthUser: mockCreateNewSupabaseAuthUser, createNewSupabaseUser: mockCreateNewSupabaseUser }));
 vi.mock('../services/rateLimiter.js', () => ({ trackAuthAttempt: mockTrackAuthAttempt }));
 vi.mock('../supabase/admin.js', () => ({ getAdminClient: vi.fn(() => mockSupabase) }));
@@ -140,13 +140,16 @@ describe('Auth Endpoints', () => {
 
   describe('POST /auth/TokenVerificationRouter/refresh', () => {
     it('issues new tokens given a valid refresh cookie', async () => {
-      mockAuthService.refreshUserAccessToken.mockImplementation(async (req: Request) => {
-        req.user = { id: 'u1', email: 't@ex.com' };
+      mockAuthService.rotateRefreshToken.mockResolvedValue({
+        accessToken: 'new_access',
+        refreshToken: 'new_refresh',
+        refreshSalt: 'new_salt',
+        user: { id: 'u1', email: 't@ex.com' },
       });
 
       const res = await request(app)
         .post('/auth/TokenVerificationRouter/refresh')
-        .set('Cookie', ['refresh_token=valid_token', 'refresh_salt=valid_salt']);
+        .set('Cookie', ['refresh_token=valid_token', 'user_id=u1']);
 
       expect(res.status).toBe(200);
       expect(res.body.message).toBe('Tokens refreshed');
