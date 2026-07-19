@@ -128,7 +128,6 @@ export function removeSocketFromAllRooms(ws: AuthenticatedSocket): void {
 
 export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chatId: string; content: string; tempId?: string }): Promise<void> {
   const { chatId, content, tempId } = payload;
-  console.log(`[ws:message] User ${ws.userId} sending message to chat "${chatId}": "${content?.substring(0, 30)}..."`);
 
   if (ws.userId === undefined) {
     console.log('[ws:message] REJECTED — userId is undefined');
