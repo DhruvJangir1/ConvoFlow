@@ -1,5 +1,6 @@
 {
-  "buildCommand": "npx prisma generate --schema=prisma/schema.prisma && npx tsc -b --noEmit && npx vite build",
+  "installCommand": "npm install --ignore-scripts && cd backend && npm install --ignore-scripts",
+  "buildCommand": "npx vite build",
   "rewrites": [
     {
       "source": "/api/:path*",
