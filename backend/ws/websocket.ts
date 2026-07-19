@@ -32,22 +32,14 @@ console.log('[ws-module] websocket.ts module loaded (before any function runs)')
 function authenticateConnection(request: IncomingMessage): string | null {
   const urlString = request.url;
   if (urlString === undefined) {
-    console.log('[ws-auth] No URL in request');
     return null;
   }
   const url = new URL(urlString, 'http://localhost');
   const ticket = url.searchParams.get('ticket');
   if (ticket === null) {
-    console.log('[ws-auth] No ticket in URL params');
     return null;
   }
-  console.log(`[ws-auth] Consuming ticket: ${ticket}`);
   const userId = consumeTicket(ticket);
-  if (userId) {
-    console.log(`[ws-auth] Ticket valid for user ${userId}`);
-  } else {
-    console.log(`[ws-auth] Ticket invalid or expired: ${ticket}`);
-  }
   return userId;
 }
 
@@ -66,9 +58,10 @@ export function broadcastToRoom(chatId: string, data: object): void {
     console.log(`[ws:broadcast] Room "${chatId}" doesn't exist or is empty, skipping`);
     return;
   }
-  for (const ws of room) { // send to every single connected one in a given chat
-    if(ws && ws.userId){
-      sendToUser(ws.userId,data);
+  const payload = JSON.stringify(data);
+  for (const ws of room) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(payload);
     }
   }
 }
@@ -294,7 +287,7 @@ function handleClose(ws: AuthenticatedSocket): void {
     }
   }
 
-  if (userId !== undefined) {
+  if (userId !== undefined && userSockets.get(userId) === ws) {
     userSockets.delete(userId);
     console.log(`[ws:close] User ${userId} fully disconnected (${userSockets.size} sockets remaining)`);
   }
@@ -333,7 +326,6 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
 
   wss.on('connection', async (ws: AuthenticatedSocket, request: IncomingMessage) => {
     console.log('[ws:setup] *** NEW CONNECTION RECEIVED ***');
-    console.log(`[ws:setup] Request URL: ${request.url}`);
 
     const userId = authenticateConnection(request);
     if (!userId) {
@@ -354,7 +346,6 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
     });
 
     ws.on('message', (raw: Buffer) => {
-      console.log(`[ws:setup] Raw message received from ${ws.userId}: ${raw.toString().substring(0, 80)}`);
       handleMessage(ws, raw);
     });
 
@@ -365,7 +356,6 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
 
     ws.on('error', (err) => {
       console.log(`[ws:setup] Socket 'error' event for ${ws.userId}: ${err}`);
-      handleClose(ws);
     });
 
     console.log(`[ws:setup] Event listeners registered for ${userId} — fetching profile from DB`);

@@ -151,6 +151,7 @@ Frontend TS is strict: `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSy
 - Prisma models have `@@schema("auth")` and `@@schema("public")` — cross-schema queries work via generated client
 - RLS is enabled on most models (requires additional migration setup)
 - Never Push/ add/commit/pull add code on or from github without asking.
+- Do NOT read any env files at all costs.
 
 ## Testing Patterns & Gotchas
 

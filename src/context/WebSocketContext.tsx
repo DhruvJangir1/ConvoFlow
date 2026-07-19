@@ -37,6 +37,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChatsRef = useRef<Set<string>>(new Set());
   const connectRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const connectingRef = useRef(false);
 
   const cleanup = useCallback(() => {
     if (reconnectTimer.current) {
@@ -44,7 +45,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       reconnectTimer.current = null;
     }
     if (wsRef.current) {
-      
       wsRef.current.onopen = null;
       wsRef.current.onmessage = null;
       wsRef.current.onclose = null;
@@ -60,34 +60,23 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     for (const id of chatIds) subscribedChatsRef.current.add(id);
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'subscribe', payload: { chatIds } }));
-    } else {
-      const interval = setInterval(() => {
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({ type: 'subscribe', payload: { chatIds } }));
-          clearInterval(interval);
-        }
-      }, 100);
-      setTimeout(() => clearInterval(interval), 10_000);
     }
   }, []);
 
-
   const connect = useCallback(async () => {
-    if (!user) return;
+    if (!user || connectingRef.current) return;
+    connectingRef.current = true;
     cleanup();
 
     try {
-      console.log('[WS] Fetching ticket from', TICKET_ENDPOINT);
       const res = await fetch(TICKET_ENDPOINT, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to get ticket');
       const { ticket } = await res.json();
-      console.log('[WS] Ticket received, connecting to', WS_URL);
 
       const ws = new WebSocket(`${WS_URL}?ticket=${ticket}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('[WS] Connection established successfully');
         dispatch(setConnected(true));
         const pending = [...subscribedChatsRef.current];
         if (pending.length > 0) {
@@ -196,6 +185,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       };
     } catch {
       reconnectTimer.current = setTimeout(() => connectRef.current(), RECONNECT_DELAY_MS);
+    } finally {
+      connectingRef.current = false;
     }
   }, [user, cleanup, dispatch, queryClient, subscribeToChats]);
 
