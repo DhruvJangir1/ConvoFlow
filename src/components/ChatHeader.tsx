@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Info } from "lucide-react";
+import { ArrowLeft, Info } from "lucide-react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useChatDetailQuery } from "../hooks/useChatDetailQuery";
 import GroupInfoModal from "./GroupInfoModal";
 import UserAvatar from "./UserAvatar";
@@ -11,6 +11,7 @@ export default function ChatHeader() {
   const user = useSelector((s: RootState) => s.userAuth.user);
   const onlineUsers = useSelector((s: RootState) => s.chat.onlineUsers);
   const { chatId } = useParams();
+  const navigate = useNavigate();
   const { data: chat } = useChatDetailQuery(chatId);
   const [infoOpen, setInfoOpen] = useState(false);
 
@@ -22,6 +23,13 @@ export default function ChatHeader() {
 
   return (
     <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 sm:gap-3 border-b border-border bg-surface-elevated px-3 sm:px-5">
+      <button
+        onClick={() => navigate("/home")}
+        aria-label="Back to conversations"
+        className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors lg:hidden"
+      >
+        <ArrowLeft className="h-4 w-4" />
+      </button>
       <div className="flex min-w-0 items-center gap-3">
         <UserAvatar imageUrl={chat.avatar_url ?? null} userName={chat.name} size="sm" />
         <div className="min-w-0">

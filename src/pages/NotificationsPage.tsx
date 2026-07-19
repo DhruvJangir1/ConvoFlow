@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserPlus, UserCheck, UserX, Bell, Loader2, Send } from "lucide-react";
+import { UserPlus, UserCheck, UserX, Bell, Loader2, Send, ArrowLeft } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { resetUnreadNotif } from "../store/userAuthSlice";
 import { addChat } from "../store/chatSlice";
@@ -261,7 +261,16 @@ export default function NotificationsPage() {
   return (
     <div className="flex flex-1 flex-col bg-[#121214]">
       <div className="flex items-center justify-between border-b border-zinc-800/60 px-4 sm:px-6 py-3">
-        <h1 className="text-base sm:text-lg font-semibold text-zinc-100">Notifications</h1>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            aria-label="Go back"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 lg:hidden"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <h1 className="text-base sm:text-lg font-semibold text-zinc-100">Notifications</h1>
+        </div>
         {unread.length > 0 && (
           <button
             onClick={markAllAsRead}

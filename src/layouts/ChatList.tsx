@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { Loader2, Search, Shield, X } from "lucide-react";
+import { Loader2, Search, Shield } from "lucide-react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
 import { useChats } from "../context/ChatContext";
@@ -11,10 +11,7 @@ import AddFriendButton from "../components/AddFriendButton";
 import UserAvatar from "../components/UserAvatar";
 import { useWebSocket } from "../context/WebSocketContext";
 
-type ChatListProps = {
-  onClose?: () => void;
-  initialMode?: "chats" | "communities";
-};
+type ChatListProps = Record<string, never>;
 
 function getInitials(name: string): string {
   return name
@@ -38,7 +35,7 @@ function avatarGradient(name: string): string {
   return `linear-gradient(135deg, hsl(${hue}, 60%, 40%), hsl(${(hue + 60) % 360}, 50%, 30%))`;
 }
 
-export default function ChatList({ onClose, initialMode }: ChatListProps) {
+export default function ChatList(_props: ChatListProps) {
   const chats = useSelector((s: RootState) => s.chat.chats);
   const { loading } = useChats();
   const navigate = useNavigate();
@@ -46,14 +43,11 @@ export default function ChatList({ onClose, initialMode }: ChatListProps) {
   const { chatId: activeChatId, id: activeAnonId } = useParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [userSearchOpen, setUserSearchOpen] = useState(false);
-  const [mode, setMode] = useState<"chats" | "communities">(
-    initialMode ?? (location.pathname.startsWith("/communities") || location.pathname.startsWith("/anonymous") ? "communities" : "chats")
-  );
-
-  // Sync mode from initialMode when overlay opens
-  useEffect(() => {
-    if (initialMode) setMode(initialMode);
-  }, [initialMode]);
+  const mode: "chats" | "communities" =
+    location.pathname.startsWith("/communities") || location.pathname.startsWith("/anonymous") ? "communities" : "chats";
+  const setMode = (m: "chats" | "communities") => {
+    navigate(m === "communities" ? "/communities" : "/home");
+  };
 
   const sorted = useMemo(
     () => [...chats].sort((a, b) => b.timestamp - a.timestamp),
@@ -83,28 +77,18 @@ export default function ChatList({ onClose, initialMode }: ChatListProps) {
 
   const handleNavigate = (path: string) => {
     navigate(path);
-    onClose?.();
   };
 
   const isAnonMode = mode === "communities";
 
   return (
-    <aside className="flex h-full w-65 shrink-0 flex-col border-r border-zinc-800/40 bg-surface-elevated">
+    <aside className="flex h-full w-full lg:w-65 shrink-0 flex-col border-r border-zinc-800/40 bg-surface-elevated">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-2">
           <img src="/CONVO_FLOW_LOGO.png" alt="ConvoFlow" className="h-8 w-auto" />
         </div>
         <div className="flex items-center gap-1">
           <AddFriendButton compact />
-          {onClose && (
-            <button
-              onClick={onClose}
-              aria-label="Close conversations"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors lg:hidden"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
         </div>
       </div>
 

@@ -152,7 +152,6 @@ ChatRouter.get('/', authenticate, async (req: Request, res: Response): Promise<v
             select: { content: true, created_at: true, sender_id: true },
           },
           StandardChatMembers: {
-            where: { user_id: { not: userId } },
             include: {
               USERS: { select: { id: true, user_name: true, image_url: true } },
             },

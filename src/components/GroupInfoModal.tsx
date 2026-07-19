@@ -3,6 +3,8 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import IconButton from "@mui/material/IconButton";
 import Close from "@mui/icons-material/Close";
+import { useSelector } from "react-redux";
+import type { RootState } from "../store/store";
 import type { ChatMember } from "../types/chat";
 import UserAvatar from "./UserAvatar";
 
@@ -13,6 +15,8 @@ type GroupInfoModalProps = {
 };
 
 export default function GroupInfoModal({ open, onClose, members }: GroupInfoModalProps) {
+  const user = useSelector((s: RootState) => s.userAuth.user);
+
   return (
     <Dialog
       open={open}
@@ -52,14 +56,18 @@ export default function GroupInfoModal({ open, onClose, members }: GroupInfoModa
       </DialogTitle>
       <DialogContent sx={{ px: { xs: 2, sm: 3 }, pb: 2 }}>
         <div className="flex flex-col gap-2">
-          {members.map((member) => (
-            <div key={member.id} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/5">
-              <UserAvatar imageUrl={member.image_url ?? null} userName={member.user_name} size="md" />
-              <span className="text-sm font-medium text-text-primary truncate">
-                {member.user_name}
-              </span>
-            </div>
-          ))}
+          {members.map((member) => {
+            const isCurrentUser = user?.id === member.id;
+            return (
+              <div key={member.id} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/5">
+                <UserAvatar imageUrl={member.image_url ?? null} userName={member.user_name} size="md" />
+                <span className="text-sm font-medium text-text-primary truncate">
+                  {member.user_name}
+                  {isCurrentUser && <span className="text-text-muted ml-1">(You)</span>}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </DialogContent>
     </Dialog>
