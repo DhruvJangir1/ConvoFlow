@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import type { Request, Response } from 'express';
-import { verifyAccessToken, signAccessToken, rotateRefreshToken } from '../services/auth.js';
+import { verifyAccessToken, signAccessToken, rotateRefreshTokenWithLock } from '../services/auth.js';
 import { PRISMA_SAFE_SELECT } from '../util/constants.js';
 import { COOKIE_OPTIONS } from '../util/constants.js';
 import { prisma } from "../lib/connectionPoolClient.js";
@@ -42,9 +42,15 @@ AuthTokenVerificationRouter.get('/session', async (req: Request, res: Response):
         return;
       }
 
-      res.json({ user: await withSignedImageUrl(user), accessTokenExpiresAt: payload.exp ? payload.exp * 1000 : null });
+      res.cookie('access_token', accessToken, {
+        ...COOKIE_OPTIONS,
+        maxAge: 15 * 60 * 1000,
+      });
+      res.json({ user: await withSignedImageUrl(user), accessTokenExpiresAt: Date.now() + 15 * 60 * 1000 });
       return;
-    } catch (err) {
+
+    } 
+    catch (err) {
       const isExpired = err instanceof Error && err.name === 'TokenExpiredError';
 
       if (!isExpired) {
@@ -74,7 +80,7 @@ AuthTokenVerificationRouter.get('/session', async (req: Request, res: Response):
     }
 
     try {
-      const result = await rotateRefreshToken(userId, refreshToken);
+      const result = await rotateRefreshTokenWithLock(userId, refreshToken);
       setAuthCookies(res, result.accessToken, result.refreshToken, result.refreshSalt, result.user.id);
       req.user = result.user;
     } catch {
@@ -110,9 +116,9 @@ AuthTokenVerificationRouter.post('/refresh', async (req: Request, res: Response)
   }
 
   try {
-    const result = await rotateRefreshToken(userId, refreshToken);
+    const result = await rotateRefreshTokenWithLock(userId, refreshToken);
     setAuthCookies(res, result.accessToken, result.refreshToken, result.refreshSalt, result.user.id);
-    res.json({ message: 'Tokens refreshed' });
+    res.json({ message: 'Tokens refreshed', accessTokenExpiresAt: Date.now() + 15 * 60 * 1000 });
   } catch {
     clearAuthCookies(res);
     res.status(401).json({ error: 'Invalid or expired refresh token' });

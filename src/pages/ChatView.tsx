@@ -109,6 +109,8 @@ export default function ChatView() {
             m.id === msg.payload.tempId ? { ...m, id: msg.payload.id } : m,
           ),
         );
+      } else if (msg.type === 'message:delete' && msg.payload.chatId === chatId) {
+        setMessages((prev) => prev.filter((m) => m.id !== msg.payload.messageId));
       }
     });
 

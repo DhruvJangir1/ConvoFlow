@@ -289,6 +289,11 @@ AnonymousChatRouter.delete('/:id/messages/:messageId', authenticate, async (req:
       where: { id: messageId },
     });
 
+    broadcastToRoom(chatId, {
+      type: 'message:delete',
+      payload: { chatId, messageId, senderId: existing.sender_id, isAnonymous: true },
+    });
+
     res.json({ success: true });
   } catch (error) {
     console.error('[anonymousChat:DELETE /:id/messages/:messageId] error:', error);

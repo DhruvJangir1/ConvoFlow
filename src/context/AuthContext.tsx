@@ -1,6 +1,44 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useDispatch } from 'react-redux';
-import { setUser } from '../store/userAuthSlice';
+import { setUser, type User } from '../store/userAuthSlice';
+
+const REFRESH_BUFFER_MS = 60 * 1000;
+const SESSION_KEY = 'convoflow_session';
+
+let backgroundTimerId: ReturnType<typeof setTimeout> | null = null;
+
+// ==========================================
+// 1. ISOLATED BROWSER / API UTILITIES
+// ==========================================
+
+async function getSessionFromApi(): Promise<{ user: User; accessTokenExpiresAt: number }> {
+  const res = await fetch(`/api/auth/TokenVerificationRouter/session`, { credentials: 'include' });
+  if (!res.ok) throw new Error('Session verification failed');
+  return res.json();
+}
+
+function scheduleBrowserTimeout(expiresAt: number, onTimeoutTriggered: () => void): void {
+  if (backgroundTimerId) clearTimeout(backgroundTimerId);
+
+  const delay = expiresAt - Date.now() - REFRESH_BUFFER_MS;
+  if (delay <= 0) {
+    onTimeoutTriggered();
+    return;
+  }
+
+  backgroundTimerId = setTimeout(onTimeoutTriggered, delay);
+}
+
+function cancelBrowserTimeout(): void {
+  if (backgroundTimerId) {
+    clearTimeout(backgroundTimerId);
+    backgroundTimerId = null;
+  }
+}
+
+// ==========================================
+// AUTH PROVIDER COMPONENT
+// ==========================================
 
 interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
@@ -12,133 +50,135 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const REFRESH_BUFFER_MS = 60 * 1000;
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const dispatch = useDispatch();
+  
+  // loading is ONLY for the initial boot mount check
   const [loading, setLoading] = useState(true);
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const refreshSessionRef = useRef<() => Promise<void>>(() => Promise.resolve());
-  const inflightRef = useRef<Promise<void> | null>(null);
+  const [loopTriggerIndex, setLoopTriggerIndex] = useState(0);
 
-  const scheduleRefresh = useCallback((expiresAt: number) => {
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
+  // ==========================================
+  // 2. ISOLATED COORDINATION FUNCTIONS
+  // ==========================================
+
+  // Centralized state and storage syncing
+  const updateLocalAuthState = useCallback((user: User | null, expiresAt?: number) => {
+    dispatch(setUser(user));
+    if (user && expiresAt) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ user, accessTokenExpiresAt: expiresAt }));
+    } else {
+      localStorage.removeItem(SESSION_KEY);
+      cancelBrowserTimeout();
     }
+  }, [dispatch]);
 
-    const delay = expiresAt - Date.now() - REFRESH_BUFFER_MS;
-
-    if (delay <= 0) {
-      refreshSessionRef.current();
-      return;
+  // Hits the backend server to renew the session details silenty
+  const fetchAndSaveRenewedSession = useCallback(async (): Promise<number | null> => {
+    try {
+      const data = await getSessionFromApi();
+      updateLocalAuthState(data.user, data.accessTokenExpiresAt);
+      return data.accessTokenExpiresAt;
+    } catch {
+      updateLocalAuthState(null);
+      return null;
     }
+  }, [updateLocalAuthState]);
 
-    refreshTimerRef.current = setTimeout(() => {
-      refreshSessionRef.current();
-    }, delay);
-  }, []);
-
-  const refreshSession = useCallback(async () => {
-    if (inflightRef.current) return inflightRef.current;
-
-    const promise = (async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/auth/TokenVerificationRouter/session`, { credentials: 'include' });
-        if (res.ok) {
-          const data = await res.json();
-          dispatch(setUser(data.user));
-          if (data.accessTokenExpiresAt) {
-            scheduleRefresh(data.accessTokenExpiresAt);
-          }
-        } else {
-          dispatch(setUser(null));
-          if (refreshTimerRef.current) {
-            clearTimeout(refreshTimerRef.current);
-            refreshTimerRef.current = null;
-          }
-        }
-      } catch {
-        dispatch(setUser(null));
-      } finally {
-        setLoading(false);
-        inflightRef.current = null;
-      }
-    })();
-
-    inflightRef.current = promise;
-    return promise;
-  }, [dispatch, scheduleRefresh]);
-
-  refreshSessionRef.current = refreshSession;
-
+  // ==========================================
+  // 3. EFFECT LIFE-CYCLE LOOP
+  // ==========================================
+  
   useEffect(() => {
-    refreshSession();
-    return () => {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-      }
+    const rawData = localStorage.getItem(SESSION_KEY);
+    const stored = rawData ? JSON.parse(rawData) : null;
+    const timeNow = Date.now();
+
+    const queueNextLoopCycle = (expiry: number) => {
+      scheduleBrowserTimeout(expiry, () => {
+        setLoopTriggerIndex(prev => prev + 1);
+      });
     };
-  }, [refreshSession]);
+
+    // Optimistically hydrate UI out of localStorage immediately so the screen doesn't blank out
+    if (stored && (stored.accessTokenExpiresAt - timeNow > REFRESH_BUFFER_MS)) {
+      dispatch(setUser(stored.user));
+    }
+
+    // Always hit the server on mount or loop tick to validate/refresh the session token
+    fetchAndSaveRenewedSession().then((expiry) => {
+      if (expiry) queueNextLoopCycle(expiry);
+      setLoading(false); // Drop initial boot loading gate once server responds
+    });
+
+    return () => cancelBrowserTimeout();
+  }, [loopTriggerIndex, dispatch, fetchAndSaveRenewedSession]);
+
+  // ==========================================
+  // AUTH ACTIONS
+  // ==========================================
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await fetch('/api/auth/EmailVerificaitonRouter/login', {
       method: 'POST',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
+      credentials: 'include',
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Login failed' }));
-      throw new Error(err.error);
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Login failed');
     }
 
     const data = await res.json();
-    dispatch(setUser(data.user));
-  }, [dispatch]);
+    updateLocalAuthState(data.user, data.accessTokenExpiresAt);
+    
+    scheduleBrowserTimeout(data.accessTokenExpiresAt, () => {
+      setLoopTriggerIndex(prev => prev + 1);
+    });
+  }, [updateLocalAuthState]);
 
   const signup = useCallback(async (user_name: string, email: string, password: string) => {
     const res = await fetch('/api/auth/EmailVerificaitonRouter/signup', {
       method: 'POST',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_name, email, password }),
+      credentials: 'include',
     });
-
+    
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Signup failed' }));
-      throw new Error(err.error);
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Signup failed');
     }
-
+    
     const data = await res.json();
     return data.user;
   }, []);
 
   const logout = useCallback(async () => {
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = null;
+    updateLocalAuthState(null);
+    await fetch('/api/auth/EmailVerificaitonRouter/logout', { method: 'POST', credentials: 'include' });
+  }, [updateLocalAuthState]);
+
+  const triggerManualRefresh = useCallback(async () => {
+    const expiry = await fetchAndSaveRenewedSession();
+    if (expiry) {
+      scheduleBrowserTimeout(expiry, () => {
+        setLoopTriggerIndex(prev => prev + 1);
+      });
     }
-    await fetch('/api/auth/EmailVerificaitonRouter/logout', {
-      method: 'POST',
-      credentials: 'include',
-    });
-    dispatch(setUser(null));
-  }, [dispatch]);
+  }, [fetchAndSaveRenewedSession]);
 
   return (
-    <AuthContext.Provider value={{ login, signup, logout, refreshSession, loading }}>
+    <AuthContext.Provider value={{ login, signup, logout, refreshSession: triggerManualRefresh, loading }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
-export function useAuth(){
+
+export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
   return ctx;
 }

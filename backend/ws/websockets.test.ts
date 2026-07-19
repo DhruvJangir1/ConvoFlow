@@ -476,6 +476,8 @@ describe('Subscribe / Unsubscribe', () => {
   it('broadcasts user:online to room after subscribe', async () => {
     const ws1 = await setupWsAndConnect('t1', 'user-1');
     const ws2 = await setupWsAndConnect('t2', 'user-2');
+
+    ws1.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
     ws1.sent.length = 0;
     ws2.sent.length = 0;
 
@@ -630,6 +632,7 @@ describe('Close / Disconnect', () => {
   it('handles error event on socket', async () => {
     const ws = await setupWsAndConnect('t1', 'user-1');
     ws.emit('error', new Error('test'));
+    ws.emit('close');
 
     sendToUser('user-1', { type: 'test' });
     expect(ws.sent).toHaveLength(0);

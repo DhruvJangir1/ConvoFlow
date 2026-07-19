@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { verifyAccessToken, signAccessToken, rotateRefreshToken } from '../services/auth.js';
+import { verifyAccessToken, signAccessToken, rotateRefreshTokenWithLock } from '../services/auth.js';
 import { setAuthCookies } from '../services/authCookieSessions.js';
 import { COOKIE_OPTIONS } from '../util/constants.js';
 
@@ -57,7 +57,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   }
 
   try {
-    const result = await rotateRefreshToken(userId, refreshToken);
+    const result = await rotateRefreshTokenWithLock(userId, refreshToken);
     setAuthCookies(res, result.accessToken, result.refreshToken, result.refreshSalt, result.user.id);
     req.user = result.user;
     next();

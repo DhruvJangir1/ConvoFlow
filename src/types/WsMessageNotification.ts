@@ -22,5 +22,6 @@ export type WSMessage =
   | { type: 'chat:online-users'; payload: { chatId: string; userIds: string[] } }
   | { type: 'notification:new'; payload: NotificationPayload }
   | { type: 'chat:new'; payload: { chat: { id: string; name: string; avatar_url: string | null; lastMessage: string; timestamp: number; unread: number; type: string; messageCount: number; members: { id: string; user_name: string; image_url: string | null }[] } } }
+  | { type: 'message:delete'; payload: { chatId: string; messageId: string; senderId: string; isAnonymous: boolean } }
   | { type: 'error'; payload: { message: string } };
   

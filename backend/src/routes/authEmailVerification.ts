@@ -205,6 +205,7 @@ AuthEmailVerificaitonRouter.post('/login',async (req: Request, res: Response): P
   console.log(`[/login] successful login for ${userEmail}`);
   res.json({
     user: { id, user_name, email: userEmail, image_url: await resolveImageUrl(image_url), is_verified, created_at, user_tag },
+    accessTokenExpiresAt: Date.now() + 15 * 60 * 1000,
   });
 });
 

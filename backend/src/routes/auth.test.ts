@@ -32,6 +32,7 @@ const { mockPrisma, mockSupabase, mockAuthService, mockSendUserVerificationCode,
     hashToken: vi.fn().mockReturnValue('hashed_token'),
     REFRESH_TOKEN_EXPIRY_MS: 2_592_000,
     rotateRefreshToken: vi.fn(),
+    rotateRefreshTokenWithLock: vi.fn(),
   };
 
   const mockSendUserVerificationCode = vi.fn().mockResolvedValue(undefined);
@@ -140,7 +141,7 @@ describe('Auth Endpoints', () => {
 
   describe('POST /auth/TokenVerificationRouter/refresh', () => {
     it('issues new tokens given a valid refresh cookie', async () => {
-      mockAuthService.rotateRefreshToken.mockResolvedValue({
+      mockAuthService.rotateRefreshTokenWithLock.mockResolvedValue({
         accessToken: 'new_access',
         refreshToken: 'new_refresh',
         refreshSalt: 'new_salt',

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import {
   Ban,
@@ -252,6 +252,12 @@ export default function LandingPage() {
   const [demoDraft, setDemoDraft] = useState("");
   const [demoMessages, setDemoMessages] = useState(DEMO_MESSAGES);
   const activeTheme = THEMES[activeThemeIndex];
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/home', { replace: true });
+    }
+  }, [user, loading, navigate]);
 
   function handleCTA() {
     navigate(user ? '/home' : '/welcome');

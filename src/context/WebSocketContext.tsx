@@ -91,6 +91,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         'notification:new': Extract<WSMessage, { type: 'notification:new' }>['payload'];
         'chat:new': Extract<WSMessage, { type: 'chat:new' }>['payload'];
         'message:new': MessageNewPayload;
+        'message:delete': Extract<WSMessage, { type: 'message:delete' }>['payload'];
       };
 
       const handlers: { [K in keyof HandlerMap]: (payload: HandlerMap[K]) => void } = {
@@ -156,6 +157,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             );
           });
         },
+
+        'message:delete': (payload) => {
+          queryClient.setQueryData<MessagesResponse>(chatKeys.messages(payload.chatId), (old) => {
+            if (!old) return old;
+            return { ...old, messages: old.messages.filter((m) => m.id !== payload.messageId) };
+          });
+        },
       };
 
       ws.onmessage = (event) => {
@@ -168,6 +176,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             case 'notification:new': handlers['notification:new'](msg.payload); break;
             case 'chat:new': handlers['chat:new'](msg.payload); break;
             case 'message:new': handlers['message:new'](msg.payload); break;
+            case 'message:delete': handlers['message:delete'](msg.payload); break;
           }
           messageHandlers.current.forEach((fn) => fn(msg));
         } catch {

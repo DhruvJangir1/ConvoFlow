@@ -99,6 +99,22 @@ export interface RotateResult {
   user: { id: string; email: string };
 }
 
+const activeRotations = new Map<string, Promise<RotateResult>>();
+
+export function rotateRefreshTokenWithLock(
+  userId: string,
+  currentRefreshToken: string
+): Promise<RotateResult> {
+  const pending = activeRotations.get(userId);
+  if (pending) return pending;
+
+  const promise = rotateRefreshToken(userId, currentRefreshToken).finally(() => {
+    activeRotations.delete(userId);
+  });
+  activeRotations.set(userId, promise);
+  return promise;
+}
+
 export async function rotateRefreshToken(
   userId: string,
   currentRefreshToken: string
@@ -144,7 +160,12 @@ export async function rotateRefreshToken(
     },
   });
 
+  try {
   await redis.set(`used_token:${userRecord.refresh_token_hash}`, userRecord.id, { ex: Math.ceil(REFRESH_TOKEN_EXPIRY_MS / 1000) });
+  console.log('[rotateRefreshToken] old token hash stored in Redis for replay detection');
+} catch (err) {
+  console.error('[rotateRefreshToken] failed to store old token hash in Redis (non-fatal):', err);
+}
   console.log('[rotateRefreshToken] old token hash stored in Redis for replay detection');
 
   console.log(`[rotateRefreshToken] tokens rotated for user ${userRecord.id}`);
