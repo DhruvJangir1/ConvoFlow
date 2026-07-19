@@ -64,7 +64,9 @@ export default function ChatList() {
   }, [anonRooms, subscribeToChats]);
 
   const filteredAnon = useMemo(
-    () => anonRooms.filter((room) => (room.name ?? "").toLowerCase().includes(searchQuery.toLowerCase())),
+    () => anonRooms
+      .filter((room) => (room.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()))
+      .sort((a, b) => b.timestamp - a.timestamp),
     [anonRooms, searchQuery],
   );
 
@@ -120,8 +122,19 @@ export default function ChatList() {
                       {getInitials(room.name || "AN")}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <span className="truncate text-[13px]/[1.5] font-medium text-text-primary">{room.name || "Anonymous Room"}</span>
-                      <div className="mt-0.5 text-[11px]/[1.4] text-text-secondary">Chat anonymously</div>
+                      <div className="flex items-baseline justify-between">
+                        <span className="truncate text-[13px]/[1.5] font-medium text-text-primary">
+                          {room.name || "Anonymous Room"}
+                        </span>
+                        {room.timestamp > 0 && (
+                          <span className="ml-2 shrink-0 text-[11px]/[1.4] text-text-secondary">
+                            {formatSmartDate(room.timestamp)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 truncate text-[11px]/[1.4] text-text-secondary">
+                        {room.lastMessage || "Chat anonymously"}
+                      </div>
                     </div>
                   </button>
                 );

@@ -6,6 +6,8 @@ import { anonChatKeys } from '../lib/queryKeys';
 export interface AnonymousRoom {
   id: string;
   name: string;
+  lastMessage: string | null;
+  timestamp: number;
 }
 
 async function fetchAnonymousRooms(): Promise<AnonymousRoom[]> {

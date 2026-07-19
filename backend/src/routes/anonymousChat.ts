@@ -12,10 +12,28 @@ const AnonymousChatRouter = Router();
 AnonymousChatRouter.get('/', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const rooms = await prisma.anonymousChats.findMany({
-      orderBy: { created_at: 'desc' },
-      take:20
+      orderBy: { updated_at: 'desc' },
+      take: 20,
+      include: {
+        AnonymousChatMessages: {
+          orderBy: { created_at: 'desc' },
+          take: 1,
+          select: { content: true, created_at: true },
+        },
+      },
     });
-    res.json({ chats: rooms });
+
+    const roomsWithMeta = rooms.map((room) => {
+      const latest = room.AnonymousChatMessages[0];
+      return {
+        id: room.id,
+        name: room.name,
+        lastMessage: latest?.content ?? null,
+        timestamp: latest ? new Date(latest.created_at).getTime() : new Date(room.created_at).getTime(),
+      };
+    });
+
+    res.json({ chats: roomsWithMeta });
   } catch (error) {
     console.error('[anonymousChat:GET /] error:', error);
     res.status(500).json({ error: 'Failed to fetch rooms' });
@@ -171,6 +189,11 @@ AnonymousChatRouter.post('/:id/messages/:userId/:isAnonymous', authenticate, asy
       senderName = userInfo?.user_name ?? null;
       senderImage = await resolveImageUrl(userInfo?.image_url ?? null);
     }
+
+    await prisma.anonymousChats.update({
+      where: { id: chatId },
+      data: { updated_at: new Date() },
+    });
 
     broadcastToRoom(chatId, {
       type: 'message:new',

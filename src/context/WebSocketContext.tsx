@@ -3,12 +3,15 @@ import { createContext, useContext, useEffect, useCallback, useRef, type ReactNo
 import { useDispatch, useSelector } from 'react-redux';
 import { useQueryClient } from '@tanstack/react-query';
 import { setConnected, incrementUnreadNotif } from '../store/userAuthSlice';
-import { setOnlineUsers, addOnlineUser, removeOnlineUser, addChat } from '../store/chatSlice';
-import { chatKeys, notifKeys } from '../lib/queryKeys';
+import { setOnlineUsers, addOnlineUser, removeOnlineUser, addChat, setChats } from '../store/chatSlice';
+import { chatKeys, anonChatKeys, notifKeys } from '../lib/queryKeys';
 import type { RootState } from '../store/store';
 import type { Chat, ChatMessages, Notification } from '../types/chat';
 import type { MessagesResponse } from '../hooks/useChatMessagesQuery';
+import type { AnonymousRoom } from '../hooks/useAnonymousRoomsQuery';
 import type { WSMessage } from '../types/WsMessageNotification';
+
+type MessageNewPayload = Extract<WSMessage, { type: 'message:new' }>['payload'] & { isEdited?: boolean };
 
 interface WebSocketContextValue {
   socket: WebSocket | null;
@@ -92,7 +95,16 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
       };
 
-      const handlers: Record<string, (payload: any) => void> = {
+      type HandlerMap = {
+        'chat:online-users': Extract<WSMessage, { type: 'chat:online-users' }>['payload'];
+        'user:online': Extract<WSMessage, { type: 'user:online' }>['payload'];
+        'user:offline': Extract<WSMessage, { type: 'user:offline' }>['payload'];
+        'notification:new': Extract<WSMessage, { type: 'notification:new' }>['payload'];
+        'chat:new': Extract<WSMessage, { type: 'chat:new' }>['payload'];
+        'message:new': MessageNewPayload;
+      };
+
+      const handlers: { [K in keyof HandlerMap]: (payload: HandlerMap[K]) => void } = {
         'chat:online-users': (payload) => dispatch(setOnlineUsers(payload)),
         'user:online': (payload) => dispatch(addOnlineUser(payload)),
         'user:offline': (payload) => dispatch(removeOnlineUser(payload)),
@@ -132,21 +144,43 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             if (old.messages.some((m) => m.id === entry.id)) return old;
             return { ...old, messages: [...old.messages, entry] };
           });
-          queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) =>
-            old?.map((chat) =>
+
+          const timestamp = new Date(rest.createdAt).getTime();
+          const updatedChats = queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) => {
+            if (!old) return old;
+            return old.map((chat) =>
               chat.id === chatId
-                ? { ...chat, lastMessage: rest.content, timestamp: new Date(rest.createdAt).getTime() }
+                ? { ...chat, lastMessage: rest.content, timestamp }
                 : chat,
-            ),
-          );
+            );
+          });
+          if (updatedChats) {
+            dispatch(setChats(updatedChats));
+          }
+
+          queryClient.setQueryData<AnonymousRoom[]>(anonChatKeys.lists(), (old) => {
+            if (!old) return old;
+            return old.map((room) =>
+              room.id === chatId
+                ? { ...room, lastMessage: rest.content, timestamp }
+                : room,
+            );
+          });
         },
       };
 
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data) as WSMessage;
-          handlers[msg.type]?.(msg.payload);
-          messageHandlers.current.forEach((handler) => handler(msg));
+          switch (msg.type) {
+            case 'chat:online-users': handlers['chat:online-users'](msg.payload); break;
+            case 'user:online': handlers['user:online'](msg.payload); break;
+            case 'user:offline': handlers['user:offline'](msg.payload); break;
+            case 'notification:new': handlers['notification:new'](msg.payload); break;
+            case 'chat:new': handlers['chat:new'](msg.payload); break;
+            case 'message:new': handlers['message:new'](msg.payload); break;
+          }
+          messageHandlers.current.forEach((fn) => fn(msg));
         } catch {
           /* ignore malformed */
         }
