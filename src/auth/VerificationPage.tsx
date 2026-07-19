@@ -158,9 +158,9 @@ export default function VerificationPage() {
   }
 
   return (
-    <div className="h-dvh overflow-y-auto flex items-center justify-center bg-[#09090b] px-4 py-12">
-      <div className="w-full max-w-lg rounded-3xl border border-white/[0.06] bg-white/[0.02] p-8 shadow-2xl">
-        <div className="flex items-center gap-4">
+    <div className="h-dvh overflow-y-auto flex items-center justify-center bg-[#09090b] px-4 py-8 sm:py-12">
+      <div className="w-full max-w-lg rounded-3xl border border-white/[0.06] bg-white/[0.02] p-4 sm:p-8 shadow-2xl">
+        <div className="flex items-start sm:items-center gap-3 sm:gap-4">
           <div className="rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 p-3 text-white">
             <Mail className="h-6 w-6" />
           </div>
@@ -174,7 +174,7 @@ export default function VerificationPage() {
         </div>
 
         <form onSubmit={handleSubmit} onPaste={handlePaste} className="mt-6 space-y-4">
-          <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center gap-1.5 sm:gap-3">
             {digits.map((digit, idx) => (
               <input
                 key={idx}
@@ -182,7 +182,7 @@ export default function VerificationPage() {
                 value={digit}
                 onChange={e => handleDigitChange(idx, e.target.value)}
                 onKeyDown={e => handleKeyDown(idx, e)}
-                className="h-14 w-12 rounded-lg bg-white/[0.03] text-center text-lg font-medium text-white outline-none border border-white/[0.04] focus:border-blue-500"
+                className="h-11 w-9 sm:h-14 sm:w-12 rounded-lg bg-white/[0.03] text-center text-base sm:text-lg font-medium text-white outline-none border border-white/[0.04] focus:border-blue-500"
                 inputMode="numeric"
                 type="text"
                 maxLength={1}
@@ -199,16 +199,16 @@ export default function VerificationPage() {
             </p>
           )}
 
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-400">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <p className="text-xs sm:text-sm text-slate-400">
               Code expires in <span className="text-white">{timeDisplay}</span>
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               {!paramEmail && (
                 <input
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className="rounded-xl bg-white/[0.03] py-2 px-3 text-sm text-white"
+                  className="flex-1 sm:flex-initial rounded-xl bg-white/[0.03] py-2 px-3 text-sm text-white min-w-0"
                   placeholder="your email"
                   inputMode="email"
                 />
@@ -217,7 +217,7 @@ export default function VerificationPage() {
                 type="button"
                 onClick={handleResend}
                 disabled={loading || resendCooldown > 0}
-                className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs sm:text-sm ${
                   resendCooldown > 0 ? 'bg-white/[0.03] text-slate-400' : 'bg-blue-600 text-white'
                 }`}
               >

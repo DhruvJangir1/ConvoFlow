@@ -17,6 +17,10 @@
   --animate-landing-pulse-soft: landing-pulse-soft 2.4s ease-in-out infinite;
   --animate-landing-float: landing-float 4.8s ease-in-out infinite;
   --animate-landing-notification: landing-notification 4.5s ease-in-out infinite;
+  --animate-slide-up: slide-up 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-slide-in-left: slide-in-left 250ms ease-out;
+  --animate-slide-in-right: slide-in-right 250ms ease-out;
+  --animate-fade-in: fade-in 200ms ease-out;
 
   --color-surface: #0A0A0F;
   --color-surface-elevated: #111118;
@@ -39,36 +43,18 @@
 }
 
 @keyframes edit-in {
-  from {
-    opacity: 0;
-    transform: scaleY(0.95) translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: scaleY(1) translateY(0);
-  }
+  from { opacity: 0; transform: scaleY(0.95) translateY(-4px); }
+  to { opacity: 1; transform: scaleY(1) translateY(0); }
 }
 
 @keyframes modal-in {
-  from {
-    opacity: 0;
-    transform: scale(0.92) translateY(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+  from { opacity: 0; transform: scale(0.92) translateY(-12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 @keyframes message-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes typing-dot {
@@ -82,98 +68,68 @@
 }
 
 @keyframes landing-header {
-  from {
-    opacity: 0;
-    transform: translateY(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes landing-slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(24px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(24px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes landing-slide-left {
-  from {
-    opacity: 0;
-    transform: translateX(28px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
+  from { opacity: 0; transform: translateX(28px) scale(0.98); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 @keyframes landing-slide-right {
-  from {
-    opacity: 0;
-    transform: translateX(-28px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
+  from { opacity: 0; transform: translateX(-28px) scale(0.98); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 @keyframes landing-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes landing-drift {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(24px, 18px, 0) scale(1.08);
-  }
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(24px, 18px, 0) scale(1.08); }
 }
 
 @keyframes landing-pulse-soft {
-  0%, 100% {
-    opacity: 0.55;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.18);
-  }
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.18); }
 }
 
 @keyframes landing-float {
-  0%, 100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-10px) scale(1.03);
-  }
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-10px) scale(1.03); }
 }
 
 @keyframes landing-notification {
-  0%, 100% {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  15%, 78% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  0%, 100% { opacity: 0; transform: translateY(-8px); }
+  15%, 78% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -244,4 +200,10 @@ body {
 .chat-scrollbar {
   scrollbar-width: 8px !important;
   scrollbar-color: #3D3D55 transparent !important;
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
 }

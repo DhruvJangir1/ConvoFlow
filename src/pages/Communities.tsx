@@ -3,7 +3,7 @@ import { Shield } from "lucide-react";
 export default function Communities() {
   return (
     <div className="flex flex-1 flex-col bg-surface">
-      <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface-elevated px-5">
+      <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 sm:gap-3 border-b border-border bg-surface-elevated px-3 sm:px-5">
         <Shield className="h-5 w-5 text-accent" />
         <h1 className="text-[17px]/[1.4] font-semibold text-text-primary">Communities</h1>
       </header>

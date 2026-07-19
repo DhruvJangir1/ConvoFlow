@@ -190,20 +190,20 @@ export default function NotificationsPage() {
     const isUnread = !n.read_at;
     const isFriendReq = n.type === 'friend_request';
     return (
-      <div key={n.id} className="relative flex gap-4">
+      <div key={n.id} className="relative flex gap-2 sm:gap-4">
         <div className="relative z-10 flex shrink-0 items-start pt-3.5">
           <div className={`flex h-7 w-7 items-center justify-center rounded-full ${config.bg}`}>
             <Icon className={`h-3.5 w-3.5 ${config.color}`} />
           </div>
         </div>
 
-        <div className={`min-w-0 flex-1 rounded-xl border p-4 ${
+        <div className={`min-w-0 flex-1 rounded-xl border p-3 sm:p-4 ${
           isUnread
             ? "border-yellow-500/30 bg-[#1c1a10]"
             : "border-zinc-800/50 bg-[#17171a]"
         }`}>
-          <div className="flex items-start justify-between gap-4">
-            <h3 className="text-sm font-semibold text-zinc-100">
+          <div className="flex items-start justify-between gap-2 sm:gap-4">
+            <h3 className="text-sm font-semibold text-zinc-100 break-words">
               {n.content ?? n.type}
             </h3>
             <span className="shrink-0 text-xs text-zinc-500">
@@ -216,7 +216,7 @@ export default function NotificationsPage() {
               <button
                 onClick={() => handleAccept(n)}
                 disabled={actionLoading === n.id}
-                className="flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {actionLoading === n.id ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -227,7 +227,7 @@ export default function NotificationsPage() {
               <button
                 onClick={() => handleReject(n)}
                 disabled={actionLoading === n.id}
-                className="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {actionLoading === n.id ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -242,7 +242,7 @@ export default function NotificationsPage() {
             <div className="mt-3">
               <button
                 onClick={() => handleCreateChat(n)}
-                className="flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20"
+                className="flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20"
               >
                 <Send className="h-3 w-3" />
                 Send Message
@@ -260,20 +260,20 @@ export default function NotificationsPage() {
 
   return (
     <div className="flex flex-1 flex-col bg-[#121214]">
-      <div className="flex items-center justify-between border-b border-zinc-800/60 px-6 py-3">
-        <h1 className="text-lg font-semibold text-zinc-100">Notifications</h1>
+      <div className="flex items-center justify-between border-b border-zinc-800/60 px-4 sm:px-6 py-3">
+        <h1 className="text-base sm:text-lg font-semibold text-zinc-100">Notifications</h1>
         {unread.length > 0 && (
           <button
             onClick={markAllAsRead}
-            className="rounded-md bg-yellow-500/10 px-3 py-1 text-xs font-medium text-yellow-400 transition-colors hover:bg-yellow-500/20"
+            className="shrink-0 rounded-md bg-yellow-500/10 px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-yellow-400 transition-colors hover:bg-yellow-500/20"
           >
             Mark all as read
           </button>
         )}
       </div>
       <div className="flex-1 overflow-y-auto">
-        <div className="relative px-6 py-5">
-          <div className="absolute bottom-0 left-10.25 top-0 w-px bg-zinc-800" />
+        <div className="relative px-3 sm:px-6 py-4 sm:py-5">
+          <div className="absolute bottom-0 left-6 sm:left-10.25 top-0 w-px bg-zinc-800" />
 
           {notifLoading ? (
             <p className="text-sm text-zinc-500">Loading...</p>

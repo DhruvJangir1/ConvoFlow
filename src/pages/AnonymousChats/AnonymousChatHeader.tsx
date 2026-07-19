@@ -19,7 +19,7 @@ function avatarGradient(name: string): string {
 
 export default function AnonymousChatHeader({ roomName }: AnonymousChatHeaderProps) {
   return (
-    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface-elevated px-5">
+    <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 sm:gap-3 border-b border-border bg-surface-elevated px-3 sm:px-5">
       <div
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
         style={{ background: avatarGradient(roomName) }}

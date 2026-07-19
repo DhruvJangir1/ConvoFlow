@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../store/store";
-import {  resetUnreadNotif } from "../store/userAuthSlice";
+import { resetUnreadNotif } from "../store/userAuthSlice";
 import ProfileModal from "../modals/ProfileModal";
 import ViewSidebarIcon from '@mui/icons-material/ViewSidebar';
 import ChatIcon from '@mui/icons-material/Chat';
@@ -11,7 +11,11 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import PersonOutlined from "@mui/icons-material/PersonOutlined";
 import UserAvatar from "../components/UserAvatar";
 
-export default function Sidebar() {
+type SidebarProps = {
+  onAction?: (action: string) => void;
+};
+
+export default function Sidebar({ onAction }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
@@ -45,6 +49,14 @@ export default function Sidebar() {
         : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
     }`;
 
+  const handleNav = (action: string, path?: string) => {
+    if (onAction) {
+      onAction(action);
+    } else if (path) {
+      navigate(path);
+    }
+  };
+
   return (
     <aside className={`flex shrink-0 flex-col border-r border-border bg-surface-elevated py-3 transition-all duration-200 ${
       expanded ? "w-44 px-2 items-start" : "w-12 items-center"
@@ -59,7 +71,7 @@ export default function Sidebar() {
       </button>
 
       <button
-        onClick={() => navigate("/home")}
+        onClick={() => handleNav("chats")}
         className={btnClass(isActive("/home"))}
         aria-label="Chats"
       >
@@ -68,7 +80,7 @@ export default function Sidebar() {
       </button>
 
       <button
-        onClick={() => navigate("/communities")}
+        onClick={() => handleNav("communities")}
         className={btnClass(isActive("/communities"))}
         aria-label="Communities"
       >
@@ -96,7 +108,7 @@ export default function Sidebar() {
         className={`mt-auto ${btnClass(false)}`}
         aria-label="Profile"
       >
-        {(user && user.image_url)  ? (
+        {(user && user.image_url) ? (
           <UserAvatar imageUrl={user.image_url} userName={user.user_name} size="sm" />
         ) : (
           <PersonOutlined fontSize="small" />

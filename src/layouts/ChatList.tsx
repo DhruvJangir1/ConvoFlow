@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { Loader2, Search, Shield } from "lucide-react";
+import { Loader2, Search, Shield, X } from "lucide-react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
 import { useChats } from "../context/ChatContext";
@@ -10,6 +10,11 @@ import UserSearchModal from "../modals/UserSearchModal";
 import AddFriendButton from "../components/AddFriendButton";
 import UserAvatar from "../components/UserAvatar";
 import { useWebSocket } from "../context/WebSocketContext";
+
+type ChatListProps = {
+  onClose?: () => void;
+  initialMode?: "chats" | "communities";
+};
 
 function getInitials(name: string): string {
   return name
@@ -33,7 +38,7 @@ function avatarGradient(name: string): string {
   return `linear-gradient(135deg, hsl(${hue}, 60%, 40%), hsl(${(hue + 60) % 360}, 50%, 30%))`;
 }
 
-export default function ChatList() {
+export default function ChatList({ onClose, initialMode }: ChatListProps) {
   const chats = useSelector((s: RootState) => s.chat.chats);
   const { loading } = useChats();
   const navigate = useNavigate();
@@ -41,8 +46,14 @@ export default function ChatList() {
   const { chatId: activeChatId, id: activeAnonId } = useParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [userSearchOpen, setUserSearchOpen] = useState(false);
+  const [mode, setMode] = useState<"chats" | "communities">(
+    initialMode ?? (location.pathname.startsWith("/communities") || location.pathname.startsWith("/anonymous") ? "communities" : "chats")
+  );
 
-  const isAnonMode = location.pathname.startsWith("/communities") || location.pathname.startsWith("/anonymous");
+  // Sync mode from initialMode when overlay opens
+  useEffect(() => {
+    if (initialMode) setMode(initialMode);
+  }, [initialMode]);
 
   const sorted = useMemo(
     () => [...chats].sort((a, b) => b.timestamp - a.timestamp),
@@ -70,11 +81,55 @@ export default function ChatList() {
     [anonRooms, searchQuery],
   );
 
+  const handleNavigate = (path: string) => {
+    navigate(path);
+    onClose?.();
+  };
+
+  const isAnonMode = mode === "communities";
+
   return (
     <aside className="flex h-full w-65 shrink-0 flex-col border-r border-zinc-800/40 bg-surface-elevated">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
-        <img src="/CONVO_FLOW_LOGO.png" alt="ConvoFlow" className="h-8 w-auto" />
-        <AddFriendButton compact />
+        <div className="flex items-center gap-2">
+          <img src="/CONVO_FLOW_LOGO.png" alt="ConvoFlow" className="h-8 w-auto" />
+        </div>
+        <div className="flex items-center gap-1">
+          <AddFriendButton compact />
+          {onClose && (
+            <button
+              onClick={onClose}
+              aria-label="Close conversations"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors lg:hidden"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Mode tabs on mobile */}
+      <div className="flex border-b border-border px-2 py-1.5 gap-1 lg:hidden">
+        <button
+          onClick={() => setMode("chats")}
+          className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-colors ${
+            mode === "chats"
+              ? "bg-surface-hover text-text-primary"
+              : "text-text-secondary hover:text-text-primary"
+          }`}
+        >
+          Chats
+        </button>
+        <button
+          onClick={() => setMode("communities")}
+          className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-colors ${
+            mode === "communities"
+              ? "bg-surface-hover text-text-primary"
+              : "text-text-secondary hover:text-text-primary"
+          }`}
+        >
+          Communities
+        </button>
       </div>
 
       <div className="flex flex-col px-3 pt-3 pb-1">
@@ -107,7 +162,7 @@ export default function ChatList() {
                 return (
                   <button
                     key={room.id}
-                    onClick={() => navigate(`/anonymous/${room.id}`)}
+                    onClick={() => handleNavigate(`/anonymous/${room.id}`)}
                     className={`relative mx-2 my-0.5 flex h-16 items-center gap-3 rounded-[10px] px-3 text-left transition-colors duration-120 hover:bg-surface-raised ${
                       isActive ? "bg-white/5" : ""
                     }`}
@@ -158,8 +213,7 @@ export default function ChatList() {
                 return (
                   <button
                     key={chat.id}
-                    style={{cursor:'pointer'}}
-                    onClick={() => navigate(`/chat/${chat.id}`)}
+                    onClick={() => handleNavigate(`/chat/${chat.id}`)}
                     className={`relative mx-2 my-0.5 flex h-16 items-center gap-3 rounded-[10px] px-3 text-left transition-colors duration-120 hover:bg-surface-raised ${
                       isActive ? "bg-white/5" : ""
                     }`}

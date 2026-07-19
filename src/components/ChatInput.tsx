@@ -240,7 +240,7 @@ export default function ChatInput({ setMessages, value, onChange, onSend, sendIm
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[95%] flex-col gap-1.5">
+    <div className="mx-auto flex w-full max-w-[98%] sm:max-w-[95%] md:max-w-[90%] flex-col gap-1.5">
       {pendingImagePreview && (
         <div className="relative w-fit">
           <img

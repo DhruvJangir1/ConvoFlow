@@ -91,11 +91,11 @@ export default function UserSearchModal({ isOpen, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[15vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[8vh] sm:pt-[15vh] overflow-y-auto"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-border bg-surface-elevated shadow-2xl shadow-black/40 overflow-hidden"
+        className="w-full max-w-sm sm:max-w-md mx-2 sm:mx-0 rounded-2xl border border-border bg-surface-elevated shadow-2xl shadow-black/40 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">

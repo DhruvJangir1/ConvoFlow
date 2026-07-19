@@ -38,6 +38,8 @@ export default function ConfirmModal({
             bgcolor: "#1A1A24",
             borderRadius: 3,
             boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            m: { xs: 1, sm: 2 },
+            width: { xs: "calc(100% - 16px)", sm: 444 },
           },
         },
       }}
@@ -45,7 +47,7 @@ export default function ConfirmModal({
       <DialogTitle
         sx={{
           color: "#F0F0F5",
-          fontSize: "17px",
+          fontSize: { xs: "15px", sm: "17px" },
           fontWeight: 600,
           pb: 0,
           display: "flex",
@@ -59,11 +61,11 @@ export default function ConfirmModal({
         </IconButton>
       </DialogTitle>
       <DialogContent sx={{ pt: 2, pb: 1 }}>
-        <DialogContentText sx={{ color: "#8A8AA0", fontSize: "14px" }}>
+        <DialogContentText sx={{ color: "#8A8AA0", fontSize: { xs: "13px", sm: "14px" } }}>
           {message}
         </DialogContentText>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+      <DialogActions sx={{ px: { xs: 2, sm: 3 }, pb: 2, gap: { xs: 0.5, sm: 1 } }}>
         <Button
           onClick={onClose}
           variant="outlined"
@@ -74,6 +76,8 @@ export default function ConfirmModal({
             textTransform: "none",
             borderRadius: 2,
             fontWeight: 500,
+            flex: { xs: 1, sm: 0 },
+            py: { xs: 1, sm: 0.5 },
             "&:hover": { borderColor: "#3D3D55", bgcolor: "#2A2A3A" },
           }}
         >
@@ -88,6 +92,8 @@ export default function ConfirmModal({
             textTransform: "none",
             borderRadius: 2,
             fontWeight: 500,
+            flex: { xs: 1, sm: 0 },
+            py: { xs: 1, sm: 0.5 },
             "&:hover": { bgcolor: "#EF4444" },
           }}
         >

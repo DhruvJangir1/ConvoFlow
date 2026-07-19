@@ -22,14 +22,12 @@ export default function ProfileImageModal({ onClose, imageUrl, userName }: Props
     };
   }, [previewUrl]);
 
-
   async function handleSaveImage() {
     if (!fileInputRef.current || !fileInputRef.current.files || fileInputRef.current.files.length === 0) {
       return;
     }
 
     const file = fileInputRef.current.files[0];
-    console.log("Saving image:", file.name);
 
     try {
        const formData = new FormData();
@@ -46,17 +44,14 @@ export default function ProfileImageModal({ onClose, imageUrl, userName }: Props
       }
 
       const data = await res.json();
-      console.log("Image uploaded successfully:", data);
 
       dispatch(updateUserProfileImage(data.imageUrl));
-      console.log("Dispatched updateUserProfileImage with URL:", data.imageUrl);
 
     }
     catch(err){
       console.error("Error uploading image:", err);
     }
 
-    // After saving, you might want to close the modal and reset the preview.
     handleClose();
   }
 
@@ -84,7 +79,7 @@ export default function ProfileImageModal({ onClose, imageUrl, userName }: Props
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
       <div

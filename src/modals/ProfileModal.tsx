@@ -36,20 +36,20 @@ function CopyButton({ value }: { value: string }) {
 
 function StatPill({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string | number }) {
   return (
-    <div className="flex flex-1 flex-col items-center gap-1.5 rounded-xl border border-border bg-surface px-6 py-3.5">
+    <div className="flex flex-1 flex-col items-center gap-1.5 rounded-xl border border-border bg-surface px-2 sm:px-6 py-3">
       <Icon className="h-4 w-4 text-text-muted" />
-      <span className="truncate text-center text-sm font-semibold tabular-nums text-text-primary">{value}</span>
-      <span className="text-[11px] text-text-muted">{label}</span>
+      <span className="truncate text-center text-xs sm:text-sm font-semibold tabular-nums text-text-primary">{value}</span>
+      <span className="text-[10px] sm:text-[11px] text-text-muted">{label}</span>
     </div>
   );
 }
 
 function AccountRow({ label, value, copyable }: { label: string; value: string; copyable?: boolean }) {
   return (
-    <div className="flex items-center justify-between py-2.5">
-      <span className="text-xs font-medium text-text-muted">{label}</span>
-      <div className="flex items-center gap-2">
-        <span className="max-w-[260px] truncate text-right text-sm text-text-primary">{value}</span>
+    <div className="flex items-center justify-between py-2.5 gap-2">
+      <span className="text-xs font-medium text-text-muted shrink-0">{label}</span>
+      <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+        <span className="truncate text-right text-xs sm:text-sm text-text-primary">{value}</span>
         {copyable && <CopyButton value={value} />}
       </div>
     </div>
@@ -78,11 +78,11 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[12vh] backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[8vh] sm:pt-[12vh] backdrop-blur-sm overflow-y-auto"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="animate-modal-in w-full max-w-md overflow-hidden rounded-2xl border border-border bg-surface-elevated shadow-2xl shadow-black/50"
+        className="animate-modal-in w-full max-w-sm sm:max-w-md mx-2 sm:mx-0 overflow-hidden rounded-2xl border border-border bg-surface-elevated shadow-2xl shadow-black/50"
         onClick={(e) => e.stopPropagation()}
       >
 

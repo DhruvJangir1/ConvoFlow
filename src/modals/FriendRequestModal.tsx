@@ -98,15 +98,15 @@ export default function FriendRequestModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[15vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[8vh] sm:pt-[15vh] overflow-y-auto"
       onClick={(e) => { if (e.target === e.currentTarget && !loading) onClose(); }}
     >
       <div
-        className="w-full max-w-sm rounded-2xl border border-border bg-surface-elevated shadow-2xl shadow-black/40 overflow-hidden"
+        className="w-full max-w-sm mx-2 sm:mx-0 rounded-2xl border border-border bg-surface-elevated shadow-2xl shadow-black/40 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 className="text-[17px] font-semibold text-text-primary">Friend Request</h2>
+          <h2 className="text-[15px] sm:text-[17px] font-semibold text-text-primary">Friend Request</h2>
           <button
             onClick={onClose}
             disabled={loading}
@@ -116,14 +116,14 @@ export default function FriendRequestModal({
           </button>
         </div>
 
-        <div className="p-6 text-center">
+        <div className="p-4 sm:p-6 text-center">
           <div
-            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full text-xl font-semibold text-white"
+            className="mx-auto mb-4 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full text-lg sm:text-xl font-semibold text-white"
             style={{ background: avatarGradient(senderName) }}
           >
             {getInitials(senderName)}
           </div>
-          <h3 className="text-lg font-semibold text-text-primary">{senderName}</h3>
+          <h3 className="text-base sm:text-lg font-semibold text-text-primary">{senderName}</h3>
           <p className="mt-1 text-sm text-text-muted">wants to be friends with you</p>
 
           {error && (
@@ -133,11 +133,11 @@ export default function FriendRequestModal({
             </div>
           )}
 
-          <div className="mt-6 flex items-center justify-center gap-3">
+          <div className="mt-5 sm:mt-6 flex items-center justify-center gap-3">
             <button
               onClick={handleReject}
               disabled={loading}
-              className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors duration-150 hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-4 py-2.5 text-[13px] font-medium text-text-secondary transition-colors duration-150 hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -149,7 +149,7 @@ export default function FriendRequestModal({
             <button
               onClick={handleAccept}
               disabled={loading}
-              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2.5 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
                 <>

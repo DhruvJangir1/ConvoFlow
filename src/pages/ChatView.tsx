@@ -249,7 +249,7 @@ export default function ChatView() {
         showVoting={false}
         onImageClick={setSelectedImageUrl} />
         
-      <div className="pb-4 pt-2">
+      <div className="pb-2 sm:pb-4 pt-1 sm:pt-2">
         <ChatInput setMessages={setMessages} />
       </div>
 

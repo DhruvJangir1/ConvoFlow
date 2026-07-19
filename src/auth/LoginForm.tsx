@@ -104,7 +104,7 @@ export default function LoginForm() {
       <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-blue-500/10 blur-[128px]" />
 
       <div className="w-full max-w-md animate-message-in">
-        <div className="relative rounded-2xl border border-white/[0.06] bg-white/[0.015] p-8 shadow-2xl shadow-black/50 backdrop-blur-xl transition-all duration-300 hover:border-white/[0.1]">
+        <div className="relative rounded-2xl border border-white/[0.06] bg-white/[0.015] p-5 sm:p-8 shadow-2xl shadow-black/50 backdrop-blur-xl transition-all duration-300 hover:border-white/[0.1]">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center">
               <img

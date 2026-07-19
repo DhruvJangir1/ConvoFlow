@@ -22,6 +22,8 @@ export default function ImageModal({ isOpen, onClose, src }: ImageModalProps) {
             boxShadow: "none",
             borderRadius: 0,
             overflow: "hidden",
+            m: { xs: 0, sm: 2 },
+            width: { xs: "100%", sm: "calc(100% - 32px)" },
           },
         },
       }}
@@ -30,8 +32,8 @@ export default function ImageModal({ isOpen, onClose, src }: ImageModalProps) {
         onClick={onClose}
         sx={{
           position: "absolute",
-          top: 8,
-          right: 8,
+          top: { xs: 4, sm: 8 },
+          right: { xs: 4, sm: 8 },
           zIndex: 1,
           color: "#fff",
           bgcolor: "rgba(0,0,0,0.5)",
@@ -50,6 +52,8 @@ export default function ImageModal({ isOpen, onClose, src }: ImageModalProps) {
           maxHeight: "90vh",
           objectFit: "contain",
           margin: "0 auto",
+          width: "auto",
+          height: "auto",
         }}
       />
     </Dialog>

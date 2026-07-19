@@ -264,7 +264,7 @@ export default function MessageList({
       aria-relevant="additions"
       className="chat-scrollbar flex min-h-0 flex-1 flex-col overflow-y-scroll overflow-x-hidden bg-surface w-full"
     >
-      <div className="flex flex-col px-4">
+      <div className="flex flex-col px-2 sm:px-4">
         <div ref={topSentinelRef} className="flex items-center justify-center py-2">
           {loadingMore && (
             <div className="flex items-center gap-2 text-text-muted">
@@ -320,7 +320,7 @@ export default function MessageList({
                       </div>
                     )}
                     <div
-                      className={`flex flex-col w-full max-w-[70%] ${
+                      className={`flex flex-col w-full max-w-[85%] sm:max-w-[75%] md:max-w-[70%] ${
                         group.isOwn ? "items-end" : "items-start"
                       }`}
                     >

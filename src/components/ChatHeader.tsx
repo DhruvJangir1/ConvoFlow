@@ -21,7 +21,7 @@ export default function ChatHeader() {
   const isOtherOnline = otherUserId ? onlineUserIds.includes(otherUserId) : false;
 
   return (
-    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface-elevated px-5">
+    <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 sm:gap-3 border-b border-border bg-surface-elevated px-3 sm:px-5">
       <div className="flex min-w-0 items-center gap-3">
         <UserAvatar imageUrl={chat.avatar_url ?? null} userName={chat.name} size="sm" />
         <div className="min-w-0">

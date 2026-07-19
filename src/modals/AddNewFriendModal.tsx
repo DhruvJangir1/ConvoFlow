@@ -16,7 +16,6 @@ export default function AddNewFriendModal({ isOpen, onClose, onSend, sending }: 
 
   useEffect(() => {
     if (isOpen) {
-      console.log("[AddNewFriendModal] Modal opened");
       setTimeout(() => inputRef.current?.focus(), 100);
       setUserTag("");
       setStatus("idle");
@@ -27,19 +26,15 @@ export default function AddNewFriendModal({ isOpen, onClose, onSend, sending }: 
   const handleSend = async () => {
     const tag = userTag.trim();
     if (!tag || sending) return;
-
-    console.log(`[AddNewFriendModal] Send clicked for userTag: ${tag}`);
     setStatus("idle");
     setMessage("");
 
     try {
       await onSend(tag);
-      console.log("[AddNewFriendModal] Send succeeded");
       setStatus("success");
       setMessage("Friend request sent!");
       setTimeout(() => onClose(), 1500);
     } catch (err) {
-      console.log("[AddNewFriendModal] Send failed:", err);
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Failed to send request");
     }
@@ -49,17 +44,17 @@ export default function AddNewFriendModal({ isOpen, onClose, onSend, sending }: 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[15vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[8vh] sm:pt-[15vh] overflow-y-auto"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="w-full max-w-sm rounded-2xl border border-border bg-surface-elevated shadow-2xl shadow-black/40 overflow-hidden"
+        className="w-full max-w-sm mx-2 sm:mx-0 rounded-2xl border border-border bg-surface-elevated shadow-2xl shadow-black/40 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
             <UserPlus className="h-4 w-4 text-accent" />
-            <h2 className="text-[17px] font-semibold text-text-primary">Add Friend</h2>
+            <h2 className="text-[15px] sm:text-[17px] font-semibold text-text-primary">Add Friend</h2>
           </div>
           <button
             onClick={onClose}
@@ -69,7 +64,7 @@ export default function AddNewFriendModal({ isOpen, onClose, onSend, sending }: 
           </button>
         </div>
 
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           <label htmlFor="userTag" className="mb-1.5 block text-[13px] font-medium text-text-secondary">
             Enter their user tag
           </label>
@@ -87,23 +82,23 @@ export default function AddNewFriendModal({ isOpen, onClose, onSend, sending }: 
             />
           </div>
 
-          <p className="mt-6 text-xs italic leading-relaxed text-text-muted font-medium">
+          <p className="mt-4 text-xs italic leading-relaxed text-text-muted font-medium">
             Can't find your user tag? Check your profile page. Share your user tag with friends to start connecting!
           </p>
 
           {status === "success" ? (
-            <div className="mt-5 flex items-center gap-2 rounded-lg bg-green-500/10 px-3 py-2.5 text-sm text-green-400">
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-500/10 px-3 py-2.5 text-sm text-green-400">
               <CheckCircle className="h-4 w-4 shrink-0" />
               {message}
             </div>
           ) : status === "error" ? (
-            <div className="mt-5 flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-2.5 text-sm text-red-400">
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-2.5 text-sm text-red-400">
               <AlertCircle className="h-4 w-4 shrink-0" />
               {message}
             </div>
           ) : null}
 
-          <div className="mt-5 flex items-center justify-end gap-2">
+          <div className="mt-4 flex items-center justify-end gap-2">
             <button
               onClick={onClose}
               disabled={sending}
@@ -114,7 +109,7 @@ export default function AddNewFriendModal({ isOpen, onClose, onSend, sending }: 
             <button
               onClick={handleSend}
               disabled={!userTag.trim() || sending}
-              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-4 py-2.5 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {sending ? (
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />

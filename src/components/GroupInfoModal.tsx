@@ -26,6 +26,8 @@ export default function GroupInfoModal({ open, onClose, members }: GroupInfoModa
             borderRadius: 3,
             boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
             backgroundImage: "none",
+            m: { xs: 1, sm: 2 },
+            width: { xs: "calc(100% - 16px)", sm: 444 },
           },
         },
       }}
@@ -33,11 +35,11 @@ export default function GroupInfoModal({ open, onClose, members }: GroupInfoModa
       <DialogTitle
         sx={{
           color: "#F0F0F5",
-          fontSize: "17px",
+          fontSize: { xs: "15px", sm: "17px" },
           fontWeight: 600,
           pb: 1,
           pt: 2.5,
-          px: 3,
+          px: { xs: 2, sm: 3 },
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -48,7 +50,7 @@ export default function GroupInfoModal({ open, onClose, members }: GroupInfoModa
           <Close fontSize="small" />
         </IconButton>
       </DialogTitle>
-      <DialogContent sx={{ px: 3, pb: 2 }}>
+      <DialogContent sx={{ px: { xs: 2, sm: 3 }, pb: 2 }}>
         <div className="flex flex-col gap-2">
           {members.map((member) => (
             <div key={member.id} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/5">

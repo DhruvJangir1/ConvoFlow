@@ -16,7 +16,7 @@ export default function AnonymousChatComposer({
   onAnonymousToggle,
 }: AnonymousChatComposerProps) {
   return (
-    <div className="pb-4 pt-2">
+    <div className="pb-2 sm:pb-4 pt-1 sm:pt-2">
       <ChatInput
         value={value}
         onChange={onChange}
