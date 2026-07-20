@@ -1,25 +1,29 @@
-import { Resend } from 'resend';
-import type {  Response } from 'express';
+import type { Response } from 'express';
 import { REFRESH_TOKEN_EXPIRY_MS } from '../services/auth.js';
 import { COOKIE_OPTIONS } from '../util/constants.js';
 import dotenv from 'dotenv';
+import nodemailer from 'nodemailer';
 
 dotenv.config();
 
-function getResend() {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.warn('[resend] RESEND_API_KEY not set — email sending disabled');
-    return null;
-  }
-  return new Resend(apiKey);
-}
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  secure:true,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
+  },
+});
+
+console.log('[email] transporter created');
 
 export async function sendUserVerificationCode(email: string, code: string): Promise<void> {
-  const resend = getResend();
-  if (!resend) return;
-  resend.emails.send({
-      from: 'Convo Flow <onboarding@resend.dev>',
+  if (!transporter) return;
+
+  console.log('[email] sending verification code');
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
       to: email,
       subject: 'Your ConvoFlow verification code',
       html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; padding: 24px; color: #111827; max-width: 600px; margin: 0 auto; border-radius: 8px;">
@@ -45,17 +49,24 @@ export async function sendUserVerificationCode(email: string, code: string): Pro
   <div style="padding-top: 24px; text-align: center;">
     <p style="margin: 0; font-size: 12px; color: #9ca3af;">&copy; 2026 ConvoFlow. All rights reserved.</p>
   </div>
-</div>`
-})}
+</div>`,
+    });
+    console.log('[sendUserVerificationCode] email sent');
+  } catch (err) {
+    console.error('[sendUserVerificationCode] email failed:', err);
+  }
+}
 
 export async function sendFriendRequestEmail(fromName: string, fromTag: string, toEmail: string): Promise<void> {
-  const resend = getResend();
-  if (!resend) return;
-  resend.emails.send({
-    from: 'Convo Flow <onboarding@resend.dev>',
-    to: toEmail,
-    subject: `${fromName} wants to be your friend on ConvoFlow`,
-    html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; padding: 24px; color: #111827; max-width: 600px; margin: 0 auto; border-radius: 8px;">
+  if (!transporter) return;
+
+  console.log('[email] sending friend request email');
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: toEmail,
+      subject: `${fromName} wants to be your friend on ConvoFlow`,
+      html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; padding: 24px; color: #111827; max-width: 600px; margin: 0 auto; border-radius: 8px;">
   <div style="padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; margin-bottom: 24px;">
     <h2 style="margin: 0; font-size: 20px; font-weight: 700; color: #4f46e5; letter-spacing: -0.025em;">ConvoFlow</h2>
   </div>
@@ -74,7 +85,11 @@ export async function sendFriendRequestEmail(fromName: string, fromTag: string, 
     <p style="margin: 0; font-size: 12px; color: #9ca3af;">&copy; 2026 ConvoFlow. All rights reserved.</p>
   </div>
 </div>`,
-  });
+    });
+    console.log('[sendFriendRequestEmail] email sent');
+  } catch (err) {
+    console.error('[sendFriendRequestEmail] email failed:', err);
+  }
 }
 
 export function setAuthCookies(res: Response, accessToken: string, refreshToken: string, refreshSalt: string, userId: string) {
@@ -95,4 +110,3 @@ export function setAuthCookies(res: Response, accessToken: string, refreshToken:
     maxAge: REFRESH_TOKEN_EXPIRY_MS,
   });
 }
-

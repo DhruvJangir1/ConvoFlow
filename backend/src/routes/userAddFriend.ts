@@ -51,11 +51,11 @@ FriendRouter.post('/send', authenticate, async (req: Request, res: Response): Pr
   }
   console.log(`[FriendRoute] Target found: ${targetUser.user_name} (${targetUser.id})`);
 
-  // if (targetUser.id === senderId) {
-  //   console.log('[FriendRoute] 400 — self-request blocked');
-  //   res.status(400).json({ error: 'You cannot send a friend request to yourself' });
-  //   return;
-  // }
+  if (targetUser.id === senderId) {
+    console.log('[FriendRoute] 400 — self-request blocked');
+    res.status(400).json({ error: 'You cannot send a friend request to yourself' });
+    return;
+  }
 
   const existingRequest = await prisma.addFriendRequests.findFirst({
     where: {
@@ -111,7 +111,7 @@ FriendRouter.post('/send', authenticate, async (req: Request, res: Response): Pr
   );
   console.log(`[FriendRoute] Friend request created: ${friendRequest.id} (pending) and notification sent`);
 
-  sendFriendRequestEmail(senderUser.user_name, senderUser.user_tag, targetUser.email);
+  await sendFriendRequestEmail(senderUser.user_name, senderUser.user_tag, targetUser.email);
   console.log(`[FriendRoute] Email sent to ${targetUser.email}`);
 
   res.status(201).json({

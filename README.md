@@ -11,7 +11,7 @@ Real-time messaging platform with end-to-end authentication, WebSocket-based ins
 | **Database** | PostgreSQL via Prisma ORM (with pg adapter) |
 | **Auth** | Supabase Auth (admin API), bcrypt, JWT, httpOnly cookies |
 | **Real-time** | ws (WebSocket server with room-based pub/sub) |
-| **Email** | Resend (verification codes, friend request notifications) |
+| **Email** | Gmail SMTP via Nodemailer (verification codes, friend request notifications) |
 | **Cache** | Redis via Upstash (rate limiting, refresh token replay detection) |
 | **Storage** | Supabase S3 (image uploads — profile pictures, chat images) |
 
@@ -57,8 +57,9 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_JWT_SECRET=your-jwt-secret
 
-# Email (Resend)
-RESEND_API_KEY=re_your-api-key
+# Email (Gmail SMTP)
+EMAIL_USER=your.email@gmail.com
+EMAIL_PASSWORD=your-gmail-app-password
 
 # S3 (image storage)
 SUPABASE_S3_BUCKET_ENDPOINT=your-s3-endpoint
@@ -230,7 +231,8 @@ DIRECT_URL=postgresql://...
 SUPABASE_JWT_SECRET=...
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
-RESEND_API_KEY=...
+EMAIL_USER=your.email@gmail.com
+EMAIL_PASSWORD=your-gmail-app-password
 SUPABASE_S3_BUCKET_ENDPOINT=...
 SUPABASE_S3_ACCESS_KEY_ID=...
 SUPABASE_S3_SECRET_ACCESS_KEY=...

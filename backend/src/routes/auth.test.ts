@@ -55,7 +55,13 @@ vi.mock('../services/authCookieSessions.js', () => ({ clearAuthCookies: mockClea
 vi.mock('./supabaseAuth.js', () => ({ createNewSupabaseAuthUser: mockCreateNewSupabaseAuthUser, createNewSupabaseUser: mockCreateNewSupabaseUser }));
 vi.mock('../services/rateLimiter.js', () => ({ trackAuthAttempt: mockTrackAuthAttempt }));
 vi.mock('../supabase/admin.js', () => ({ getAdminClient: vi.fn(() => mockSupabase) }));
-vi.mock('resend', () => ({ Resend: vi.fn(() => ({ emails: { send: vi.fn().mockResolvedValue({ id: 'email_id' }) } })) }));
+vi.mock('nodemailer', () => ({
+  default: {
+    createTransport: vi.fn(() => ({
+      sendMail: vi.fn().mockResolvedValue({ messageId: 'test-id' }),
+    })),
+  },
+}));
 vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
 vi.mock('../supabase/supabaseS3Client.js', () => ({ s3Client: {}, S3_BUCKET_NAME: 'test-bucket' }));
 
