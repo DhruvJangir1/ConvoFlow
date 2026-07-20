@@ -196,6 +196,7 @@ AuthEmailVerificaitonRouter.post('/login',async (req: Request, res: Response): P
     console.log(`[/login] user ${user.id} is not verified, sending verification code`);
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setVerificationCode(user.id, code);
+    sendUserVerificationCode(userEmail, code).catch(err => console.error('[/login] failed to send verification email:', err));
   }
 
   console.log(`[/login] successful login for ${userEmail}`);

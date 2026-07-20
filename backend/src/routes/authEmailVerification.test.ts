@@ -65,6 +65,14 @@ vi.mock('../services/rateLimiter.js', () => ({
 
 vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
 
+vi.mock('nodemailer', () => ({
+  default: {
+    createTransport: vi.fn(() => ({
+      sendMail: vi.fn().mockResolvedValue({ messageId: 'test-id' }),
+    })),
+  },
+}));
+
 vi.mock('../supabase/supabaseS3Client.js', () => ({ s3Client: {}, S3_BUCKET_NAME: 'test-bucket' }));
 
 vi.mock('../supabase/admin.js', () => ({

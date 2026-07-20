@@ -413,11 +413,11 @@ const nodes = [
    purpose:'Prometheus metrics: pg_pool_connections, query_duration histogram, Node.js default metrics. Exposed at GET /metrics.',
    funcs:['timedQuery()','collectDefaultMetrics()'],incoming:[],outgoing:[],tags:['monitoring']},
   {id:'be-service-email',x:1200,y:1460,w:240,h:56,name:'authVerification.ts (Email)',cat:'purple',group:'g-infra',
-   purpose:'Resend API: verification codes, friend request notifications. Also manages setAuthCookies.',
-   funcs:['sendUserVerificationCode()','sendFriendRequestEmail()','setAuthCookies()'],incoming:['be-auth-email','be-auth-user','be-friends-router'],outgoing:['be-resend'],tags:['service']},
-  {id:'be-resend',x:1480,y:1460,w:200,h:50,name:'Resend (Email)',cat:'purple',group:'g-infra',
-   purpose:'Transactional email service. Verification codes, friend request notifications.',
-   funcs:['send()'],incoming:['be-service-email'],outgoing:[],tags:['external']},
+    purpose:'Gmail SMTP: verification codes, friend request notifications. Also manages setAuthCookies.',
+    funcs:['sendUserVerificationCode()','sendFriendRequestEmail()','setAuthCookies()'],incoming:['be-auth-email','be-auth-user','be-friends-router'],outgoing:['be-email'],tags:['service']},
+   {id:'be-email',x:1480,y:1460,w:200,h:50,name:'Gmail SMTP',cat:'purple',group:'g-infra',
+    purpose:'Transactional email service. Verification codes, friend request notifications.',
+    funcs:['send()'],incoming:['be-service-email'],outgoing:[],tags:['external']},
   {id:'fe-store',x:1720,y:1460,w:240,h:56,name:'Redux Store',cat:'green',group:'g-infra',
    purpose:'userAuth slice (user, isConnected, unreadNotifCount) + chat slice (chats, onlineUsers).',
    funcs:['configureStore','RootState','AppDispatch'],incoming:['fe-auth-ctx','fe-ws-ctx','fe-chat-ctx'],outgoing:[],tags:['state']},
@@ -516,7 +516,7 @@ const connections = [
   ['be-prisma','be-pg',C.orange],
 
   // ── Infra ──
-  ['be-service-email','be-resend',C.purple],
+  ['be-service-email','be-email',C.purple],
 ];
 
 // ============================================================

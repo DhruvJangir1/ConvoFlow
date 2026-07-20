@@ -190,7 +190,7 @@ backend/
 │   ├── services/
 │   │   ├── auth.ts           # JWT signing/verification, password hashing, refresh token rotation
 │   │   ├── authCookieSessions.ts  # setAuthCookies / clearAuthCookies helpers
-│   │   ├── authVerificaiton.ts    # Email verification via Nodemailer (Gmail SMTP), setAuthCookies helper
+│   │   ├── authVerificaiton.ts    # Email verification via Gmail SMTP (Nodemailer)
 │   │   ├── dmChat.ts         # findDmChat / createDmChat helpers
 │   │   ├── imageUpload.ts    # S3 upload via Supabase, presigned URL generation
 │   │   ├── rateLimiter.ts    # Redis-backed rate limiter with in-memory fallback
@@ -293,8 +293,8 @@ NODE_ENV=production
 CORS_ORIGIN=https://convo-flow-4eu6.vercel.app   # MUST be a real URL, no wildcards
 DATABASE_URL=postgresql://...
 SUPABASE_JWT_SECRET=...
-EMAIL_USER=...
-EMAIL_PASSWORD=...
+EMAIL_USER=your.email@gmail.com
+EMAIL_PASSWORD=your-gmail-app-password
 UPSTASH_REDIS_REST_URL=...
 UPSTASH_REDIS_REST_TOKEN=...
 SUPABASE_S3_BUCKET_ENDPOINT=...
@@ -752,7 +752,7 @@ sendToUser(receiverId, { type: "notification:new", payload: notification })
 3. Checks: no duplicate pending request, sender hasn't exceeded 10 pending outgoing,
    sender wasn't previously rejected by this target
 4. Creates Notification + AddFriendRequest in transaction
-5. Sends email via Nodemailer (Gmail SMTP)
+5. Sends email via Gmail SMTP (Nodemailer)
 6. Pushes notification via WebSocket to receiver
 ```
 

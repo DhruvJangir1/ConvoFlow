@@ -70,7 +70,7 @@ authUserVerification.post('/verify', async (req: Request, res: Response): Promis
 
 // Resend verification code endpoint: accepts { email }
 authUserVerification.post('/resend-verification', async (req: Request, res: Response): Promise<void> => {
-  const { email } = req.body as { email?: string };
+  const { email } = req.body as { email: string };
   console.log(`[/resend-verification] request for ${email}`);
   if (!email) {
     console.log('[/resend-verification] no email provided');
@@ -100,6 +100,7 @@ authUserVerification.post('/resend-verification', async (req: Request, res: Resp
   console.log(`[/resend-verification] new code generated for user ${user.id}`);
 
   try {
+    console.log(`this is user email ${email}`)
     await sendUserVerificationCode(email.trim().toLowerCase(), code);
     console.log(`[/resend-verification] email sent to ${email}`);
   } catch (e) {
