@@ -46,6 +46,8 @@
 10. **Send verification email** via Gmail SMTP (`authVerificaiton.ts:sendUserVerificationCode()`).
 11. Respond with `{ user, message: 'verification_sent' }` — **no auth cookies are set**. The user is registered but not yet authorized.
 
+> **Email is fire-and-forget**: The 201 response is sent to the client *before* the email is awaited. This prevents slow SMTP connections (e.g., Gmail blocking server IPs on platforms like Render) from delaying or breaking the signup response. If the email fails, it is logged but does not affect the user's signup success.
+
 ## [Scenario B] Email Verification
 
 1. User submits `{ code }` to `POST /auth/UserVerificaitonRouter/verify`.

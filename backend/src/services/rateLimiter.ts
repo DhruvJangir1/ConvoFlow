@@ -51,9 +51,9 @@ export async function trackAuthAttempt(ip: string): Promise<boolean> {
       return false;
     }
 
-    await client.zRemRangeByScore(rlKey, 0, now - WINDOW_MS);
+    await client.zremrangebyscore(rlKey, 0, now - WINDOW_MS);
 
-    const attemptCount = await client.zCard(rlKey);
+    const attemptCount = await client.zcard(rlKey);
 
     if (attemptCount >= MAX_ATTEMPTS) {
       console.log(`[rateLimiter] ${ip} exceeded ${MAX_ATTEMPTS} attempts in 1 min — blocking for 5 min`);
@@ -62,14 +62,15 @@ export async function trackAuthAttempt(ip: string): Promise<boolean> {
       return false;
     }
 
-    await client.zAdd(rlKey, { score: now, value: String(now) });
+    await client.zadd(rlKey, { score: now, member: String(now) });
     await client.expire(rlKey, KEY_TTL_SECONDS);
 
     console.log(`[rateLimiter] ${ip} — attempt ${attemptCount + 1}/${MAX_ATTEMPTS} recorded`);
     return true;
 
-  } catch (err) {
-    console.error(`[rateLimiter] Redis error for IP ${ip} — falling back to memory:`, err.message);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[rateLimiter] Redis error for IP ${ip} — falling back to memory:`, message);
     return memoryRateLimit(ip);
   }
 }
