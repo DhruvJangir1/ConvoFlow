@@ -4,10 +4,10 @@
                         |
                    [Prisma ORM] <--> [PostgreSQL (public.USERS)]
                         |
-                 [Resend (Email)]
+                 [Nodemailer / Gmail SMTP (Email)]
 ```
 
-**Stack**: Node.js + Express, Supabase Auth (user management), Prisma + PostgreSQL (app-level user data), Resend (email verification), JWT + opaque refresh tokens (session management).
+**Stack**: Node.js + Express, Supabase Auth (user management), Prisma + PostgreSQL (app-level user data), Nodemailer via Gmail SMTP (email verification), JWT + opaque refresh tokens (session management).
 
 ---
 
@@ -43,8 +43,10 @@
 7. **Pre-generate a refresh token hash** (discarding the actual token and salt) and store in the `public.USERS` row. No tokens are issued to the client yet.
 8. **Create app user** in `public.USERS` table via Prisma (`supabaseAuth.ts:createNewSupabaseUser()`). If this fails, the Supabase auth user is **rolled back** (deleted) to avoid orphaned accounts.
 9. **Generate 6-digit verification code**, store in in-memory `Map` with a 15-minute TTL.
-10. **Send verification email** via Resend (`authVerificaiton.ts:sendUserVerificationCode()`).
+10. **Send verification email** via Nodemailer/Gmail SMTP (`authVerificaiton.ts:sendUserVerificationCode()`).
 11. Respond with `{ user, message: 'verification_sent' }` — **no auth cookies are set**. The user is registered but not yet authorized.
+
+> **Email is fire-and-forget**: The 201 response is sent to the client *before* the email is awaited. This prevents slow SMTP connections (e.g., Gmail blocking server IPs on platforms like Render) from delaying or breaking the signup response. If the email fails, it is logged but does not affect the user's signup success.
 
 ## [Scenario B] Email Verification
 
@@ -268,7 +270,7 @@ COOKIE_OPTIONS = {
 - **Chat membership checks**: All message CRUD endpoints verify user is a member of the target chat.
 - **XSS prevention**: All user message content is HTML-escaped before storage (`escapeHtml` on every write path).
 - **Refresh token replay detection**: Old token hashes stored in Redis; replayed tokens detected and invalidated.
-- **Environment variables**: `SUPABASE_JWT_SECRET`, `SUPA_BASE_URL`, `SUPA_BASE_ANON_PUBLISHABLE_KEY`, `RESEND_API_KEY`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` stored in env.
+- **Environment variables**: `SUPABASE_JWT_SECRET`, `SUPA_BASE_URL`, `SUPA_BASE_ANON_PUBLISHABLE_KEY`, `EMAIL_USER`, `EMAIL_PASSWORD`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` stored in env.
 
 ---
 

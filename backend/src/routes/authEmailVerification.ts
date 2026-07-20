@@ -108,15 +108,11 @@ AuthEmailVerificaitonRouter.post('/signup', async (req: Request, res: Response):
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   setVerificationCode(newUser.id, code);
 
-  try {
-    await sendUserVerificationCode(email.trim().toLowerCase(), code);
-  } catch (emailErr) {
-    console.error('[/signup] failed to send verification email:', emailErr);
-    res.status(500).json({ error: 'User created but failed to send verification email' });
-    return;
-  }
-
   res.status(201).json({ user: UserResponseDTO.mapUser(newUser), message: 'verification_sent' });
+
+  sendUserVerificationCode(email.trim().toLowerCase(), code).catch((emailErr) => {
+    console.error('[/signup] failed to send verification email:', emailErr);
+  });
 });
 
 AuthEmailVerificaitonRouter.post('/login',async (req: Request, res: Response): Promise<void> => {

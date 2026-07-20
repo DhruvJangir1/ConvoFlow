@@ -65,12 +65,6 @@ vi.mock('../services/rateLimiter.js', () => ({
 
 vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
 
-vi.mock('resend', () => ({
-  Resend: vi.fn(() => ({
-    emails: { send: vi.fn().mockResolvedValue({ id: 'email_id' }) },
-  })),
-}));
-
 vi.mock('../supabase/supabaseS3Client.js', () => ({ s3Client: {}, S3_BUCKET_NAME: 'test-bucket' }));
 
 vi.mock('../supabase/admin.js', () => ({
@@ -426,7 +420,7 @@ describe('Sign-Up Route — POST /auth/signup', () => {
       );
     });
 
-    it('returns 500 when verification email fails to send', async () => {
+    it('returns 201 even when verification email fails to send', async () => {
       (sendUserVerificationCode as Mock).mockRejectedValue(
         new Error('Email service unavailable'),
       );
@@ -435,8 +429,8 @@ describe('Sign-Up Route — POST /auth/signup', () => {
         .post('/auth/signup')
         .send({ user_name: 'TestUser', email: 'test@example.com', password: 'password123' });
 
-      expect(res.status).toBe(500);
-      expect(res.body.error).toBe('User created but failed to send verification email');
+      expect(res.status).toBe(201);
+      expect(res.body.user.email).toBe('test@example.com');
     });
 
     it('still creates the user even when email sending fails', async () => {
