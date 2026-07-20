@@ -12,7 +12,10 @@ export function validateOrigin(req: Request, res: Response, next: NextFunction) 
     if (!forwardedHost) return res.status(403).json({ error: 'Invalid Origin' });
 
     const allowedHost = new URL(ALLOWED_ORIGIN).host;
-    if (forwardedHost === allowedHost) return next();
+    const firstHost = Array.isArray(forwardedHost)
+      ? forwardedHost[0]
+      : forwardedHost.split(',')[0].trim();
+    if (firstHost === allowedHost) return next();
 
     return res.status(403).json({ error: 'Invalid Origin' });
   }
