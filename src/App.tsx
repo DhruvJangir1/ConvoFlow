@@ -4,8 +4,6 @@ import Home from "./pages/Home";
 import ChatView from "./pages/ChatView";
 import ProfileView from "./pages/ProfileView";
 import NotificationsPage from "./pages/NotificationsPage";
-import LoginForm from "./auth/LoginForm";
-import SignUpForm from "./auth/SignUpForm";
 import LandingPage from "./pages/LandingPage";
 import WelcomePage from "./pages/WelcomePage";
 import NotFoundPage from "./pages/NotFoundPage";
@@ -13,6 +11,8 @@ import AnonymousChat from "./pages/AnonymousChats/AnonymousChat";
 import Communities from "./pages/Communities";
 import ProtectedRoute from "./components/ProtectedRoute";
 import VerificationPage from "./auth/VerificationPage";
+import LoginForm from "./auth/LoginForm";
+import SignUpForm from "./auth/SignUpForm";
 
 export default function App() {
   return (

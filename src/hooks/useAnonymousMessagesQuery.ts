@@ -4,6 +4,7 @@ import type { MutableRefObject } from 'react';
 import type { RootState } from '../store/store';
 import { anonChatKeys } from '../lib/queryKeys';
 import type { AnonymousChatMessages } from '../types/chat';
+import { clerkFetch } from '../lib/clerkFetch';
 
 export interface AnonymousMessagesResponse {
   messages: AnonymousChatMessages[];
@@ -56,7 +57,7 @@ async function fetchAnonymousMessages(
   const url = before
     ? `/api/anonymousChats/${roomId}/messages?before=${encodeURIComponent(before)}`
     : `/api/anonymousChats/${roomId}/messages`;
-  const res = await fetch(url, { credentials: 'include' });
+  const res = await clerkFetch(url);
   if (!res.ok) throw new Error('Failed to fetch anonymous messages');
   const data = await res.json();
   const msgs = (data.messages ?? []).map((m: Parameters<typeof buildAnonMessage>[0]) =>

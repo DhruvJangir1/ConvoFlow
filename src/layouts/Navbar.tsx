@@ -1,17 +1,17 @@
 import { LogOut } from "lucide-react";
 import { useSelector } from "react-redux";
+import { useClerk } from "@clerk/react";
 import type { RootState } from "../store/store";
-import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import UserAvatar from "../components/UserAvatar";
 
 export default function Navbar() {
   const user = useSelector((s: RootState) => s.userAuth.user);
-  const { logout } = useAuth();
+  const { signOut } = useClerk();
   const navigate = useNavigate();
 
   async function handleLogout() {
-    await logout();
+    await signOut();
     navigate("/login");
   }
 

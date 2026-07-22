@@ -3,9 +3,10 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../store/store';
 import { notifKeys } from '../lib/queryKeys';
 import type { Notification } from '../types/chat';
+import { clerkFetch } from '../lib/clerkFetch';
 
 async function fetchNotifications(): Promise<Notification[]> {
-  const res = await fetch('/api/notifications', { credentials: 'include' });
+  const res = await clerkFetch('/api/notifications');
   if (!res.ok) throw new Error('Failed to fetch notifications');
   const data = await res.json();
   return data.notifications ?? [];

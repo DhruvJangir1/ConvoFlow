@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Search, Loader2, MessageCircle, X } from "lucide-react";
 import { chatKeys } from "../lib/queryKeys";
 import UserAvatar from "../components/UserAvatar";
+import { clerkFetch } from "../lib/clerkFetch";
 
 interface UserResult {
   id: string;
@@ -46,9 +47,7 @@ export default function UserSearchModal({ isOpen, onClose }: Props) {
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/users/search?q=${encodeURIComponent(q.trim())}`, {
-        credentials: 'include',
-      });
+      const res = await clerkFetch(`/api/users/search?q=${encodeURIComponent(q.trim())}`);
       if (!res.ok) throw new Error('Search failed');
       const data = await res.json();
       setResults(data.users || []);
@@ -69,10 +68,9 @@ export default function UserSearchModal({ isOpen, onClose }: Props) {
   const handleCreateDm = async (targetUser: UserResult) => {
     setCreating(targetUser.id);
     try {
-      const res = await fetch('/api/chats', {
+      const res = await clerkFetch('/api/chats', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ participantIds: [targetUser.id] }),
       });
       if (!res.ok) throw new Error('Failed to create chat');

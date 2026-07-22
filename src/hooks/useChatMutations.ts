@@ -4,6 +4,7 @@ import { addChat as addChatRedux } from '../store/chatSlice';
 import { chatKeys } from '../lib/queryKeys';
 import type { Chat, ChatMessages } from '../types/chat';
 import type { MessagesResponse } from './useChatMessagesQuery';
+import { clerkFetch } from '../lib/clerkFetch';
 
 /* ───── Send Message ───── */
 interface SendMessageVars {
@@ -13,10 +14,9 @@ interface SendMessageVars {
 }
 
 async function sendMessageREST({ chatId, content, userId }: SendMessageVars) {
-  const res = await fetch(`/api/chats/${chatId}/${userId}/appendMessage`, {
+  const res = await clerkFetch(`/api/chats/${chatId}/${userId}/appendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ content, chatId, userId }),
   });
   if (!res.ok) {
@@ -74,10 +74,9 @@ interface EditMessageVars {
 }
 
 async function editMessageREST({ chatId, messageId, content, userId }: EditMessageVars) {
-  const res = await fetch(`/api/chats/${chatId}/messages/${messageId}/${userId}`, {
+  const res = await clerkFetch(`/api/chats/${chatId}/messages/${messageId}/${userId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ content }),
   });
   if (!res.ok) {
@@ -124,9 +123,8 @@ interface DeleteMessageVars {
 }
 
 async function deleteMessageREST({ chatId, messageId, userId }: DeleteMessageVars) {
-  const res = await fetch(`/api/chats/${chatId}/messages/${messageId}/${userId}`, {
+  const res = await clerkFetch(`/api/chats/${chatId}/messages/${messageId}/${userId}`, {
     method: 'DELETE',
-    credentials: 'include',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Failed to delete message' }));
@@ -168,10 +166,9 @@ interface CreateChatVars {
 }
 
 async function createChatREST(body: CreateChatVars) {
-  const res = await fetch('/api/chats', {
+  const res = await clerkFetch('/api/chats', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(body),
   });
   if (!res.ok) {

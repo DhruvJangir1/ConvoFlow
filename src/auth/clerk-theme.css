@@ -1,0 +1,19 @@
+:root {
+  --clerk-color-primary: #7C6EF7;
+  --clerk-color-primary-foreground: #FFFFFF;
+  --clerk-color-danger: #EF4444;
+  --clerk-color-success: #22C543;
+  --clerk-color-warning: #F36B16;
+  --clerk-color-neutral: #FFFFFF;
+  --clerk-color-foreground: #FFFFFF;
+  --clerk-color-background: #000000;
+  --clerk-color-input: rgba(255, 255, 255, 0.04);
+  --clerk-color-input-foreground: #FFFFFF;
+  --clerk-color-ring: rgba(124, 110, 247, 0.3);
+  --clerk-color-shimmer: rgba(255, 255, 255, 0.08);
+  --clerk-color-modal-backdrop: rgba(0, 0, 0, 0.75);
+  --clerk-border-radius: 0.75rem;
+  --clerk-spacing: 1.125rem;
+  --clerk-color-muted: #111115;
+  --clerk-color-muted-foreground: #8A8AA0;
+}

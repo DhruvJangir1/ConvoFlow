@@ -1,29 +1,37 @@
-import type { Response } from 'express';
-import { REFRESH_TOKEN_EXPIRY_MS } from '../services/auth.js';
-import { COOKIE_OPTIONS } from '../util/constants.js';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
 
 dotenv.config();
+if (!process.env.APP_URL){
+  throw new Error('app url not found')
+}
 
-let transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
+const senderEmail = process.env.EMAIL_USER;
+const pass = process.env.EMAIL_PASSWORD;
+
+const transporter = nodemailer.createTransport({
+  service:'gmail',
+  port: 587,
+  secure: false, 
+  auth: { user:senderEmail, pass },
+});
 
 function getTransporter() {
   if (transporter) return transporter;
-
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASSWORD;
-  if (!user || !pass) {
+ 
+  if (!senderEmail || !pass) {
     console.warn('[email] EMAIL_USER or EMAIL_PASSWORD not set — email sending disabled');
     return null;
   }
 
-  transporter = nodemailer.createTransport({
-    service: 'gmail',
-    secure: true,
-    auth: { user, pass },
+  const transporterBackUp = nodemailer.createTransport({
+    service:'gmail',
+    port: 587,
+    secure: false, 
+    auth: { user:senderEmail, pass },
   });
-  return transporter;
+
+  return transporterBackUp;
 }
 
 const VERIFICATION_EMAIL_HTML = (code: string) => `
@@ -68,56 +76,43 @@ const FRIEND_REQUEST_EMAIL_HTML = (fromName: string, fromTag: string) => `
 </div>`;
 
 export async function sendUserVerificationCode(email: string, code: string): Promise<void> {
-  const mailer = getTransporter();
-  if (!mailer) return;
+  const transporter = getTransporter();
+  if (!transporter) return;
 
   console.log('[email] sending verification code');
   try {
-    await mailer.sendMail({
-      from: process.env.EMAIL_USER,
+    const info = await transporter.sendMail({
+      from: senderEmail,
       to: email,
       subject: 'Your ConvoFlow verification code',
       html: VERIFICATION_EMAIL_HTML(code),
     });
-    console.log('[email] verification code sent');
-  } catch (err) {
-    console.error('[email] verification code failed:', err);
+   
+    console.log("Message sent: %s", info.messageId);
+    console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
+  } 
+  catch (err) {
+    console.error("Error while sending mail:", err);
   }
 }
 
 export async function sendFriendRequestEmail(fromName: string, fromTag: string, toEmail: string): Promise<void> {
-  const mailer = getTransporter();
-  if (!mailer) return;
+  const transporter = getTransporter();
+  if (!transporter) return;
 
   console.log('[email] sending friend request email');
   try {
-    await mailer.sendMail({
-      from: process.env.EMAIL_USER,
+    const info = await transporter.sendMail({
+      from: senderEmail,
       to: toEmail,
       subject: `${fromName} wants to be your friend on ConvoFlow`,
       html: FRIEND_REQUEST_EMAIL_HTML(fromName, fromTag),
     });
-    console.log('[email] friend request email sent');
-  } catch (err) {
-    console.error('[email] friend request email failed:', err);
-  }
-}
 
-export function setAuthCookies(res: Response, accessToken: string, refreshToken: string, refreshSalt: string, userId: string) {
-  res.cookie('access_token', accessToken, {
-    ...COOKIE_OPTIONS,
-    maxAge: 15 * 60 * 1000,
-  });
-  res.cookie('refresh_token', refreshToken, {
-    ...COOKIE_OPTIONS,
-    maxAge: REFRESH_TOKEN_EXPIRY_MS,
-  });
-  res.cookie('refresh_salt', refreshSalt, {
-    ...COOKIE_OPTIONS,
-    maxAge: REFRESH_TOKEN_EXPIRY_MS,
-  });
-  res.cookie('user_id', userId, {
-    ...COOKIE_OPTIONS,
-    maxAge: REFRESH_TOKEN_EXPIRY_MS,
-  });
+   console.log("Message sent: %s", info.messageId);
+   console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
+  }
+  catch (err) {
+    console.error("Error while sending mail:", err);
+  }
 }

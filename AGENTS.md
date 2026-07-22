@@ -83,14 +83,14 @@ Each package has its own `package.json`, `node_modules/`, and `tsconfig.json`. T
 
 ```
 src/
-├── main.tsx                  # React entry point — wraps App in providers
+├── main.tsx                  # React entry point — wraps App in ClerkProvider + providers
 ├── App.tsx                   # React Router route definitions
 ├── index.css                 # Global styles + Tailwind imports
-├── auth/                     # Authentication UI (login, signup, verification forms)
-│   ├── LoginForm.tsx
-│   ├── SignUpForm.tsx
-│   ├── VerificationPage.tsx
-│   └── passwordValidator.ts
+├── auth/                     # Authentication UI (Clerk-powered login/signup + legacy verification)
+│   ├── LoginForm.tsx         # Wraps Clerk <SignIn> with dark-theme appearance overrides
+│   ├── SignUpForm.tsx        # Wraps Clerk <SignUp> with dark-theme appearance overrides
+│   ├── VerificationPage.tsx  # Email verification (6-digit code) — legacy route, kept for compatibility
+│   └── passwordValidator.ts  # Password strength checker — legacy, not used by Clerk flows
 ├── components/               # Shared reusable UI components
 │   ├── AddFriendButton.tsx
 │   ├── ChatHeader.tsx        # Top bar of a chat (name, avatar, online status)
@@ -100,9 +100,9 @@ src/
 │   ├── ProtectedRoute.tsx    # Route guard — spinner while loading, redirect to /login if no user
 │   └── UserAvatar.tsx
 ├── context/                  # React Context providers (global state that lives across route changes)
-│   ├── AuthContext.tsx        # Auth state, login/signup/logout, session refresh loop
+│   ├── AuthContext.tsx        # Syncs Clerk user to Redux — reads useUser()/useAuth() from Clerk
 │   ├── ChatContext.tsx        # Fetches + syncs chat list to Redux, auto-subscribes WS rooms
-│   └── WebSocketContext.tsx   # WS connection lifecycle, subscribe queue, message dispatch
+│   └── WebSocketContext.tsx   # WS connection lifecycle, subscribe queue, message dispatch (uses clerkFetch)
 ├── hooks/                    # Custom React hooks (data fetching + mutations via TanStack Query)
 │   ├── useChatsQuery.ts
 │   ├── useChatMessagesQuery.ts
@@ -119,15 +119,15 @@ src/
 │   ├── ShellLayout.tsx
 │   ├── Sidebar.tsx
 │   ├── ChatList.tsx          # Chat sidebar — lists regular + anonymous chats
-│   └── Navbar.tsx
+│   └── Navbar.tsx            # Top nav — uses useClerk().signOut() for logout
 ├── lib/                      # Shared utility modules
+│   ├── clerkFetch.ts         # Wraps fetch() to inject Clerk JWT as Authorization header
 │   ├── queryKeys.ts          # TanStack Query cache key factories
-│   ├── dateFormat.ts
-│   └── SupaBaseClient.ts
+│   └── dateFormat.ts
 ├── modals/                   # Modal dialog components
 │   ├── ConfirmModal.tsx
 │   ├── ImageModal.tsx
-│   ├── ProfileModal.tsx
+│   ├── ProfileModal.tsx      # Uses useClerk().signOut() for logout
 │   ├── ProfileImageModal.tsx
 │   ├── UserSearchModal.tsx
 │   ├── AddFriendModal.tsx
@@ -163,9 +163,10 @@ backend/
 ├── server.js                 # Express entry point — mounts middleware, routes, WS, static serving
 ├── src/
 │   ├── config/
-│   │   └── supabase.ts       # Supabase client config
+│   │   └── supabase.ts       # Supabase client config (still used for S3 image storage)
 │   ├── lib/
-│   │   ├── connectionPoolClient.ts  # Prisma client instance
+│   │   ├── auth.ts                 # Clerk abstraction layer — verifyClerkToken(), fetchClerkUser()
+│   │   ├── connectionPoolClient.ts # Prisma client instance
 │   │   ├── calculatePoolSize.ts
 │   │   ├── databaseClusterClass.ts
 │   │   ├── gracefulShutDown.ts
@@ -174,13 +175,11 @@ backend/
 │   │   ├── promtheusTime.ts
 │   │   └── queuedPoolClass.ts
 │   ├── middleware/
-│   │   ├── authenticate.ts   # Auth middleware — verifies access token or rotates refresh token (with lock)
+│   │   ├── authenticate.ts   # Auth middleware — uses lib/auth.ts wrapper (no direct Clerk imports)
 │   │   └── validateOrigin.ts # CSRF protection — checks Origin/Referer on mutating requests
 │   ├── routes/
-│   │   ├── auth.ts           # Router hub — mounts sub-routers under /api/auth
-│   │   ├── authEmailVerification.ts   # POST /login, /signup, /logout, /check-password
-│   │   ├── authTokenVerification.ts   # GET /session, POST /refresh
-│   │   ├── authUserVerification.ts    # POST /verify, /resend-verification
+│   │   ├── auth.ts           # Router hub — mounts WsTicketRouter + UserVerificationRouter only
+│   │   ├── authUserVerification.ts    # POST /verify, /resend-verification (kept for compatibility)
 │   │   ├── wsTicket.ts               # GET /ws-ticket (generates one-time WS auth ticket)
 │   │   ├── users.ts                  # GET /search, PATCH /profile-image
 │   │   ├── userAddFriend.ts          # POST /send, PATCH /accept, /reject
@@ -188,9 +187,7 @@ backend/
 │   │   ├── anonymousChat.ts          # Full CRUD for anonymous chat rooms + messages
 │   │   └── imageUpload.ts            # Base64 image upload (standalone, not mounted)
 │   ├── services/
-│   │   ├── auth.ts           # JWT signing/verification, password hashing, refresh token rotation
-│   │   ├── authCookieSessions.ts  # setAuthCookies / clearAuthCookies helpers
-│   │   ├── authVerificaiton.ts    # Email verification via Gmail SMTP (Nodemailer)
+│   │   ├── authVerificaiton.ts    # Email verification via Gmail SMTP (Nodemailer) — sends codes
 │   │   ├── dmChat.ts         # findDmChat / createDmChat helpers
 │   │   ├── imageUpload.ts    # S3 upload via Supabase, presigned URL generation
 │   │   ├── rateLimiter.ts    # Redis-backed rate limiter with in-memory fallback
@@ -199,25 +196,21 @@ backend/
 │   │   ├── verificationStore.ts  # In-memory verification code store
 │   │   └── wsTicketStore.ts  # In-memory WS ticket store (60s TTL)
 │   ├── supabase/
-│   │   ├── admin.ts          # Supabase admin client (service role)
+│   │   ├── admin.ts          # Supabase admin client (service role — used for S3)
 │   │   └── supabaseS3Client.ts  # S3-compatible client for image storage
 │   ├── chat/
 │   │   ├── chat.ts           # Standard chat routes (CRUD, messages, image upload)
 │   │   └── chatImageHelpers.ts  # signChatAvatar, signMemberImages, signSenderImage
-│   ├── types/
-│   │   └── authTypes.ts      # TokenPayload interface
 │   └── util/
-│       └── constants.ts      # PRISMA_SAFE_SELECT, COOKIE_OPTIONS, etc.
+│       └── constants.ts      # PRISMA_SAFE_SELECT, VERIFICATION_TTL_MS, FRIEND_MAX_PENDING_OUTGOING
 ├── ws/
-│   ├── websocket.ts          # WebSocket server — auth, rooms, message broadcast, typing
+│   ├── websocket.ts          # WebSocket server — auth via ticket, rooms, message broadcast, typing
 │   └── websockets.test.ts    # WebSocket unit tests
 ├── redis/
 │   └── redisClient.ts        # Upstash Redis REST client
-├── dtos/
-│   ├── UserResponseDTO.ts
-│   └── UserSignupRequstDTO.ts
-└── dataflows/
-    └── architecture.html     # Visual architecture diagram
+└── dtos/
+    ├── UserResponseDTO.ts
+    └── UserSignupRequstDTO.ts
 ```
 
 ---
@@ -259,9 +252,9 @@ server: {
 }
 ```
 
-The `changeOrigin: true` option rewrites the `Host` header so Express sees the request as coming from localhost:3000. This makes cookies set by the backend work correctly with the Vite proxy.
+The `changeOrigin: true` option rewrites the `Host` header so Express sees the request as coming from localhost:3000.
 
-**WebSocket server** runs separately on `ws://localhost:8080/ws` — it is NOT part of Express. It's a raw `http.createServer()` + `ws` library. The client connects after getting a one-time ticket.
+**WebSocket server** runs separately on the path `/ws` on the same HTTP server (not a separate port anymore in production). The client connects after getting a one-time ticket via `clerkFetch`.
 
 ---
 
@@ -292,7 +285,9 @@ This runs the build first, then starts the backend which serves `dist/` as stati
 NODE_ENV=production
 CORS_ORIGIN=https://convo-flow-4eu6.vercel.app   # MUST be a real URL, no wildcards
 DATABASE_URL=postgresql://...
-SUPABASE_JWT_SECRET=...
+DIRECT_URL=postgresql://...
+CLERK_SECRET_KEY=sk_test_...                      # Clerk backend secret key
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...            # Clerk frontend publishable key (Vite env)
 EMAIL_USER=your.email@gmail.com
 EMAIL_PASSWORD=your-gmail-app-password
 UPSTASH_REDIS_REST_URL=...
@@ -301,7 +296,6 @@ SUPABASE_S3_BUCKET_ENDPOINT=...
 SUPABASE_S3_ACCESS_KEY_ID=...
 SUPABASE_S3_SECRET_ACCESS_KEY=...
 SUPABASE_S3_BUCKET_NAME=...
-DIRECT_URL=postgresql://...
 ```
 
 ### Current Deployment
@@ -336,11 +330,9 @@ cd backend && npm run test-vitest   # Primary test runner
 cd backend && npx vitest run
 ```
 
-Currently **100/100 tests pass** across 4 test files:
+Test files:
 - `backend/ws/websockets.test.ts` — WebSocket connection, auth, subscribe, broadcast, send, typing, disconnect, error handling (35 tests)
-- `backend/src/routes/auth.test.ts` — Auth endpoint tests (login, signup, refresh, session, logout)
-- `backend/src/routes/authEmailVerification.test.ts` — Signup/login/email verification tests
-- `backend/src/services/auth.test.ts` — Password hashing, token signing, refresh rotation
+- `backend/src/middleware/authenticate.test.ts` — Auth middleware: token verification, user lookup, auto-provisioning, error paths (11 tests)
 
 ### Lint & Typecheck
 
@@ -373,7 +365,7 @@ npx tsc -b              # TypeScript project references build
 
 ### S3 Client Mock Requirement
 
-- `backend/src/supabase/supabaseS3Client.ts` **throws at module load** when S3 env vars (`SUPABASE_S3_BUCKET_ENDPOINT`, `SUPABASE_S3_ACCESS_KEY_ID`, `SUPABASE_S3_SECRET_ACCESS_KEY`) are missing. Any test that transitively imports `imageUpload.ts` (via `authEmailVerification.ts`, `users.ts`, etc.) must mock it:
+- `backend/src/supabase/supabaseS3Client.ts` **throws at module load** when S3 env vars (`SUPABASE_S3_BUCKET_ENDPOINT`, `SUPABASE_S3_ACCESS_KEY_ID`, `SUPABASE_S3_SECRET_ACCESS_KEY`) are missing. Any test that transitively imports `imageUpload.ts` (via `users.ts`, etc.) must mock it:
   ```ts
   vi.mock('../supabase/supabaseS3Client.js', () => ({
     s3Client: {},
@@ -381,6 +373,13 @@ npx tsc -b              # TypeScript project references build
   }));
   ```
 - Place the mock **before** any imports that could reach `imageUpload.ts`.
+
+### Auth Middleware Tests (`backend/src/middleware/authenticate.test.ts`)
+
+- Mock `../lib/auth.js` (the Clerk abstraction layer), NOT `@clerk/backend` directly. This is the whole point of the abstraction — tests never need to know about Clerk.
+- Mock `../lib/connectionPoolClient.js` for Prisma calls (`prisma.users.findFirst`, `prisma.users.create`, `prisma.clerkUsers.upsert`).
+- Mock `../supabase/admin.js` for `getAdminClient()` (Supabase auth user creation).
+- The test covers all code paths: missing header, bad token, existing user by clerk_id, link by email, auto-provision, tag collision, and error cases.
 
 ---
 
@@ -398,7 +397,7 @@ npx tsc -b              # TypeScript project references build
 
 | Model | Purpose | Key Fields |
 |-------|---------|------------|
-| `USERS` | User accounts | id, user_name, email, user_tag, image_url, is_verified, password, refresh_token_hash, refresh_token_expiry, role |
+| `USERS` | User accounts | id, user_name, email, user_tag, image_url, is_verified, role |
 | `StandardChats` | Chat rooms (DM or group) | id, type (dm/group), name, avatar_url, created_by, updated_at |
 | `StandardChatMembers` | Chat membership | chat_id, user_id (composite PK), joined_at, last_read_at |
 | `StandardChatMessages` | Chat messages | id, chat_id, sender_id, content, message_type (text/image), is_edited, created_at, status |
@@ -410,6 +409,8 @@ npx tsc -b              # TypeScript project references build
 | `AnonymousChatMessagesUserVotes` | Vote records | user_id, message_id, type (upvote/downvote) |
 | `DailyPolls` | Poll feature | id, question, option1-4 |
 | `UserPollVotes` | Poll votes | poll_id, voter_id, optionSelected |
+
+> **Note**: The `USERS` table previously stored `password`, `refresh_token_hash`, `refresh_token_expiry` for the custom auth system. These fields are no longer used after the Clerk migration. A `clerk_id` column has been added to map Clerk user IDs to internal UUIDs.
 
 ---
 
@@ -433,7 +434,7 @@ The backend runs as an ESM Node.js process. `server.js` is a plain `.js` file th
 
 | Mount Path | Router | Source File |
 |------------|--------|-------------|
-| `/api/auth` | `AuthRouter` | `routes/auth.ts` (hub that mounts sub-routers) |
+| `/api/auth` | `AuthRouter` | `routes/auth.ts` (hub — mounts WsTicket + UserVerification only) |
 | `/api/chats` | `ChatRouter` | `chat/chat.ts` |
 | `/api/users` | `UserRouter` | `routes/users.ts` |
 | `/api/friends` | `FriendRouter` | `routes/userAddFriend.ts` |
@@ -446,15 +447,17 @@ The backend runs as an ESM Node.js process. `server.js` is a plain `.js` file th
 ### Frontend Provider Tree (`src/main.tsx`)
 
 ```
-<QueryClientProvider>          ← TanStack React Query (server state caching)
-  <Provider store={store}>     ← Redux Toolkit (client state)
-    <AuthProvider>             ← Auth context (login/signup/logout/session refresh loop)
-      <WebSocketProvider>      ← WebSocket context (connection, subscribe, send)
-        <App />                ← React Router routes
-      </WebSocketProvider>
-    </AuthProvider>
-  </Provider>
-</QueryClientProvider>
+<ClerkProvider publishableKey={...}>   ← Clerk auth (manages session, <SignIn>/<SignUp> components)
+  <QueryClientProvider>                ← TanStack React Query (server state caching)
+    <Provider store={store}>           ← Redux Toolkit (client state)
+      <AuthProvider>                   ← Syncs Clerk user to Redux via useUser()/useAuth()
+        <WebSocketProvider>            ← WS connection lifecycle, subscribe queue, message dispatch
+          <App />                      ← React Router routes
+        </WebSocketProvider>
+      </AuthProvider>
+    </Provider>
+  </QueryClientProvider>
+</ClerkProvider>
 ```
 
 For protected routes, `RootLayout` wraps children in a **second** `<WebSocketProvider>` and `<ChatProvider>`, shadowing the outer providers for all pages inside `/home`, `/chat/*`, etc.
@@ -465,98 +468,118 @@ For protected routes, `RootLayout` wraps children in a **second** `<WebSocketPro
 
 ### How Authentication Works
 
-ConvoFlow uses **httpOnly cookies** for auth. JavaScript on the client never reads or writes the access/refresh tokens directly. This prevents XSS attacks from stealing tokens.
+ConvoFlow uses **Clerk** for authentication. Clerk handles user management, session tokens, sign-in, sign-up, and email verification. The backend verifies Clerk JWTs through a centralized abstraction layer — **`backend/src/lib/auth.ts`** — which is the only file that imports from `@clerk/backend`.
 
-### Cookie Architecture
+### Key Concepts
 
-Four httpOnly cookies are set on the browser:
+- **Clerk manages auth state**: The frontend uses `@clerk/react` hooks (`useUser()`, `useAuth()`, `useClerk()`) to determine if the user is logged in.
+- **Backend verifies via JWT**: Every protected API route uses the `authenticate` middleware which extracts the Clerk JWT from the `Authorization: Bearer <token>` header and verifies it server-side via the auth wrapper.
+- **No cookies for auth tokens**: Clerk manages its own session cookies transparently. The application never reads or writes auth tokens directly in JavaScript — Clerk handles this.
+- **`clerkFetch` utility**: All frontend API calls go through `clerkFetch()` which automatically attaches the Clerk JWT as an `Authorization` header.
+- **Abstraction layer**: `lib/auth.ts` is the only backend file that imports `@clerk/backend`. All other backend code goes through this wrapper, making business logic testable without Clerk.
 
-| Cookie | Lifetime | Purpose |
-|--------|----------|---------|
-| `access_token` | 15 minutes | JWT — proves the user is logged in. Verified by `authenticate` middleware on every protected request. |
-| `refresh_token` | 30 days | Opaque 64-char hex string. Used to get a new access_token when the old one expires. |
-| `refresh_salt` | 30 days | bcrypt salt used to hash the refresh token in the database. |
-| `user_id` | 30 days | The user's UUID. Used to look up which refresh token hash to compare against. |
+### Clerk Configuration
 
-### Login Flow
+- **Publishable Key**: Stored as `VITE_CLERK_PUBLISHABLE_KEY` env var (frontend). Used in `main.tsx` to initialize `<ClerkProvider>`.
+- **Secret Key**: Stored as `CLERK_SECRET_KEY` env var (backend). Used in `lib/auth.ts` for server-side JWT verification and user lookup.
+- **Clerk App ID**: `app_3Gp8IiIOdhiETydkWdX61xgiR7Y`
 
-```
-1. Client sends: POST /api/auth/EmailVerificaitonRouter/login { email, password }
-2. Server: rate limit check (Redis sorted set, 10 attempts/min per IP)
-3. Server: look up user by email in public.USERS
-4. Server: bcrypt.compare(password, storedHash) → must match
-5. Server: signAccessToken(userId, email) → JWT string (15min expiry, aud:"authenticated")
-6. Server: generateRefreshToken() → { token: "64-char-hex", hash: bcrypt(token), salt: bcryptSalt }
-7. Server: update public.USERS SET refresh_token_hash=hash, refresh_token_expiry=now+30days
-8. Server: setAuthCookies() → sets all 4 cookies on the HTTP response
-9. Server: returns { user, accessTokenExpiresAt: now+15min }
-10. Client: stores user + accessTokenExpiresAt in localStorage (for optimistic hydration)
-11. Client: schedules a browser timer to re-check session 1 minute before expiry
-```
-
-### Session Refresh on Page Load
-
-When the page loads (or the browser timer fires):
+### Frontend Auth Flow
 
 ```
-1. AuthContext reads localStorage → if accessTokenExpiresAt is in the future, optimistically
-   sets the user in Redux (so the UI shows immediately without waiting for the server)
-2. AuthContext calls GET /api/auth/TokenVerificationRouter/session with credentials: 'include'
-3. Server checks access_token cookie:
-   a. Valid JWT → look up user → return { user, accessTokenExpiresAt } (re-sets the cookie
-      with fresh maxAge to prevent expiry gap)
-   b. Expired JWT → decode payload → re-sign new access_token → set cookie → return user
-   c. Missing JWT → fall through to refresh token path:
-      - Get userId + refreshToken from cookies
-      - Call rotateRefreshTokenWithLock(userId, refreshToken)
-      - Set new cookies via setAuthCookies()
-      - Return user
-4. Client: updateLocalAuthState(user, expiresAt) → updates Redux + localStorage
-5. Client: schedules next refresh at (expiresAt - 60 seconds)
+1. ClerkProvider initializes with publishableKey
+2. AuthContext uses useUser() and useAuth() from @clerk/react
+3. When Clerk session is available:
+   a. useUser() returns the Clerk user object
+   b. AuthContext builds a User object from Clerk data (id, user_name, email, image_url, etc.)
+   c. Dispatches setUser() to Redux — user is now "logged in"
+4. When Clerk session ends:
+   a. useUser() returns null
+   b. AuthContext dispatches setUser(null) — user is now "logged out"
 ```
 
-### Refresh Token Rotation with Lock
-
-The function `rotateRefreshTokenWithLock()` in `auth.ts` prevents the **refresh token race condition**:
+### Login/Signup Flow (Clerk)
 
 ```
-Problem: If two HTTP requests arrive simultaneously without a valid access_token
-(e.g., one from /session and one from /ws-ticket), both would try to rotate the
-refresh token. Only one can succeed — the second one would fail because the DB
-hash was already updated by the first.
-
-Solution: rotateRefreshTokenWithLock() uses a per-user Map<string, Promise>.
-When a rotation starts for userId X, it stores the promise. If another request
-arrives for userId X while the first is in-flight, it gets the SAME promise
-back instead of starting a second rotation. Both requests receive the same result.
-```
-
-### Authenticate Middleware
-
-Every protected API route uses the `authenticate` middleware (`backend/src/middleware/authenticate.ts`). It runs this logic on every request:
-
-```
-1. If no cookies at all → 401 "Authentication required"
-2. If access_token cookie exists:
-   a. Valid JWT → set req.user → next() (request proceeds)
-   b. Expired JWT → decode → re-sign → set cookie → set req.user → next()
-   c. Invalid JWT → 401 "Invalid access token"
-3. If no access_token:
-   a. Get userId + refreshToken from cookies
-   b. If missing → 401 "Authentication required"
-   c. Call rotateRefreshTokenWithLock(userId, refreshToken)
-   d. If success → setAuthCookies → set req.user → next()
-   e. If failure → 401 "Session expired"
+1. User navigates to /login or /signup
+2. LoginForm renders Clerk <SignIn routing="path" path="/login" appearance={clerkAppearance} />
+3. SignUpForm renders Clerk <SignUp routing="path" path="/signup" appearance={clerkAppearance} />
+4. Clerk handles the entire auth flow internally (email/password, social OAuth, MFA, etc.)
+5. On successful auth, Clerk creates a session
+6. useUser() in AuthContext fires with the new user → Redux state updates → UI re-renders
+7. ProtectedRoute sees user in Redux → allows access to protected pages
 ```
 
 ### Logout Flow
 
 ```
-1. Client: POST /api/auth/EmailVerificaitonRouter/logout
-2. Server: hash refresh_token with refresh_salt → find user → set hash/expiry to null
-3. Server: clearAuthCookies() → clears all 4 cookies
-4. Client: updateLocalAuthState(null) → Redux setUser(null) + remove localStorage
+1. User clicks logout in Navbar or ProfileModal
+2. Component calls useClerk().signOut()
+3. Clerk destroys the session and clears its internal state
+4. useUser() returns null → AuthContext dispatches setUser(null) → Redux clears user
+5. ProtectedRoute redirects to /login
 ```
+
+### `clerkFetch` Utility (`src/lib/clerkFetch.ts`)
+
+Every frontend API call goes through `clerkFetch()`:
+
+```ts
+import { clerkFetch } from '../lib/clerkFetch';
+
+const res = await clerkFetch('/api/chats');
+```
+
+How it works:
+1. `AuthProvider` calls `setGetTokenFn(getToken)` from `useClerkAuth()` on mount
+2. `clerkFetch` calls `getTokenFn()` to get the current Clerk JWT
+3. Attaches it as `Authorization: Bearer <token>` header
+4. Calls `fetch()` with the modified headers and `credentials: 'include'`
+5. If `getToken` returns null, logs a warning — the request will likely 401
+
+This means **all 13 frontend files** that make API calls (10 hooks, 2 modals, 1 page) use `clerkFetch` instead of raw `fetch`.
+
+### Authenticate Middleware (`backend/src/middleware/authenticate.ts`)
+
+Every protected API route uses this middleware:
+
+```ts
+import { verifyClerkToken, fetchClerkUser } from '../lib/auth.js';
+
+export async function authenticate(req, res, next) {
+  // 1. Extract Bearer token from Authorization header
+  // 2. If missing → 401 "Authentication required"
+  // 3. Call verifyClerkToken(token) → { sub: clerkId }
+  // 4. Look up user by clerk_id in DB → set req.user = { id: dbUuid, email } → next()
+  // 5. If not found → auto-provision: fetchClerkUser → Supabase auth user → Prisma create
+}
+```
+
+**Auto-provisioning flow** (when a Clerk user has no DB row):
+1. `fetchClerkUser(clerkId)` → gets email from Clerk API
+2. Check for existing user by email → link `clerk_id` if found
+3. Otherwise: `supabase.auth.admin.createUser()` → `prisma.clerkUsers.upsert()` → `prisma.users.create()`
+
+**Clerk ID vs DB UUID**: Clerk user IDs (e.g., `user_3Gp...`) are **not** UUIDs. The middleware maps them to internal DB UUIDs via the `clerk_id` column on `USERS`. The `req.user.id` is always the DB UUID, never the Clerk ID.
+
+### WebSocket Auth Flow
+
+```
+1. Frontend calls GET /api/auth/WsTicketRouter/ws-ticket via clerkFetch (sends Clerk JWT)
+2. authenticate middleware verifies the JWT → sets req.user.id
+3. Server: generateTicket(req.user.id) → stores userId in in-memory Map with 60s TTL
+4. Server returns: { ticket: "<uuid>" }
+5. Frontend opens WebSocket: ws://host/ws?ticket=<ticket>
+6. WebSocket server: consumeTicket(ticket) → get userId → set ws.userId
+7. Server: fetch user profile from DB by userId → set ws.userName, ws.userImage
+```
+
+### Logout Flow (Backend)
+
+Since Clerk manages sessions, there is **no backend logout endpoint**. The frontend simply calls `useClerk().signOut()` which:
+1. Clerk destroys the session on its servers
+2. Frontend AuthContext detects user is gone → clears Redux state
+3. No backend call needed — Clerk handles session invalidation
 
 ---
 
@@ -564,14 +587,14 @@ Every protected API route uses the `authenticate` middleware (`backend/src/middl
 
 ### Architecture
 
-The WebSocket server runs as a **separate process** on port 8080, completely independent of Express. It uses the raw `ws` library on a standalone `http.createServer()`.
+The WebSocket server runs attached to the same HTTP server as Express on the `/ws` path. It uses the raw `ws` library.
 
 ### Connection Flow
 
 ```
-1. Client calls GET /api/auth/WsTicketRouter/ws-ticket (requires valid auth cookies via authenticate middleware)
-2. Server: generateTicket(userId) → UUID string stored in in-memory Map with 60s TTL
-3. Client opens: ws://localhost:8080/ws?ticket=<ticket>
+1. Client calls GET /api/auth/WsTicketRouter/ws-ticket (via clerkFetch, sends Clerk JWT)
+2. Server: authenticate middleware verifies JWT → generateTicket(req.user.id) → UUID string stored in in-memory Map with 60s TTL
+3. Client opens: ws://host/ws?ticket=<ticket>
 4. WebSocket server: authenticateConnection() → consumeTicket(ticket) → get userId
    a. If invalid/expired → close with code 4001
    b. If valid → set ws.userId, ws.isAlive=true, ws.subscribedRooms=Set()
@@ -658,7 +681,7 @@ The client maintains:
 - `messageHandlers` — Set of callback functions for incoming messages
 
 On mount (when `user` becomes available):
-1. Fetch ticket from `/api/auth/WsTicketRouter/ws-ticket`
+1. Fetch ticket from `/api/auth/WsTicketRouter/ws-ticket` via **`clerkFetch`** (sends Clerk JWT)
 2. Open WebSocket with ticket
 3. On open: send all pending subscriptions from `subscribedChatsRef`
 4. On message: parse JSON, dispatch to registered handlers + messageHandlers callbacks
@@ -683,6 +706,8 @@ Standard chats use `StandardChats`, `StandardChatMembers`, and `StandardChatMess
 | POST | `/api/chats/:chatId/:userId/appendMessage` | Send text message (REST fallback) |
 | PATCH | `/api/chats/:chatId/messages/:messageId/:userId` | Edit message |
 | DELETE | `/api/chats/:chatId/messages/:messageId/:userId` | Delete message |
+
+All routes use `authenticate` middleware.
 
 **Membership check:** Every chat operation calls `requireChatMembership(userId, chatId)` to verify the user belongs to the chat before allowing access.
 
@@ -852,9 +877,9 @@ The WebSocket handlers in `WebSocketContext.tsx` update these caches in real-tim
 |-------|-----------|------------|-------------|
 | `/` | `LandingPage` | No | Marketing page — auto-redirects to /home if logged in |
 | `/welcome` | `WelcomePage` | No | Welcome page |
-| `/login` | `LoginForm` | No | Login form |
-| `/signup` | `SignUpForm` | No | Registration form |
-| `/verification` | `VerificationPage` | No | Email verification entry |
+| `/login` | `LoginForm` | No | Clerk-powered login (renders `<SignIn>` component) |
+| `/signup` | `SignUpForm` | No | Clerk-powered signup (renders `<SignUp>` component) |
+| `/verification` | `VerificationPage` | No | Email verification (legacy, kept for compatibility) |
 | `/home` | `Home` | Yes | Chat list / home feed |
 | `/communities` | `Communities` | Yes | Communities page |
 | `/chat/:chatId` | `ChatView` | Yes | Standard chat view |
@@ -863,7 +888,7 @@ The WebSocket handlers in `WebSocketContext.tsx` update these caches in real-tim
 | `/notification` | `NotificationsPage` | Yes | Notification feed |
 | `*` | `NotFoundPage` | No | 404 page |
 
-Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `AuthContext.loading` is true, then renders the content if a user exists or redirects to `/login` if not.
+Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `AuthContext.loading` is true (Clerk is initializing), then renders the content if a user exists in Redux or redirects to `/login` if not.
 
 ---
 
@@ -874,9 +899,7 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 | **HTTP Headers** | Helmet (CSP, HSTS, frameguard, noSniff, hidePoweredBy, referrerPolicy, etc.) |
 | **CSRF** | `validateOrigin.ts` checks `x-forwarded-host` (production) or `Origin`/`Referer` (dev) on mutating requests |
 | **Rate Limiting** | Redis-backed sorted set: 10 attempts/min per IP, 5-min block. Falls back to in-memory Map when Redis is unavailable. |
-| **Cookies** | httpOnly + secure + sameSite: 'lax' — never accessible to JavaScript |
-| **Passwords** | bcrypt with 12 rounds + HIBP breach check |
-| **Refresh Tokens** | Single-use with rotation. Old hash stored in Redis for replay detection. Per-user lock prevents concurrent rotation races. |
+| **Authentication** | Clerk handles session management, token rotation, MFA, and social OAuth. Backend verifies JWTs via `lib/auth.ts` wrapper (abstracts `@clerk/backend`). |
 | **Chat Membership** | `requireChatMembership()` checks `StandardChatMembers` before allowing message read/write |
 | **Image Storage** | S3 bucket is private. All URLs are presigned (1-hour expiry). Never stored in client state. |
 | **Origin Validation** | `x-forwarded-host` header checked against `CORS_ORIGIN` in production; standard `Origin`/`Referer` in dev |
@@ -894,7 +917,9 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 7. **Never push/add/commit/pull code on or from GitHub without asking**
 8. **Do NOT read any env files at all costs**
 9. **Two WebSocket providers** exist in the tree — `main.tsx` wraps the app in one, `RootLayout` wraps protected pages in another. The inner one shadows the outer one.
-10. **`/session` re-sets the access_token cookie on every valid call** — this prevents the cookie from expiring between background refresh cycles (the cookie maxAge is 15min, but the background timer fires at ~14min, so re-setting extends it)
+10. **Clerk appearance overrides** — `LoginForm.tsx` and `SignUpForm.tsx` apply dark-theme appearance overrides to Clerk's `<SignIn>` and `<SignUp>` components via the `appearance` prop. These use transparent backgrounds and the project's indigo accent color (`#7C6EF7`).
+11. **Clerk ID vs DB UUID** — Clerk user IDs (e.g., `user_3Gp...`) are NOT valid UUIDs. The database requires UUID format. A `clerk_id` mapping column has been added to `USERS` and the `authenticate` middleware maps Clerk IDs to DB UUIDs via this column.
+12. **`clerkFetch` must be used for all API calls** — Never use raw `fetch()` for backend requests. Always import `clerkFetch` from `../lib/clerkFetch` which injects the Clerk JWT automatically.
 
 ---
 
@@ -904,15 +929,10 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 
 | Method | Full Path | Auth | Description |
 |--------|-----------|------|-------------|
-| POST | `/api/auth/EmailVerificaitonRouter/check-password` | No | Password strength + HIBP check |
-| POST | `/api/auth/EmailVerificaitonRouter/signup` | No | Create account + send verification email |
-| POST | `/api/auth/EmailVerificaitonRouter/login` | No | Authenticate + set cookies |
-| POST | `/api/auth/EmailVerificaitonRouter/logout` | No | Clear session |
-| GET | `/api/auth/TokenVerificationRouter/session` | Cookie-based | Hydrate auth state + rotate if needed |
-| POST | `/api/auth/TokenVerificationRouter/refresh` | Cookie-based | Explicit token refresh |
+| POST | `/api/auth/setup-user` | `authenticate` (Clerk JWT) | Eager user creation — returns DB user for current Clerk session |
 | POST | `/api/auth/UserVerificaitonRouter/verify` | No | Verify email with 6-digit code |
 | POST | `/api/auth/UserVerificaitonRouter/resend-verification` | No | Resend verification code |
-| GET | `/api/auth/WsTicketRouter/ws-ticket` | `authenticate` | Generate one-time WS auth ticket |
+| GET | `/api/auth/WsTicketRouter/ws-ticket` | `authenticate` (Clerk JWT) | Generate one-time WS auth ticket |
 
 ### Chat Routes (`/api/chats`)
 

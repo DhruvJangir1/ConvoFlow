@@ -1,12 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifKeys, chatKeys } from '../lib/queryKeys';
 import type { Chat } from '../types/chat';
+import { clerkFetch } from '../lib/clerkFetch';
 
 /* ───── Mark Single Read ───── */
 async function markRead(id: string) {
-  const res = await fetch(`/api/notifications/${id}/read`, {
+  const res = await clerkFetch(`/api/notifications/${id}/read`, {
     method: 'PATCH',
-    credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to mark as read');
   return res.json();
@@ -25,9 +25,8 @@ export function useMarkNotificationRead() {
 
 /* ───── Mark All Read ───── */
 async function markAllRead() {
-  const res = await fetch('/api/notifications/read-all', {
+  const res = await clerkFetch('/api/notifications/read-all', {
     method: 'PATCH',
-    credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to mark all as read');
   return res.json();
@@ -46,9 +45,8 @@ export function useMarkAllNotificationsRead() {
 
 /* ───── Reject Friend Request ───── */
 async function rejectFriendRequest(entityId: string) {
-  const res = await fetch(`/api/friends/${entityId}/reject`, {
+  const res = await clerkFetch(`/api/friends/${entityId}/reject`, {
     method: 'PATCH',
-    credentials: 'include',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Request failed' }));
@@ -74,10 +72,9 @@ interface AcceptFriendResponse {
 }
 
 async function acceptFriendRequest(notification: { id: string; sender_user_id: string }): Promise<AcceptFriendResponse> {
-  const res = await fetch('/api/friends/accept', {
+  const res = await clerkFetch('/api/friends/accept', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ notification }),
   });
   if (!res.ok) {

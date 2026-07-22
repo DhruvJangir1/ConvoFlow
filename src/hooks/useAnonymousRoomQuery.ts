@@ -3,9 +3,10 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../store/store';
 import { anonChatKeys } from '../lib/queryKeys';
 import type { AnonymousRoom } from './useAnonymousRoomsQuery';
+import { clerkFetch } from '../lib/clerkFetch';
 
 async function fetchAnonymousRoomDetail(roomId: string): Promise<AnonymousRoom> {
-  const res = await fetch(`/api/anonymousChats/${roomId}`, { credentials: 'include' });
+  const res = await clerkFetch(`/api/anonymousChats/${roomId}`);
   if (!res.ok) throw new Error('Failed to fetch anonymous room');
   const data = await res.json();
   if (!data.chat) throw new Error('Anonymous room not found');

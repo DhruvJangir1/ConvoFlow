@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import UserAvatar from "../components/UserAvatar";
 import { useDispatch } from "react-redux";
 import { updateUserProfileImage } from "../store/userAuthSlice";
+import { clerkFetch } from "../lib/clerkFetch";
 
 interface Props {
   onClose: () => void;
@@ -33,10 +34,9 @@ export default function ProfileImageModal({ onClose, imageUrl, userName }: Props
        const formData = new FormData();
        formData.append("image", file, file.name);
 
-      const res = await fetch("/api/users/profile-image", {
+      const res = await clerkFetch("/api/users/profile-image", {
         method: "PATCH",
         body: formData,
-        credentials: "include",
       });
 
       if (!res.ok) {

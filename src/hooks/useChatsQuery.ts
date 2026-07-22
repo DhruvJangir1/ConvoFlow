@@ -3,9 +3,10 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../store/store';
 import { chatKeys } from '../lib/queryKeys';
 import type { Chat } from '../types/chat';
+import { clerkFetch } from '../lib/clerkFetch';
 
 async function fetchChats(): Promise<Chat[]> {
-  const res = await fetch('/api/chats', { credentials: 'include' });
+  const res = await clerkFetch('/api/chats');
   if (!res.ok) throw new Error('Failed to fetch chats');
   const data = await res.json();
   return data.chats ?? [];

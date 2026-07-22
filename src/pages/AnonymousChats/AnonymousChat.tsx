@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../store/store";
 import { useWebSocket } from "../../context/WebSocketContext";
+import { clerkFetch } from "../../lib/clerkFetch";
 import { useAnonymousRoomQuery } from "../../hooks/useAnonymousRoomQuery";
 import { useAnonymousMessagesQuery } from "../../hooks/useAnonymousMessagesQuery";
 import {
@@ -55,8 +56,9 @@ export default function AnonymousChat() {
   // Join room on mount
   useEffect(() => {
     if (!roomId || !user) return;
-    fetch(`/api/anonymousChats/${roomId}/join`, { method: "POST", credentials: "include" })
-      .catch((err) => console.error(err));
+    clerkFetch(`/api/anonymousChats/${roomId}/join`, { method: "POST" }).catch((err) =>
+      console.error(err),
+    );
   }, [roomId, user]);
 
   // Seed messages from cache
@@ -133,9 +135,8 @@ export default function AnonymousChat() {
     if (!roomId || loadingMore || !hasMore || !oldestDateRef.current || !user) return;
     setLoadingMore(true);
     try {
-      const res = await fetch(
+      const res = await clerkFetch(
         `/api/anonymousChats/${roomId}/messages?before=${encodeURIComponent(oldestDateRef.current)}`,
-        { credentials: "include" },
       );
       if (!res.ok) throw new Error("Failed to load more messages");
       const data = await res.json();

@@ -9,19 +9,7 @@ export const PRISMA_SAFE_SELECT = {
   user_tag: true,
 };
 
-
-// Cookie options: SameSite=None in production (requires secure=true), Lax in development.
-export const COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: true,
-  sameSite: 'lax' as const,
-  path: '/',
-};
-
-
-// Rate-limit constants moved to services/rateLimiter.ts (Redis-backed, 1‑min window, 10 max, 5‑min block)
 export const VERIFICATION_TTL_MS = 15 * 60 * 1000; // 15 minutes
-
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

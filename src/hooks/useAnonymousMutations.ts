@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { anonChatKeys } from '../lib/queryKeys';
+import { clerkFetch } from '../lib/clerkFetch';
 
 /* ───── Send Message ───── */
 interface SendAnonMessageVars {
@@ -10,12 +11,11 @@ interface SendAnonMessageVars {
 }
 
 async function sendAnonMessageREST({ roomId, content, userId, isAnonymous }: SendAnonMessageVars) {
-  const res = await fetch(
+  const res = await clerkFetch(
     `/api/anonymousChats/${roomId}/messages/${userId}/${isAnonymous ? 'true' : 'false'}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ content }),
     },
   );
@@ -50,10 +50,9 @@ interface EditAnonMessageVars {
 }
 
 async function editAnonMessageREST({ roomId, messageId, content }: EditAnonMessageVars) {
-  const res = await fetch(`/api/anonymousChats/${roomId}/messages/${messageId}`, {
+  const res = await clerkFetch(`/api/anonymousChats/${roomId}/messages/${messageId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ content }),
   });
   if (!res.ok) {
@@ -85,9 +84,8 @@ interface DeleteAnonMessageVars {
 }
 
 async function deleteAnonMessageREST({ roomId, messageId }: DeleteAnonMessageVars) {
-  const res = await fetch(`/api/anonymousChats/${roomId}/messages/${messageId}`, {
+  const res = await clerkFetch(`/api/anonymousChats/${roomId}/messages/${messageId}`, {
     method: 'DELETE',
-    credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to delete message');
 }
@@ -117,9 +115,9 @@ interface VoteAnonMessageVars {
 
 async function voteAnonMessageREST({ messageId, type }: VoteAnonMessageVars) {
   console.log('[/:messageId/upvote] about to upvote voteAnonMessageREST function')
-  const res = await fetch(
+  const res = await clerkFetch(
     `/api/anonymousChats/${messageId}/${type}`,
-    { method: 'POST', credentials: 'include' },
+    { method: 'POST' },
   );
   
   if (!res.ok) throw new Error('Failed to vote');

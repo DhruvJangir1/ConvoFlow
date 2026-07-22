@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store/store';
 import { anonChatKeys } from '../lib/queryKeys';
+import { clerkFetch } from '../lib/clerkFetch';
 
 export interface AnonymousRoom {
   id: string;
@@ -11,7 +12,7 @@ export interface AnonymousRoom {
 }
 
 async function fetchAnonymousRooms(): Promise<AnonymousRoom[]> {
-  const res = await fetch('/api/anonymousChats', { credentials: 'include' });
+  const res = await clerkFetch('/api/anonymousChats');
   if (!res.ok) throw new Error('Failed to fetch anonymous rooms');
   const data = await res.json();
   return data.chats ?? [];

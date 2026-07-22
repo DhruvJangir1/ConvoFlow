@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { Mail, CheckCircle, RefreshCw } from 'lucide-react';
+import { clerkFetch } from '../lib/clerkFetch';
 
 const TOTAL_DIGITS = 6;
 const VERIFICATION_SECONDS = 15 * 60;
@@ -16,7 +16,6 @@ async function parseError(res: Response, fallback: string): Promise<string> {
 export default function VerificationPage() {
   const navigate = useNavigate();
   const { email: paramEmail } = useParams();
-  const { refreshSession } = useAuth();
 
   const [digits, setDigits] = useState<string[]>(Array(TOTAL_DIGITS).fill(''));
   const [email, setEmail] = useState(paramEmail ? decodeURIComponent(paramEmail) : '');
@@ -92,9 +91,8 @@ export default function VerificationPage() {
     setMessage(null);
 
     try {
-      const res = await fetch('/api/auth/UserVerificaitonRouter/verify', {
+      const res = await clerkFetch('/api/auth/UserVerificaitonRouter/verify', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
       });
@@ -106,12 +104,6 @@ export default function VerificationPage() {
 
       setVerified(true);
       setMessage('Verified! Redirecting...');
-
-      try {
-        await refreshSession();
-      } catch {
-        // best-effort: if refresh fails, still navigate so user can retry login
-      }
 
       setTimeout(() => navigate('/home'), REDIRECT_DELAY_MS);
     } catch (err) {
@@ -133,9 +125,8 @@ export default function VerificationPage() {
     setMessage(null);
 
     try {
-      const res = await fetch('/api/auth/UserVerificaitonRouter/resend-verification', {
+      const res = await clerkFetch('/api/auth/UserVerificaitonRouter/resend-verification', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });

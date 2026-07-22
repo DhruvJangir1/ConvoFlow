@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../store/store';
 import { chatKeys } from '../lib/queryKeys';
 import type { ChatMessages } from '../types/chat';
+import { clerkFetch } from '../lib/clerkFetch';
 
 export interface MessagesResponse {
   messages: ChatMessages[];
@@ -13,7 +14,7 @@ async function fetchMessages(chatId: string, userId: string, before?: string): P
   const url = before
     ? `/api/chats/${chatId}/messages?before=${encodeURIComponent(before)}`
     : `/api/chats/${chatId}/messages`;
-  const res = await fetch(url, { credentials: 'include' });
+  const res = await clerkFetch(url);
   if (!res.ok) throw new Error('Failed to fetch messages');
   const data = await res.json();
   const msgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; message_type?: string; USERS?: { user_name: string; image_url: string | null } | null }) => ({

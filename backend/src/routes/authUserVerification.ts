@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import {  signAccessToken, generateRefreshToken, REFRESH_TOKEN_EXPIRY_MS } from '../services/auth.js';
-import { sendUserVerificationCode, setAuthCookies } from '../services/authVerificaiton.js';
+import { sendUserVerificationCode } from '../services/authVerificaiton.js';
 import { setVerificationCode, findUserIdByCode, deleteVerificationCode } from '../services/verificationStore.js';
 import { prisma } from "../lib/connectionPoolClient.js";
 import { PRISMA_SAFE_SELECT } from '../util/constants';
@@ -18,7 +17,6 @@ authUserVerification.post('/verify', async (req: Request, res: Response): Promis
     return;
   }
 
-  // Find the user_id that matches this code
   const foundUserId = findUserIdByCode(code);
 
   if (!foundUserId) {
@@ -28,7 +26,6 @@ authUserVerification.post('/verify', async (req: Request, res: Response): Promis
   }
   console.log(`[/verify] code matched user ${foundUserId}`);
 
-  // Mark user as verified in DB
   let updatedUser;
 
   try {
@@ -44,31 +41,11 @@ authUserVerification.post('/verify', async (req: Request, res: Response): Promis
     return;
   }
 
-  // Issue tokens now that verification succeeded
-  const accessToken = signAccessToken(updatedUser.id, updatedUser.email);
-  const { token: refreshToken, hash: refreshHash, salt: refreshSalt } = generateRefreshToken();
-
-  await prisma.users.update({
-    where: { id: updatedUser.id },
-    data: {
-      refresh_token_hash: refreshHash,
-      refresh_token_expiry: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
-    },
-  });
-  console.log(`[/verify] tokens issued for user ${foundUserId}`);
-
-  // set new user's tokens in cookies
-  setAuthCookies(res, accessToken, refreshToken, refreshSalt, foundUserId);
-
-  // Remove verification entry
   deleteVerificationCode(foundUserId);
 
   res.json({ user: updatedUser });
 });
 
-
-
-// Resend verification code endpoint: accepts { email }
 authUserVerification.post('/resend-verification', async (req: Request, res: Response): Promise<void> => {
   const { email } = req.body as { email: string };
   console.log(`[/resend-verification] request for ${email}`);

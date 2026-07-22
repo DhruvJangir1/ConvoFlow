@@ -20,6 +20,7 @@ export default defineConfig([
         ...globals.node, 
         ...globals.browser
       }, 
+        tsconfigRootDir: import.meta.dirname, 
     },
   },
 ])

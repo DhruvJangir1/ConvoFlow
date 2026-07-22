@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { setConnected, incrementUnreadNotif } from '../store/userAuthSlice';
 import { setOnlineUsers, addOnlineUser, removeOnlineUser, addChat, setChats } from '../store/chatSlice';
 import { chatKeys, anonChatKeys, notifKeys } from '../lib/queryKeys';
+import { clerkFetch } from '../lib/clerkFetch';
 import type { RootState } from '../store/store';
 import type { Chat, ChatMessages, Notification } from '../types/chat';
 import type { MessagesResponse } from '../hooks/useChatMessagesQuery';
@@ -69,7 +70,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     cleanup();
 
     try {
-      const res = await fetch(TICKET_ENDPOINT, { credentials: 'include' });
+      const res = await clerkFetch(TICKET_ENDPOINT);
       if (!res.ok) throw new Error('Failed to get ticket');
       const { ticket } = await res.json();
 

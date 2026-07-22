@@ -3,6 +3,7 @@ import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
 import { useWebSocket } from "../context/WebSocketContext";
 import { useParams } from "react-router-dom";
+import { clerkFetch } from "../lib/clerkFetch";
 import ChatHeader from "../components/ChatHeader";
 import MessageList from "../components/MessageList";
 import ChatInput from "../components/ChatInput";
@@ -121,9 +122,8 @@ export default function ChatView() {
     if (!chatId || loadingMore || !hasMoreMessages || !oldestMessageDateRef.current || !user) return;
     setLoadingMore(true);
     try {
-      const res = await fetch(
+      const res = await clerkFetch(
         `/api/chats/${chatId}/messages?before=${encodeURIComponent(oldestMessageDateRef.current)}`,
-        { credentials: "include" },
       );
       if (!res.ok) throw new Error("Failed to fetch more messages");
       const data = await res.json();

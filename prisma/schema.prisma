@@ -23,6 +23,7 @@ model users {
   bio                                                    String?
   user_tag                                               String                           @unique
   role                                                   String                           @default("user")
+  clerk_id                                               String?
   AddFriendRequests_AddFriendRequests_receiver_idToUSERS AddFriendRequests[]              @relation("AddFriendRequests_receiver_idToUSERS")
   AddFriendRequests_AddFriendRequests_sender_idToUSERS   AddFriendRequests[]              @relation("AddFriendRequests_sender_idToUSERS")
   AnonymousChatMembers                                   AnonymousChatMembers?
@@ -35,6 +36,8 @@ model users {
   StandardChatMessages                                   StandardChatMessages[]
   StandardChats                                          StandardChats[]
   users                                                  auth_users                       @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  clerkUsers_USERS_clerk_idToclerkUsers                  clerkUsers?                      @relation("USERS_clerk_idToclerkUsers", fields: [clerk_id], references: [clerk_id], onUpdate: NoAction, map: "fk_users_clerk_id")
+  clerkUsers_USERS_emailToclerkUsers                     clerkUsers                       @relation("USERS_emailToclerkUsers", fields: [email], references: [email], onDelete: Cascade, map: "fk_users_email")
   UserPollVotes                                          UserPollVotes[]
 
   @@map("USERS")
@@ -699,6 +702,16 @@ model AnonymousChatMessagesUserVotes {
   AnonymousChatMessages AnonymousChatMessages @relation(fields: [message_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "AnonymousChatMessage_VotesMessageId_fkey")
 
   @@index([user_id, message_id, type], map: "idx_anonymous_votes_user_message_type")
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model clerkUsers {
+  clerk_id                         String  @id @default("")
+  email                            String  @unique
+  USERS_USERS_clerk_idToclerkUsers users[] @relation("USERS_clerk_idToclerkUsers")
+  USERS_USERS_emailToclerkUsers    users?  @relation("USERS_emailToclerkUsers")
+
   @@schema("public")
 }
 

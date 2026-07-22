@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X, Loader2, UserCheck, UserX, AlertCircle } from "lucide-react";
+import { clerkFetch } from "../lib/clerkFetch";
 
 interface FriendRequestModalProps {
   isOpen: boolean;
@@ -53,9 +54,8 @@ export default function FriendRequestModal({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/friends/${entityId}/accept`, {
+      const res = await clerkFetch(`/api/friends/${entityId}/accept`, {
         method: 'PATCH',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entity_id: entityId, sender_user_id: senderUserId }),
       });
@@ -78,9 +78,8 @@ export default function FriendRequestModal({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/friends/${entityId}/reject`, {
+      const res = await clerkFetch(`/api/friends/${entityId}/reject`, {
         method: 'PATCH',
-        credentials: 'include',
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Request failed' }));

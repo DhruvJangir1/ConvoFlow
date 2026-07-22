@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X, Copy, Check, LogOut, Pencil, Calendar, MessageSquare, Hash, Shield } from "lucide-react";
 import { useSelector } from "react-redux";
-import { useAuth } from "../context/AuthContext";
+import { useClerk } from "@clerk/react";
 import { useNavigate } from "react-router-dom";
 import type { RootState } from "../store/store";
 import UserAvatar from "../components/UserAvatar";
@@ -57,7 +57,7 @@ function AccountRow({ label, value, copyable }: { label: string; value: string; 
 }
 
 export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) {
-  const { logout } = useAuth();
+  const { signOut } = useClerk();
   const navigate = useNavigate();
   const user = useSelector((s: RootState) => s.userAuth.user);
   const conversations = useSelector((s: RootState) => s.chat?.chats ?? []);
@@ -175,7 +175,7 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
             Edit Profile
           </button>
           <button
-            onClick={async () => { await logout(); navigate('/'); }}
+            onClick={async () => { await signOut(); navigate('/'); }}
             className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/20"
           >
             <LogOut className="h-3.5 w-3.5" />

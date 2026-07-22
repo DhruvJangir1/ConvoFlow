@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
 import { useWebSocket } from "../context/WebSocketContext";
+import { clerkFetch } from "../lib/clerkFetch";
 import { useSendMessageMutation } from "../hooks/useChatMutations";
 import type { ChatMessages } from "../types/chat";
 
@@ -67,9 +68,8 @@ export default function ChatInput({ setMessages, value, onChange, onSend, sendIm
     const formData = new FormData();
     formData.append("image", file, file.name);
     try {
-      const res = await fetch(`/api/chats/${chatId}/image`, {
+      const res = await clerkFetch(`/api/chats/${chatId}/image`, {
         method: "POST",
-        credentials: "include",
         body: formData,
       });
       if (!res.ok) {

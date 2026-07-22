@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { UserPlus } from "lucide-react";
 import AddNewFriendModal from "../modals/AddNewFriendModal";
+import { clerkFetch } from "../lib/clerkFetch";
 
 type AddFriendButtonProps = {
   compact?: boolean;
@@ -15,10 +16,9 @@ export default function AddFriendButton({ compact }: AddFriendButtonProps) {
     setSending(true);
     try {
       console.log("[AddFriendButton] Sending POST /api/friends/send...");
-      const res = await fetch("/api/friends/send", {
+      const res = await clerkFetch("/api/friends/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ userTag }),
       });
 
