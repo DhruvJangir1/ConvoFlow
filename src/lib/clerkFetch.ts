@@ -1,4 +1,4 @@
-let getTokenFn: (() => Promise<string | null>) | null = null;
+let getTokenFn: (() => Promise<string | null>) | null = null
 
 export function setGetTokenFn(fn: () => Promise<string | null>) {
   getTokenFn = fn;
@@ -21,6 +21,6 @@ export async function clerkFetch(input: RequestInfo | URL, init?: RequestInit): 
   return fetch(input, {
     ...init,
     headers,
-    credentials: 'include',
+    credentials: 'include'
   });
 }
