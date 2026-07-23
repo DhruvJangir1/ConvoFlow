@@ -12,10 +12,8 @@ export default function AddFriendButton({ compact }: AddFriendButtonProps) {
   const [sending, setSending] = useState(false);
 
   async function handleSend(userTag: string): Promise<void> {
-    console.log(`[AddFriendButton] handleSend called with userTag: ${userTag}`);
     setSending(true);
     try {
-      console.log("[AddFriendButton] Sending POST /api/friends/send...");
       const res = await clerkFetch("/api/friends/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -23,14 +21,11 @@ export default function AddFriendButton({ compact }: AddFriendButtonProps) {
       });
 
       const data = await res.json();
-      console.log("[AddFriendButton] Response:", res.status, data);
 
       if (!res.ok) {
         return Promise.reject(new Error(data.error || "Failed to send request"));
       }
-      console.log("[AddFriendButton] Friend request sent successfully");
     } finally {
-      console.log("[AddFriendButton] Resetting sending state");
       setSending(false);
     }
   }

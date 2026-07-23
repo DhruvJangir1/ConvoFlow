@@ -45,10 +45,6 @@ const userAuthSlice = createSlice({
     updateUserProfileImage(state, action: PayloadAction<string>) {
       if (state.user) {
         state.user.image_url = action.payload;
-        console.log("[userAuthSlice] updateUserProfileImage called, updated user image_url:", state.user.image_url);
-      }
-      else{
-        console.log("[userAuthSlice] updateUserProfileImage called but user is null");
       }
     },
   },

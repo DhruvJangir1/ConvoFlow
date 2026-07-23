@@ -80,8 +80,8 @@ export default function ChatInput({ setMessages, value, onChange, onSend, sendIm
       if (!data.url) {
         throw new Error("Image upload did not return a URL");
       }
-    } catch (err) {
-      console.error("[ChatInput] error uploading image:", err);
+    } catch {
+      // image upload failed
     }
   }
 

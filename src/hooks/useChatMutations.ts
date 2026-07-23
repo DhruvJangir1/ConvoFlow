@@ -102,8 +102,7 @@ export function useEditMessageMutation() {
       });
       return { prev };
     },
-    onError: (err, vars, context) => {
-      console.error('Error editing message:', err);
+    onError: (_err, vars, context) => {
       const previousMessages = context?.prev;
       if (previousMessages) {
         queryClient.setQueryData(chatKeys.messages(vars.chatId), previousMessages);
@@ -146,8 +145,7 @@ export function useDeleteMessageMutation() {
       });
       return { prev };
     },
-    onError: (err, vars, context) => {
-      console.error('Error deleting message:', err);
+    onError: (_err, vars, context) => {
       if (context?.prev) {
         queryClient.setQueryData(chatKeys.messages(vars.chatId), context.prev);
       }

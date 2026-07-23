@@ -56,9 +56,7 @@ export default function AnonymousChat() {
   // Join room on mount
   useEffect(() => {
     if (!roomId || !user) return;
-    clerkFetch(`/api/anonymousChats/${roomId}/join`, { method: "POST" }).catch((err) =>
-      console.error(err),
-    );
+    clerkFetch(`/api/anonymousChats/${roomId}/join`, { method: "POST" }).catch(() => {});
   }, [roomId, user]);
 
   // Seed messages from cache
@@ -164,8 +162,8 @@ export default function AnonymousChat() {
       if (newMsgs.length > 0) {
         oldestDateRef.current = newMsgs[0].createdAt;
       }
-    } catch (err) {
-      console.error("[AnonymousChat] loadMore error:", err);
+    } catch {
+      // failed to load more messages
     } finally {
       setLoadingMore(false);
     }
@@ -212,8 +210,7 @@ export default function AnonymousChat() {
               ),
           );
         },
-        onError: (err) => {
-          console.error("[AnonymousChat] send error:", err);
+        onError: () => {
           ownMessageIds.current.delete(tempId);
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
         },
@@ -246,8 +243,7 @@ export default function AnonymousChat() {
     editMessageMutation.mutate(
       { roomId, messageId: editingMessageId, content: newContent },
       {
-        onError: (err) => {
-          console.error("[AnonymousChat] edit error:", err);
+        onError: () => {
           setMessages(prevMessages);
         },
       },
@@ -265,8 +261,7 @@ export default function AnonymousChat() {
     deleteMessageMutation.mutate(
       { roomId, messageId: msgId },
       {
-        onError: (err) => {
-          console.error("[AnonymousChat] delete error:", err);
+        onError: () => {
           setMessages(prevMessages);
         },
       },
@@ -294,14 +289,9 @@ export default function AnonymousChat() {
       }),
     );
 
-    if (!roomId){
-      console.log('no room found')
-    return;}
+    if (!roomId) return;
 
-    if (!user){
-console.log('no user found')
-return;
-    }
+    if (!user) return;
 
     voteMutation.mutate(
       { roomId, messageId, type: 'upvote' },

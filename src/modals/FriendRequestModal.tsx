@@ -68,7 +68,6 @@ export default function FriendRequestModal({
       onAccepted(data.chat?.id);
     } catch (err) {
       setError('Network error — is the server running?');
-      console.error('[FriendRequestModal] Accept error:', err);
     } finally {
       setLoading(false);
     }
@@ -89,7 +88,6 @@ export default function FriendRequestModal({
       onRejected(notificationId);
     } catch (err) {
       setError('Network error — is the server running?');
-      console.error('[FriendRequestModal] Reject error:', err);
     } finally {
       setLoading(false);
     }

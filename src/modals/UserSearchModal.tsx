@@ -51,8 +51,7 @@ export default function UserSearchModal({ isOpen, onClose }: Props) {
       if (!res.ok) throw new Error('Search failed');
       const data = await res.json();
       setResults(data.users || []);
-    } catch (err) {
-      console.error('[UserSearch] search error:', err);
+    } catch {
       setResults([]);
     } finally {
       setLoading(false);
@@ -78,8 +77,8 @@ export default function UserSearchModal({ isOpen, onClose }: Props) {
       queryClient.invalidateQueries({ queryKey: chatKeys.lists() });
       onClose();
       navigate(`/chat/${data.chat.id}`);
-    } catch (err) {
-      console.error('[UserSearch] create DM error:', err);
+    } catch {
+      // DM creation failed
     } finally {
       setCreating(null);
     }

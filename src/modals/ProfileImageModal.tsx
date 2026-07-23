@@ -48,8 +48,8 @@ export default function ProfileImageModal({ onClose, imageUrl, userName }: Props
       dispatch(updateUserProfileImage(data.imageUrl));
 
     }
-    catch(err){
-      console.error("Error uploading image:", err);
+    catch{
+      // image upload failed
     }
 
     handleClose();

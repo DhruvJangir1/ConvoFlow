@@ -135,8 +135,8 @@ export default function ChatView() {
       if (newMsgs.length > 0) {
         oldestMessageDateRef.current = newMsgs[0].createdAt;
       }
-    } catch (err) {
-      console.error(`[ChatView] failed to load more messages:`, err);
+    } catch {
+      // failed to load more messages
     } finally {
       setLoadingMore(false);
     }
@@ -176,8 +176,7 @@ export default function ChatView() {
             prev.map((m) => (m.id === editingMessageId ? buildMessage(data.message, true, chatId) : m)),
           );
         },
-        onError: (err) => {
-          console.error(`[ChatView] error updating message ${editingMessageId}:`, err);
+        onError: () => {
           setMessages(prevMessages);
         },
       },
@@ -201,8 +200,7 @@ export default function ChatView() {
     deleteMessageMutation.mutate(
       { chatId, messageId: msgId, userId: user!.id },
       {
-        onError: (err) => {
-          console.error(`[ChatView] error deleting message ${msgId}:`, err);
+        onError: () => {
           setMessages(prevMessages);
         },
       },

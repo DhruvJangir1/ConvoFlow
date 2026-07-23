@@ -96,9 +96,6 @@ export default function NotificationsPage() {
   const handleReject = useCallback(async (notification: Notification) => {
     setActionLoading(notification.id);
     rejectMutation.mutate(notification.entity_id, {
-      onError: (err) => {
-        console.error('[NotificationsPage] Reject failed:', err);
-      },
       onSettled: () => {
         removeNotification(notification.id);
         setActionLoading(null);
@@ -112,17 +109,14 @@ export default function NotificationsPage() {
     setAcceptLoading(true);
     acceptMutation.mutate(notification, {
       onSuccess: (data) => {
-        console.log('[NotificationsPage] Accept mutation onSuccess fired, data:', data);
         try {
           removeNotification(notification.id);
           const chatId = data.chat?.id;
           if (!chatId) {
-            console.error('[NotificationsPage] Accept succeeded but no chat ID returned');
             setAcceptLoading(false);
             setActionLoading(null);
             return;
           }
-          console.log('[NotificationsPage] Building newChat for dispatch, chatId:', chatId);
           const newChat: Chat = {
             id: chatId,
             name: data.chat.name ?? data.senderName ?? 'Unknown',
@@ -138,23 +132,16 @@ export default function NotificationsPage() {
               image_url: null,
             }],
           };
-          console.log('[NotificationsPage] Dispatching addChat to Redux');
           dispatch(addChat(newChat));
-          console.log('[NotificationsPage] Setting messages cache for chat', chatId);
           queryClient.setQueryData(chatKeys.messages(chatId), { messages: [], hasMore: false });
-          console.log('[NotificationsPage] Calling subscribeToChats');
           subscribeToChats([chatId]);
-          console.log('[NotificationsPage] Navigating to /chat/' + chatId);
           navigate(`/chat/${chatId}`);
-          console.log('[NotificationsPage] Navigation call completed');
-        } catch (err) {
-          console.error('[NotificationsPage] onSuccess error:', err);
+        } catch {
           setAcceptLoading(false);
           setActionLoading(null);
         }
       },
-      onError: (err) => {
-        console.error('[NotificationsPage] Accept error:', err);
+      onError: () => {
         setAcceptLoading(false);
         setActionLoading(null);
       },

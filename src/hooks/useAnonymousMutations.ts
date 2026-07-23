@@ -31,10 +31,7 @@ export function useAnonymousSendMessageMutation() {
 
   return useMutation({
     mutationFn: sendAnonMessageREST,
-    onSettled: (data, err, vars) => {
-      if (err) {
-        console.error('Error sending message:', err);
-      }
+    onSettled: (data, _err, vars) => {
       if (data) {
         queryClient.invalidateQueries({ queryKey: anonChatKeys.messages(vars.roomId) });
       }
@@ -66,10 +63,7 @@ export function useAnonymousEditMessageMutation() {
 
   return useMutation({
     mutationFn: editAnonMessageREST,
-    onSettled: (data, err, vars) => {
-      if (err) {
-        console.error('Error editing message:', err);
-      }
+    onSettled: (data, _err, vars) => {
       if (data) {
         queryClient.invalidateQueries({ queryKey: anonChatKeys.messages(vars.roomId) });
       }
@@ -95,10 +89,7 @@ export function useAnonymousDeleteMessageMutation() {
 
   return useMutation({
     mutationFn: deleteAnonMessageREST,
-    onSettled: (data, err, vars) => {
-      if (err) {
-        console.error('Error deleting message:', err);
-      }
+    onSettled: (data, _err, vars) => {
       if (data) {
         queryClient.invalidateQueries({ queryKey: anonChatKeys.messages(vars.roomId) });
       }
@@ -114,7 +105,6 @@ interface VoteAnonMessageVars {
 }
 
 async function voteAnonMessageREST({ messageId, type }: VoteAnonMessageVars) {
-  console.log('[/:messageId/upvote] about to upvote voteAnonMessageREST function')
   const res = await clerkFetch(
     `/api/anonymousChats/${messageId}/${type}`,
     { method: 'POST' },
@@ -122,7 +112,6 @@ async function voteAnonMessageREST({ messageId, type }: VoteAnonMessageVars) {
   
   if (!res.ok) throw new Error('Failed to vote');
 
-  console.log('[/:messageId/upvote] voteAnonMessageREST function SUCCESSFUL')
   return res.json();
 }
 
@@ -131,10 +120,7 @@ export function useAnonymousVoteMutation() {
 
   return useMutation({
     mutationFn: voteAnonMessageREST,
-    onSettled: (data, err, vars) => {
-      if (err) {
-        console.error('Error voting on message:', err);
-      }
+    onSettled: (data, _err, vars) => {
       if (data) {
         queryClient.invalidateQueries({ queryKey: anonChatKeys.messages(vars.roomId) });
       }
