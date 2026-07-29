@@ -11,7 +11,7 @@ import UserAvatar from "./UserAvatar";
 type Message = ChatMessages | AnonymousChatMessages;
 
 function isAnonMsg(msg: Message): msg is AnonymousChatMessages {
-  return 'isAnonymous' in msg;
+  return 'isAnonymous' in msg && msg.isAnonymous === true;
 }
 
 type MessageListProps = {
@@ -294,11 +294,11 @@ export default function MessageList({
             <div key={group.messages[0].id}>
               {showDate && (
                 <div className="flex items-center gap-3 py-3">
-                  <div className="flex-1 h-px bg-zinc-800/50" />
-                  <span className="text-xs tracking-wider text-zinc-500 uppercase shrink-0">
+                  <div className="flex-1 h-px bg-border-subtle" />
+                  <span className="text-xs tracking-wider text-text-muted uppercase shrink-0">
                     {formatDateSeparator(group.messages[0].createdAt)}
                   </span>
-                  <div className="flex-1 h-px bg-zinc-800/50" />
+                  <div className="flex-1 h-px bg-border-subtle" />
                 </div>
               )}
 
@@ -334,10 +334,10 @@ export default function MessageList({
                           isEditing
                             ? "rounded-2xl border border-border bg-surface-raised shadow-lg shadow-black/20 px-3.5 pt-3 pb-2"
                             : isAnonMsg(msg)
-                              ? "w-fit rounded-2xl bg-zinc-700 text-text-primary shadow-sm px-3 py-1.5"
+                              ? "w-fit rounded-2xl bg-surface-raised text-text-primary shadow-sm px-3 py-1.5"
                               : group.isOwn
-                                ? "w-fit rounded-2xl rounded-tr-sm bg-indigo-600 text-white shadow-sm px-3 py-1.5"
-                                : "w-fit rounded-2xl rounded-tl-sm bg-zinc-800 text-text-primary shadow-sm px-3 py-1.5"
+                                ? "w-fit rounded-2xl rounded-tr-sm bg-accent text-white shadow-sm px-3 py-1.5"
+                                : "w-fit rounded-2xl rounded-tl-sm bg-surface-elevated text-text-primary shadow-sm px-3 py-1.5"
                         }`}
                         style={{ maxWidth: "100%" }}
                       >
@@ -390,7 +390,7 @@ export default function MessageList({
                                 src={msg.content}
                                 alt="Uploaded image"
                                 onClick={() => onImageClick?.(msg.content)}
-                                className="max-h-75 w-full rounded-2xl object-contain border border-zinc-700 bg-zinc-950 cursor-pointer hover:opacity-90 transition-opacity"
+                                className="max-h-75 w-full rounded-2xl object-contain border border-border bg-surface-base cursor-pointer hover:opacity-90 transition-opacity"
                               />
                             ) : (
                               <p className="text-sm whitespace-pre-wrap min-w-0">
@@ -400,7 +400,7 @@ export default function MessageList({
                             {isLast && (
                               <div className={`flex ${group.isOwn ? "justify-end" : "justify-start"} mt-0.5`}>
                                 <span className={`text-[10px] select-none whitespace-nowrap ${
-                                  group.isOwn ? "text-indigo-200/80" : "text-zinc-400/80"
+                                  group.isOwn ? "text-accent-info/80" : "text-text-secondary/80"
                                 }`}>
                                   {formatMessageTime(msg.createdAt)}
                                   {msg.isEdited && (
@@ -426,12 +426,12 @@ export default function MessageList({
                               onClick={() => onUpvote(msg.id)}
                               className={`flex h-6 items-center gap-1 rounded px-1.5 transition-colors ${
                                 msg.userVote === 'upvote'
-                                  ? 'text-green-400 bg-green-900/20'
-                                  : 'text-zinc-400 hover:text-green-400 hover:bg-zinc-700/50'
+                                  ? 'text-accent-success bg-accent-success/20'
+                                  : 'text-text-secondary hover:text-accent-success hover:bg-surface-hover/50'
                               }`}
                               aria-label="Upvote"
                             >
-                              <ThumbsUp className={`h-3.5 w-3.5 ${msg.userVote === 'upvote' ? 'fill-green-400' : ''}`} />
+                              <ThumbsUp className={`h-3.5 w-3.5 ${msg.userVote === 'upvote' ? 'fill-accent-success' : ''}`} />
                               {(msg.totalUpvotes ?? 0) > 0 && (
                                 <span className="text-[11px] font-medium leading-none">{msg.totalUpvotes}</span>
                               )}
@@ -440,12 +440,12 @@ export default function MessageList({
                               onClick={() => onDownvote(msg.id)}
                               className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
                                 msg.userVote === 'downvote'
-                                  ? 'text-red-400 bg-red-900/20'
-                                  : 'text-zinc-400 hover:text-red-400 hover:bg-zinc-700/50'
+                                  ? 'text-accent-danger bg-accent-danger/20'
+                                  : 'text-text-secondary hover:text-accent-danger hover:bg-surface-hover/50'
                               }`}
                               aria-label="Downvote"
                             >
-                              <ThumbsDown className={`h-3.5 w-3.5 ${msg.userVote === 'downvote' ? 'fill-red-400' : ''}`} />
+                              <ThumbsDown className={`h-3.5 w-3.5 ${msg.userVote === 'downvote' ? 'fill-accent-danger' : ''}`} />
                             </button>
                           </div>
                         </div>
@@ -458,14 +458,14 @@ export default function MessageList({
                               <IconButton
                                 size="small"
                                 onClick={() => onStartEdit(String(msg.id))}
-                                sx={{ color: '#8A8AA0', padding: '4px' }}
+                                sx={{ color: 'var(--color-text-secondary)', padding: '4px' }}
                               >
                                 <Edit sx={{ fontSize: 14 }} />
                               </IconButton>
                               <IconButton
                                 size="small"
                                 onClick={() => onDeleteClick(String(msg.id))}
-                                sx={{ color: '#8A8AA0', padding: '4px' }}
+                                sx={{ color: 'var(--color-text-secondary)', padding: '4px' }}
                               >
                                 <Delete sx={{ fontSize: 14 }} />
                               </IconButton>
@@ -485,7 +485,7 @@ export default function MessageList({
         {streaming && (
           <div className="mb-3 flex w-full items-start justify-start">
             <div className="flex flex-col items-start">
-              <div className="w-fit rounded-2xl rounded-tl-sm bg-zinc-800 px-3 py-1.5 text-text-primary">
+              <div className="w-fit rounded-2xl rounded-tl-sm bg-surface-elevated px-3 py-1.5 text-text-primary">
                 <TypingDots />
               </div>
             </div>

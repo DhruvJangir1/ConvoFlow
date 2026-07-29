@@ -43,12 +43,22 @@ export async function notifyFriendRequest(
       return [notif, req];
     });
 
+    console.log(`[notifyFriendRequest] Success: notification=${notification.id}, friendRequest=${friendRequest.id}`);
+
     sendToUser(receiverId, {
       type: 'notification:new',
-      payload: notification,
+      payload: {
+        id: notification.id,
+        receiver_user_id: receiverId,
+        sender_user_id: senderId,
+        type: 'friend_request',
+        content: `${senderName} sent you a friend request`,
+        entity_id: requestId,
+        read_at: null,
+        created_at: new Date().toISOString(),
+      },
     });
 
-    console.log(`[notifyFriendRequest] Success: notification=${notification.id}, friendRequest=${friendRequest.id}`);
     return { notification, friendRequest };
   } catch (err) {
     console.error('[notifyFriendRequest] Error:', err);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { Loader2, Search, Shield } from "lucide-react";
 import { useSelector } from "react-redux";
@@ -9,7 +9,6 @@ import { formatSmartDate } from "../lib/dateFormat";
 import UserSearchModal from "../modals/UserSearchModal";
 import AddFriendButton from "../components/AddFriendButton";
 import UserAvatar from "../components/UserAvatar";
-import { useWebSocket } from "../context/WebSocketContext";
 
 type ChatListProps = Record<string, never>;
 
@@ -60,13 +59,6 @@ export default function ChatList(_props: ChatListProps) {
   );
 
   const { data: anonRooms = [] } = useAnonymousRoomsQuery();
-  const { subscribeToChats } = useWebSocket();
-
-  useEffect(() => {
-    if (anonRooms.length > 0) {
-      subscribeToChats(anonRooms.map(r => r.id));
-    }
-  }, [anonRooms, subscribeToChats]);
 
   const filteredAnon = useMemo(
     () => anonRooms
@@ -82,7 +74,7 @@ export default function ChatList(_props: ChatListProps) {
   const isAnonMode = mode === "communities";
 
   return (
-    <aside className="flex h-full w-full lg:w-65 shrink-0 flex-col border-r border-zinc-800/40 bg-surface-elevated">
+    <aside className="flex h-full w-full lg:w-65 shrink-0 flex-col border-r border-border/40 bg-surface-elevated">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-2">
           <img src="/CONVO_FLOW_LOGO.png" alt="ConvoFlow" className="h-8 w-auto" />
@@ -147,12 +139,12 @@ export default function ChatList(_props: ChatListProps) {
                   <button
                     key={room.id}
                     onClick={() => handleNavigate(`/anonymous/${room.id}`)}
-                    className={`relative mx-2 my-0.5 flex h-16 items-center gap-3 rounded-[10px] px-3 text-left transition-colors duration-120 hover:bg-surface-raised ${
-                      isActive ? "bg-white/5" : ""
+                      className={`relative mx-2 my-0.5 flex h-16 items-center gap-3 rounded-[10px] px-3 text-left transition-colors duration-120 hover:bg-surface-raised ${
+                      isActive ? "bg-surface/50" : ""
                     }`}
                   >
                     {isActive && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-8 bg-accent rounded-r-full shadow-[0_0_8px_#7C6EF766]" />
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-8 bg-accent rounded-r-full shadow-[0_0_8px_var(--color-accent-muted)]" />
                     )}
                     <div
                       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
@@ -198,12 +190,12 @@ export default function ChatList(_props: ChatListProps) {
                   <button
                     key={chat.id}
                     onClick={() => handleNavigate(`/chat/${chat.id}`)}
-                    className={`relative mx-2 my-0.5 flex h-16 items-center gap-3 rounded-[10px] px-3 text-left transition-colors duration-120 hover:bg-surface-raised ${
-                      isActive ? "bg-white/5" : ""
+                      className={`relative mx-2 my-0.5 flex h-16 items-center gap-3 rounded-[10px] px-3 text-left transition-colors duration-120 hover:bg-surface-raised ${
+                      isActive ? "bg-surface/50" : ""
                     }`}
                   >
                     {isActive && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-8 bg-accent rounded-r-full shadow-[0_0_8px_#7C6EF766]" />
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-8 bg-accent rounded-r-full shadow-[0_0_8px_var(--color-accent-muted)]" />
                     )}
                     {chat.avatar_url ? (
                       <UserAvatar imageUrl={chat.avatar_url} userName={chat.name} size="md" />

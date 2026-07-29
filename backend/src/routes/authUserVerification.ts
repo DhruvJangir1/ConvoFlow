@@ -4,10 +4,16 @@ import { sendUserVerificationCode } from '../services/authVerificaiton.js';
 import { setVerificationCode, findUserIdByCode, deleteVerificationCode } from '../services/verificationStore.js';
 import { prisma } from "../lib/connectionPoolClient.js";
 import { PRISMA_SAFE_SELECT } from '../util/constants';
+import { trackAuthAttempt } from '../services/rateLimiter.js';
 
 const authUserVerification = Router();
 
 authUserVerification.post('/verify', async (req: Request, res: Response): Promise<void> => {
+  if (!await trackAuthAttempt(req.ip ?? req.socket.remoteAddress ?? 'unknown')) {
+    res.status(429).json({ error: 'Too many attempts' });
+    return;
+  }
+
   const { code } = req.body as { code?: string };
   console.log(`[/verify] verification attempt received`);
 
@@ -47,6 +53,11 @@ authUserVerification.post('/verify', async (req: Request, res: Response): Promis
 });
 
 authUserVerification.post('/resend-verification', async (req: Request, res: Response): Promise<void> => {
+  if (!await trackAuthAttempt(req.ip ?? req.socket.remoteAddress ?? 'unknown')) {
+    res.status(429).json({ error: 'Too many attempts' });
+    return;
+  }
+
   const { email } = req.body as { email: string };
   console.log(`[/resend-verification] request for ${email}`);
   if (!email) {

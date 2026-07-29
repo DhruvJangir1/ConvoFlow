@@ -5,18 +5,31 @@ export function setGetTokenFn(fn: () => Promise<string | null>) {
 }
 
 export async function clerkFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const headers = new Headers(init?.headers);
-
-  if (getTokenFn) {
-    const token = await getTokenFn();
+  function buildHeaders(token?: string | null): Headers {
+    const headers = new Headers(init?.headers);
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
+    return headers;
   }
 
-  return fetch(input, {
+  const firstToken = getTokenFn ? await getTokenFn() : null;
+  let res = await fetch(input, {
     ...init,
-    headers,
-    credentials: 'include'
+    headers: buildHeaders(firstToken),
+    credentials: 'include',
   });
+
+  if (res.status === 401 && getTokenFn) {
+    const retryToken = await getTokenFn();
+    if (retryToken && retryToken !== firstToken) {
+      res = await fetch(input, {
+        ...init,
+        headers: buildHeaders(retryToken),
+        credentials: 'include',
+      });
+    }
+  }
+
+  return res;
 }

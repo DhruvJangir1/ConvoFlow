@@ -1,25 +1,24 @@
-/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useQueryClient } from '@tanstack/react-query';
-import { setConnected, incrementUnreadNotif } from '../store/userAuthSlice';
-import { setOnlineUsers, addOnlineUser, removeOnlineUser, addChat, setChats } from '../store/chatSlice';
-import { chatKeys, anonChatKeys, notifKeys } from '../lib/queryKeys';
+import { setConnected } from '../store/userAuthSlice';
+import { setOnlineUsers, addOnlineUser, removeOnlineUser } from '../store/chatSlice';
 import { clerkFetch } from '../lib/clerkFetch';
+import { chatKeys, anonChatKeys } from '../lib/queryKeys';
 import type { RootState } from '../store/store';
-import type { Chat, ChatMessages, Notification } from '../types/chat';
-import type { MessagesResponse } from '../hooks/useChatMessagesQuery';
-import type { AnonymousRoom } from '../hooks/useAnonymousRoomsQuery';
-import type { WSMessage } from '../types/WsMessageNotification';
+import type { Chat } from '../types/chat';
+import type { WSMessage } from '../../backend/ws/wsTypes';
+import type { WebSocketContextValue } from '../../backend/ws/wsTypes';
+import {
+  addMessageToChatCache,
+  removeMessageFromChatCache,
+  addChatFromWs,
+  addMessageToAnonCache,
+  removeMessageFromAnonCache,
+  addNotificationFromWs,
+} from '../hooks/wsCacheHandlers';
 
 type MessageNewPayload = Extract<WSMessage, { type: 'message:new' }>['payload'] & { isEdited?: boolean };
-
-interface WebSocketContextValue {
-  socket: WebSocket | null;
-  send: (type: string, payload: object) => void;
-  subscribeToChats: (chatIds: string[]) => void;
-  onMessage: (handler: (msg: WSMessage) => void) => () => void;
-}
 
 const WebSocketContext = createContext<WebSocketContextValue | null>(null);
 
@@ -59,7 +58,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     const subscribeToChats = useCallback((chatIds: string[]) => {
     for (const id of chatIds) subscribedChatsRef.current.add(id);
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'subscribe', payload: { chatIds } }));
     }
   }, []);
@@ -77,11 +76,41 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       const ws = new WebSocket(`${WS_URL}?ticket=${ticket}`);
       wsRef.current = ws;
 
-      ws.onopen = () => {
+      ws.onopen = async () => {
         dispatch(setConnected(true));
-        const pending = [...subscribedChatsRef.current];
-        if (pending.length > 0) {
-          ws.send(JSON.stringify({ type: 'subscribe', payload: { chatIds: pending } }));
+        console.log('[WS Client] connected');
+
+        try {
+          const [chatsRes, anonRes] = await Promise.all([
+            clerkFetch('/api/chats'),
+            clerkFetch('/api/anonymousChats'),
+          ]);
+
+          const standardIds: string[] = chatsRes.ok
+            ? ((await chatsRes.json()) as { chats: Array<{ id: string }> }).chats.map((c) => c.id)
+            : [];
+
+          const anonIds: string[] = anonRes.ok
+            ? ((await anonRes.json()) as { chats: Array<{ id: string }> }).chats.map((r) => r.id)
+            : [];
+
+          const allIds = [...new Set([...standardIds, ...anonIds, ...subscribedChatsRef.current])];
+          for (const id of allIds) subscribedChatsRef.current.add(id);
+
+          console.log('[WS Client] subscribing to rooms:', allIds.length, 'ids');
+          if (allIds.length > 0) {
+            ws.send(JSON.stringify({ type: 'subscribe', payload: { chatIds: allIds } }));
+          }
+          queryClient.invalidateQueries({ queryKey: chatKeys.all });
+          queryClient.invalidateQueries({ queryKey: anonChatKeys.all });
+        } catch {
+          const pending = [...subscribedChatsRef.current];
+          console.log('[WS Client] subscribe fetch failed, using pending:', pending.length);
+          if (pending.length > 0) {
+            ws.send(JSON.stringify({ type: 'subscribe', payload: { chatIds: pending } }));
+          }
+          queryClient.invalidateQueries({ queryKey: chatKeys.all });
+          queryClient.invalidateQueries({ queryKey: anonChatKeys.all });
         }
       };
 
@@ -100,88 +129,56 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         'user:online': (payload) => dispatch(addOnlineUser(payload)),
         'user:offline': (payload) => dispatch(removeOnlineUser(payload)),
 
-        'notification:new': (payload) => {
-          dispatch(incrementUnreadNotif());
-          queryClient.setQueryData<Notification[]>(notifKeys.lists(), (old) =>
-            old ? [payload, ...old.filter((n) => n.id !== payload.id)] : [payload],
-          );
-        },
+        'notification:new': (payload) => addNotificationFromWs(queryClient, dispatch, payload),
 
         'chat:new': (payload) => {
-          const newChatId = payload.chat.id;
-          dispatch(addChat(payload.chat));
-          queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) =>
-            old ? [payload.chat, ...old.filter((c) => c.id !== newChatId)] : [payload.chat],
-          );
-          subscribeToChats([newChatId]);
+          const chat = payload.chat as Chat;
+          addChatFromWs(queryClient, dispatch, chat);
+          subscribeToChats([chat.id]);
         },
 
         'message:new': (payload) => {
-          const { chatId, ...rest } = payload;
-          queryClient.setQueryData<MessagesResponse>(chatKeys.messages(chatId), (old) => {
-            const entry: ChatMessages = {
-              id: rest.id,
-              chatId,
-              senderId: rest.senderId,
-              senderName: rest.senderName,
-              senderImage: rest.senderImage ?? null,
-              content: rest.content,
-              createdAt: rest.createdAt,
-              isOwn: rest.senderId === user?.id,
-              isEdited: rest.isEdited ?? false,
-              messageType: rest.messageType ?? 'text',
-            };
-            if (!old) return { messages: [entry], hasMore: false };
-            if (old.messages.some((m) => m.id === entry.id)) return old;
-            return { ...old, messages: [...old.messages, entry] };
-          });
-
-          const timestamp = new Date(rest.createdAt).getTime();
-          const updatedChats = queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) => {
-            if (!old) return old;
-            return old.map((chat) =>
-              chat.id === chatId
-                ? { ...chat, lastMessage: rest.content, timestamp }
-                : chat,
-            );
-          });
-          if (updatedChats) {
-            dispatch(setChats(updatedChats));
+          if (payload.chatType === 'anonymous') {
+            addMessageToAnonCache(queryClient, payload, user.id);
+          } else {
+            addMessageToChatCache(queryClient, dispatch, payload, user.id);
           }
-
-          queryClient.setQueryData<AnonymousRoom[]>(anonChatKeys.lists(), (old) => {
-            if (!old) return old;
-            return old.map((room) =>
-              room.id === chatId
-                ? { ...room, lastMessage: rest.content, timestamp }
-                : room,
-            );
-          });
         },
 
         'message:delete': (payload) => {
-          queryClient.setQueryData<MessagesResponse>(chatKeys.messages(payload.chatId), (old) => {
-            if (!old) return old;
-            return { ...old, messages: old.messages.filter((m) => m.id !== payload.messageId) };
-          });
+          if (payload.isAnonymous) {
+            removeMessageFromAnonCache(queryClient, payload.chatId, payload.messageId);
+          } else {2
+            removeMessageFromChatCache(queryClient, payload.chatId, payload.messageId);
+          }
         },
       };
 
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data) as WSMessage;
+          if (msg.type === 'message:new') {
+            const sentAt = (msg.payload as { sentAt?: number }).sentAt;
+            const receivedAt = Date.now();
+            console.log(`[WS Client] message:new RECEIVED: chatId=${(msg.payload as { chatId: string }).chatId} +${sentAt ? receivedAt - sentAt : '?'}ms`);
+          }
           switch (msg.type) {
             case 'chat:online-users': handlers['chat:online-users'](msg.payload); break;
             case 'user:online': handlers['user:online'](msg.payload); break;
             case 'user:offline': handlers['user:offline'](msg.payload); break;
             case 'notification:new': handlers['notification:new'](msg.payload); break;
             case 'chat:new': handlers['chat:new'](msg.payload); break;
-            case 'message:new': handlers['message:new'](msg.payload); break;
+            case 'message:new': {
+              handlers['message:new'](msg.payload);
+              const sentAt = (msg.payload as { sentAt?: number }).sentAt;
+              console.log(`[WS Client] message:new CACHE_UPDATED: ${Date.now()}ms +${sentAt ? Date.now() - sentAt : '?'}ms`);
+              break;
+            }
             case 'message:delete': handlers['message:delete'](msg.payload); break;
           }
           messageHandlers.current.forEach((fn) => fn(msg));
-        } catch {
-          /* ignore malformed */
+        } catch (err){
+          console.error(err);
         }
       };
 
@@ -208,15 +205,16 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   } else {
     cleanup();
-
     }
     return () => cleanup();
   }, [cleanup, connect, user]);
 
-  const send = useCallback((type: string, payload: object) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+  const send = useCallback((type: string, payload: object): boolean => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type, payload }));
+      return true;
     }
+    return false;
   }, []);
 
 
@@ -226,7 +224,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    // eslint-disable-next-line react-hooks/refs
     <WebSocketContext.Provider value={{ socket: wsRef.current, send, subscribeToChats, onMessage }}>
       {children}
     </WebSocketContext.Provider>

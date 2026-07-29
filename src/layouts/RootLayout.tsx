@@ -3,19 +3,16 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import ChatList from "./ChatList";
 import Sidebar from "./Sidebar";
 import { ChatProvider } from "../context/ChatContext";
-import { WebSocketProvider } from "../context/WebSocketContext";
-import ProfileModal from "../modals/ProfileModal";
+
 
 type RootLayoutContext = {
   setShowOverlay: (overlay: "sidebar" | null) => void;
-  setProfileOpen: (open: boolean) => void;
 };
 
 export default function RootLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [showOverlay, setShowOverlay] = useState<"sidebar" | null>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
   const closeOverlay = useCallback(() => setShowOverlay(null), []);
 
   useEffect(() => {
@@ -35,11 +32,10 @@ export default function RootLayout() {
   }, [navigate]);
 
   return (
-    <WebSocketProvider>
-      <ChatProvider>
-        <div className="flex h-dvh overflow-hidden">
+    <ChatProvider>
+      <div className="flex h-dvh overflow-hidden">
           {/* Sidebar - hidden on mobile, inline on md+ */}
-          <div className="hidden md:flex">
+          <div className="hidden md:flex overflow-visible">
             <Sidebar />
           </div>
 
@@ -62,13 +58,11 @@ export default function RootLayout() {
           <div className="flex min-w-0 flex-1 flex-col">
             <main className="flex flex-1 min-h-0">
               <div className="flex flex-1">
-                <Outlet context={{ setShowOverlay, setProfileOpen } satisfies RootLayoutContext} />
+                <Outlet context={{ setShowOverlay } satisfies RootLayoutContext} />
               </div>
             </main>
           </div>
         </div>
-        <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
-      </ChatProvider>
-    </WebSocketProvider>
+    </ChatProvider>
   );
 }

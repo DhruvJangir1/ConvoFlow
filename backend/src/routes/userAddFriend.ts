@@ -5,16 +5,22 @@ import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { sendFriendRequestEmail } from '../services/authVerificaiton.js';
 import { notifyFriendRequest } from '../services/userNotify.js';
-import { sendToUser } from '../../ws/websocket.js';
 import { resolveImageUrl } from '../services/imageUpload.js';
 import { FRIEND_MAX_PENDING_OUTGOING } from '../util/constants.js';
 import { createDmChat } from '../services/dmChat.js';
 import type { Notifications } from '../../../src/generated/prisma/client.js';
+import { sendToUser } from '../../ws/websocket.js';
+import { trackAuthAttempt } from '../services/rateLimiter.js';
 
 const FriendRouter = Router();
 
 FriendRouter.post('/send', authenticate, async (req: Request, res: Response): Promise<void> => {
   if (!req.user){
+    return;
+  }
+
+  if (!await trackAuthAttempt(req.ip ?? req.socket.remoteAddress ?? 'unknown')) {
+    res.status(429).json({ error: 'Too many requests' });
     return;
   }
 
@@ -153,6 +159,12 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
   }
   console.log(`[FriendRoute] Found request: status=${friendRequest.status}, receiver=${friendRequest.receiver_id}`);
 
+  if (friendRequest.sender_id !== senderId) {
+    console.log(`[FriendRoute] 400 — sender_user_id mismatch: body says ${senderId}, DB says ${friendRequest.sender_id}`);
+    res.status(400).json({ error: 'Invalid request data' });
+    return;
+  }
+
   if (friendRequest.receiver_id !== userId) {
     console.log(`[FriendRoute] 403 — user ${userId} is not the receiver (receiver=${friendRequest.receiver_id})`);
     res.status(403).json({ error: 'Not authorized' });
@@ -226,6 +238,9 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
   }
   
     console.log('[userAddFriend/accept] othermember and my member exists')
+    const signedMyImage = await resolveImageUrl(myMember.USERS.image_url);
+    const signedOtherImage = await resolveImageUrl(otherMember.USERS.image_url);
+
     const acceptedNotification = await prisma.notifications.create({
       data: {
         receiver_user_id: senderId,
@@ -239,38 +254,19 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
 
     sendToUser(senderId, {
       type: 'notification:new',
-      payload: acceptedNotification,
-    });
-    console.log(`[FriendRoute] WebSocket "notification:new" sent to sender ${senderId}`);
-
-    const now = Date.now();
-
-    //NOTE: these 2 prisma queries dont add any messages but they show the chat in the user's UI for UX.
-
-    const signedMyImage = await resolveImageUrl(myMember.USERS.image_url);
-    const signedOtherImage = await resolveImageUrl(otherMember.USERS.image_url);
-
-    // the guy who sent the request
-    sendToUser(senderId, {
-      type: 'chat:new',
       payload: {
-        chat: {
-          id: chatId,
-          name: myMember.USERS.user_name ?? 'Unknown',
-          avatar_url: signedMyImage,
-          lastMessage: '',
-          timestamp: now,
-          unread: 0,
-          type: 'dm',
-          messageCount: 0,
-          members: [{ id: userId, user_name: myMember.USERS.user_name ?? 'Unknown', image_url: signedMyImage }],
-        },
+        id: acceptedNotification.id,
+        receiver_user_id: senderId,
+        sender_user_id: userId,
+        type: 'friend_request_accepted',
+        content: acceptedNotification.content,
+        entity_id: chatId,
+        read_at: null,
+        created_at: new Date().toISOString(),
       },
     });
-    console.log(`[FriendRoute] WebSocket "chat:new" sent to sender ${senderId}`);
 
-    // the guy accpting request
-    sendToUser(userId, {
+    sendToUser(senderId, {
       type: 'chat:new',
       payload: {
         chat: {
@@ -278,15 +274,14 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
           name: otherMember.USERS.user_name,
           avatar_url: signedOtherImage,
           lastMessage: '',
-          timestamp: now,
+          timestamp: Date.now(),
           unread: 0,
           type: 'dm',
           messageCount: 0,
-          members: [{ id: senderId, user_name: otherMember.USERS.user_name, image_url: signedOtherImage }],
+          members: [{ id: userId, user_name: myMember?.USERS.user_name ?? 'Unknown', image_url: signedMyImage }],
         },
       },
     });
-    console.log(`[FriendRoute] WebSocket "chat:new" sent to receiver ${userId}`);
 
   res.json({
     success: true,
@@ -358,9 +353,18 @@ FriendRouter.patch('/:id/reject', authenticate, async (req: Request, res: Respon
 
   sendToUser(friendRequest.sender_id, {
     type: 'notification:new',
-    payload: rejectedNotification,
+    payload: {
+      id: rejectedNotification.id,
+      receiver_user_id: friendRequest.sender_id,
+      sender_user_id: userId,
+      type: 'friend_request_rejected',
+      content: rejectedNotification.content,
+      entity_id: rejectedNotification.entity_id,
+      read_at: null,
+      created_at: new Date().toISOString(),
+    },
   });
-  console.log(`[FriendRoute] WebSocket "notification:new" sent to sender ${friendRequest.sender_id}`);
+
 
   res.json({ success: true });
 });

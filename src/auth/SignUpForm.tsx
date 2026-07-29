@@ -8,35 +8,35 @@ import "./clerk-theme.css";
 const clerkAppearance = {
   baseTheme: "#BA2020",
   variables: {
-    colorPrimary: "#7C6EF7",
-    colorBackground: "#000000",
+    colorPrimary: "#1D4ED8",
+    colorBackground: "#08080C",
     colorInputBackground: "rgba(255,255,255,0.04)",
-    colorText: "#FFFFFF",
-    colorTextSecondary: "#8A8AA0",
-    colorInputText: "#F0F0F5",
+    colorText: "#EDEDF0",
+    colorTextSecondary: "#9494A8",
+    colorInputText: "#EDEDF0",
     borderRadius: "0.75rem",
   },
   elements: {
     rootBox: "mx-auto",
     cardBox: "shadow-2xl",
-    card: "bg-black border border-white/[0.08] rounded-2xl",
-    headerTitle: "text-white text-2xl font-bold tracking-tight",
-    headerSubtitle: "text-[#8A8AA0] text-sm",
+    card: "bg-surface-elevated border border-border rounded-2xl",
+    headerTitle: "text-text-primary text-2xl font-bold tracking-tight",
+    headerSubtitle: "text-text-secondary text-sm",
     formFieldInput:
-      "rounded-xl border border-white/[0.06] bg-white/[0.04] py-3 px-4 text-sm text-white placeholder-slate-500 outline-none transition-all duration-200 focus:border-[#7C6EF7]/50 focus:ring-2 focus:ring-[#7C6EF7]/15",
-    formFieldLabel: "text-sm font-medium text-[#8A8AA0]",
+      "rounded-xl border border-border bg-surface-raised py-3 px-4 text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-200 focus:border-accent/50 focus:ring-2 focus:ring-accent/15",
+    formFieldLabel: "text-sm font-medium text-text-secondary",
     socialButtonsBlockButton:
-      "rounded-xl border border-white/[0.06] bg-white/[0.04] text-[#F0F0F5] hover:bg-white/[0.08] transition-all duration-200",
-    socialButtonsBlockButtonText: "text-sm font-medium text-[#F0F0F5]",
-    dividerLine: "bg-white/[0.06]",
-    dividerText: "text-[#55556A] text-xs",
+      "rounded-xl border border-border bg-surface-raised text-text-primary hover:bg-surface-hover transition-all duration-200",
+    socialButtonsBlockButtonText: "text-sm font-medium text-text-primary",
+    dividerLine: "bg-border",
+    dividerText: "text-text-muted text-xs",
     formButtonPrimary:
-      "bg-[#7C6EF7] hover:bg-[#6B5DE8] rounded-xl text-white text-sm font-semibold shadow-lg shadow-[#7C6EF7]/20 transition-all duration-200 hover:shadow-xl hover:shadow-[#7C6EF7]/30",
-    footer: "bg-black border-t border-white/[0.06] rounded-b-2xl",
-    footerActionLink: "text-[#7C6EF7] hover:text-[#9B8FFF] text-sm font-medium",
-    footerActionText: "text-[#8A8AA0] text-xs",
-    identityPreviewEditButton: "text-[#7C6EF7]",
-    formResendCodeLink: "text-[#7C6EF7] hover:text-[#9B8FFF]",
+      "bg-accent hover:bg-accent-hover rounded-xl text-white text-sm font-semibold shadow-lg shadow-accent/20 transition-all duration-200 hover:shadow-xl hover:shadow-accent/30",
+    footer: "bg-surface-elevated border-t border-border rounded-b-2xl",
+    footerActionLink: "text-accent hover:text-accent-hover text-sm font-medium",
+    footerActionText: "text-text-secondary text-xs",
+    identityPreviewEditButton: "text-accent",
+    formResendCodeLink: "text-accent hover:text-accent-hover",
   },
 };
 
@@ -46,8 +46,8 @@ export default function SignUpForm() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#09090b]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#7C6EF7] border-t-transparent" />
+      <div className="flex min-h-screen items-center justify-center bg-surface-base">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
       </div>
     );
   }
@@ -57,12 +57,12 @@ export default function SignUpForm() {
   }
 
   return (
-    <div className="relative flex h-dvh items-center justify-center overflow-y-auto overflow-x-hidden bg-[#09090b] px-4 py-8">
-      <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-indigo-500/10 blur-[128px]" />
-      <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-blue-500/10 blur-[128px]" />
+    <div className="relative flex h-dvh items-center justify-center overflow-y-auto overflow-x-hidden bg-surface-base px-4 py-8">
+      <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-accent/10 blur-[128px]" />
+      <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-accent-info/10 blur-[128px]" />
 
       <div className="w-full max-w-md animate-message-in">
-        <div className="relative rounded-2xl border border-white/[0.06] bg-white/[0.015] p-5 sm:p-8 shadow-2xl shadow-black/50 backdrop-blur-xl transition-all duration-300 hover:border-white/[0.1]">
+        <div className="relative rounded-2xl border border-border bg-surface-elevated/50 p-5 sm:p-8 shadow-2xl shadow-black/50 backdrop-blur-xl transition-all duration-300 hover:border-accent/30 hover:shadow-[0_0_24px_rgba(29,78,216,0.08)]">
           <div className="mb-6 flex justify-center">
             <img
               src="/CONVO_FLOW_LOGO.png"

@@ -5,6 +5,7 @@ import WsTicketRouter from './wsTicket.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { PRISMA_SAFE_SELECT } from '../util/constants.js';
+import { resolveImageUrl } from '../services/imageUpload.js';
 
 const AuthRouter = Router();
 
@@ -30,6 +31,16 @@ AuthRouter.post('/setup-user', authenticate, async (req: Request, res: Response)
   }
 
   console.log(`[setup-user] ✓ Returning user: ${user.user_name} (${user.email})`);
+
+  req.user = {
+    id: user.id,
+    email: user.email
+  }
+
+  const userImg = await resolveImageUrl(user.image_url);
+  
+  user.image_url = userImg
+
   res.json({ user });
 });
 

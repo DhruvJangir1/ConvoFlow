@@ -1,18 +1,15 @@
 import { Router } from 'express';
-import type { Request, Response } from 'express';
-import { generateTicket } from '../services/wsTicketStore';
-import { authenticate } from '../middleware/authenticate';
+import { authenticate } from '../middleware/authenticate.js';
+import { generateTicket } from '../services/wsTicketStore.js';
 
 const WsTicketRouter = Router();
 
-WsTicketRouter.get('/ws-ticket', authenticate, (req: Request, res: Response): void => {
+WsTicketRouter.get('/ws-ticket', authenticate, async (req, res) => {
   if (!req.user) {
-    res.status(401).json({ error: 'Not authenticated' });
+    res.status(401).json({ error: 'Authentication required' });
     return;
   }
-
   const ticket = generateTicket(req.user.id);
-  console.log(`[ws-ticket] Generated ticket for user ${req.user.id}: ${ticket}`);
   res.json({ ticket });
 });
 

@@ -1,4 +1,4 @@
-import ChatInput from "../../components/ChatInput";
+import AnonymousChatInput from "./AnonymousChatInput";
 
 interface AnonymousChatComposerProps {
   value: string;
@@ -16,14 +16,12 @@ export default function AnonymousChatComposer({
   onAnonymousToggle,
 }: AnonymousChatComposerProps) {
   return (
-    <div className="pb-2 sm:pb-4 pt-1 sm:pt-2">
-      <ChatInput
-        value={value}
-        onChange={onChange}
-        onSend={onSend}
-        isAnonymous={isAnonymous}
-        onAnonymousToggle={onAnonymousToggle}
-      />
-    </div>
+    <AnonymousChatInput
+      value={value}
+      onChange={onChange}
+      onSend={onSend}
+      isAnonymous={isAnonymous}
+      onAnonymousToggle={onAnonymousToggle}
+    />
   );
 }

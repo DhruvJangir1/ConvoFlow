@@ -9,13 +9,23 @@ export function validateOrigin(req: Request, res: Response, next: NextFunction) 
 
   if (process.env.NODE_ENV === 'production') {
     const forwardedHost = req.headers['x-forwarded-host'];
-    if (!forwardedHost) return res.status(403).json({ error: 'Invalid Origin' });
+    const origin = req.headers.origin;
 
-    const allowedHost = new URL(ALLOWED_ORIGIN).host;
-    const firstHost = Array.isArray(forwardedHost)
-      ? forwardedHost[0]
-      : forwardedHost.split(',')[0].trim();
-    if (firstHost === allowedHost) return next();
+    if (forwardedHost) {
+      const allowedHost = new URL(ALLOWED_ORIGIN).host;
+      const firstHost = Array.isArray(forwardedHost)
+        ? forwardedHost[0]
+        : forwardedHost.split(',')[0].trim();
+      if (firstHost === allowedHost) return next();
+    }
+
+    if (origin) {
+      try {
+        if (new URL(origin.toString()).origin === ALLOWED_ORIGIN) return next();
+      } catch {
+        /* invalid origin format — fall through to block */
+      }
+    }
 
     return res.status(403).json({ error: 'Invalid Origin' });
   }

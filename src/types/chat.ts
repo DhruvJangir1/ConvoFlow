@@ -44,6 +44,18 @@ export type AnonymousChatMessages = ChatMessages & {
   isAnonymous: boolean;
 };
 
+export type AnonymousChatMessageType = {
+  id: string;
+  chatId: string;
+  senderId: string;
+  senderName: string;
+  senderImage: string | null;
+  content: string;
+  createdAt: string;
+  messageType: string;
+  isAnonymous: true;
+};
+
 export interface Notification {
   id: string;
   created_at: string;

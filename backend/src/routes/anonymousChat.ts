@@ -2,9 +2,9 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
-import { broadcastToRoom } from '../../ws/websocket.js';
 import { resolveImageUrl } from '../services/imageUpload.js';
 import { upvote, downvote } from '../services/userMessageVote.js';
+import { broadcastToRoom } from '../../ws/websocket.js';
 
 
 const AnonymousChatRouter = Router();
@@ -158,8 +158,12 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
 });
 
 AnonymousChatRouter.post('/:id/messages/:userId/:isAnonymous', authenticate, async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
   const chatId = req.params.id as string;
-  const userId = req.params.userId as string;
+  const userId = req.user.id;
   const isAnon = req.params.isAnonymous === 'true';
 
   const { content } = req.body as { content: string };
@@ -200,12 +204,14 @@ AnonymousChatRouter.post('/:id/messages/:userId/:isAnonymous', authenticate, asy
       payload: {
         id: message.id,
         chatId,
+        senderId: userId,
+        senderName: isAnon ? 'Anonymous' : senderName,
+        senderImage: isAnon ? null : senderImage,
         content: message.content,
         createdAt: message.created_at,
-        senderId: userId,
-        senderName,
-        senderImage,
+        messageType: 'text',
         isAnonymous: isAnon,
+        chatType: 'anonymous',
       },
     });
 
@@ -291,7 +297,7 @@ AnonymousChatRouter.delete('/:id/messages/:messageId', authenticate, async (req:
 
     broadcastToRoom(chatId, {
       type: 'message:delete',
-      payload: { chatId, messageId, senderId: existing.sender_id, isAnonymous: true },
+      payload: { chatId, messageId, senderId: req.user!.id, isAnonymous: existing.isAnonymous ?? false },
     });
 
     res.json({ success: true });

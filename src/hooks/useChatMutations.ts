@@ -31,7 +31,35 @@ export function useSendMessageMutation() {
 
   return useMutation({
     mutationFn: sendMessageREST,
-    onSuccess: (data, vars) => {
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({ queryKey: chatKeys.messages(vars.chatId) });
+      const prev = queryClient.getQueryData<MessagesResponse>(chatKeys.messages(vars.chatId));
+      const tempId = 'temp-' + Date.now();
+      queryClient.setQueryData<MessagesResponse>(chatKeys.messages(vars.chatId), (old) => {
+        const entry: ChatMessages = {
+          id: tempId,
+          chatId: vars.chatId,
+          senderId: vars.userId,
+          content: vars.content,
+          createdAt: new Date().toISOString(),
+          isOwn: true,
+          senderName: '',
+          senderImage: null,
+          isEdited: false,
+          messageType: 'text',
+        };
+        if (!old) return { messages: [entry], hasMore: false };
+        if (old.messages.some((m) => m.content === vars.content && m.isOwn)) return old;
+        return { ...old, messages: [...old.messages, entry] };
+      });
+      return { prev, tempId };
+    },
+    onError: (_err, vars, context) => {
+      if (context && context.prev) {
+        queryClient.setQueryData(chatKeys.messages(vars.chatId), context.prev);
+      }
+    },
+    onSuccess: (data, vars, context) => {
       queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) => {
         if (!old) return old;
         return old.map((chat) =>
@@ -41,26 +69,21 @@ export function useSendMessageMutation() {
         );
       });
 
-      if (data?.message) {
-        const msg = data.message;
-        queryClient.setQueryData<MessagesResponse>(chatKeys.messages(vars.chatId), (old) => {
-          const entry: ChatMessages = {
-            id: msg.id,
-            chatId: vars.chatId,
-            senderId: msg.sender_id ?? vars.userId,
-            content: msg.content,
-            createdAt: msg.created_at ?? new Date().toISOString(),
-            isOwn: true,
-            senderName: msg.USERS?.user_name ?? '',
-            senderImage: msg.USERS?.image_url ?? null,
-            isEdited: false,
-            messageType: 'text',
-          };
-          if (!old) return { messages: [entry], hasMore: false };
-          if (old.messages.some((m) => m.id === entry.id)) return old;
-          return { ...old, messages: [...old.messages, entry] };
-        });
-      }
+      if (!data.message) return;
+      const msg = data.message;
+      const realId = msg.id;
+      queryClient.setQueryData<MessagesResponse>(chatKeys.messages(vars.chatId), (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          messages: old.messages.map((m) =>
+            m.id === (context ? context.tempId : '') ? { ...m, id: realId, senderName: msg.USERS ? msg.USERS.user_name : '', senderImage: msg.USERS ? msg.USERS.image_url : null } : m,
+          ),
+        };
+      });
+    },
+    onSettled: (_data, _error, _vars) => {
+      queryClient.invalidateQueries({ queryKey: chatKeys.lists() });
     },
   });
 }

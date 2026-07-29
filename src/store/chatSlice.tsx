@@ -38,8 +38,11 @@ const chatSlice = createSlice({
       if (state.onlineUsers[chatId])
         state.onlineUsers[chatId] = state.onlineUsers[chatId].filter(id => id !== userId);
     },
+    resetChats() {
+      return initialState;
+    },
   },
 });
 
-export const { setChats, addChat, setOnlineUsers, addOnlineUser, removeOnlineUser } = chatSlice.actions;
+export const { setChats, addChat, setOnlineUsers, addOnlineUser, removeOnlineUser, resetChats } = chatSlice.actions;
 export default chatSlice.reducer;

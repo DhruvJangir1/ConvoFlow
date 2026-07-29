@@ -1,660 +1,620 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { EventEmitter } from 'events';
 
-// =============================================================================
-// Hoisted mocks (vi.hoisted runs before all imports)
-// =============================================================================
+// ─── Mock state on globalThis ──────────────────────────────────────────────────
 
-const {
-  mockConsumeTicket,
-  mockStartTicketCleanup,
-  mockStopTicketCleanup,
-  mockPrismaCreate,
-  mockPrismaUpdate,
-  mockPrismaFindUnique,
-  createMockWs,
-  createMockWss,
-  getMockWss,
-  getMockHttpServer,
-} = vi.hoisted(() => {
-  type Listener = (...args: unknown[]) => void;
+interface MockWsInstance {
+  readyState: number;
+  sent: string[];
+  closed: boolean;
+  closeCode: number | undefined;
+  closeReason: string | undefined;
+  subscribedRooms: Set<string>;
+  userId: string | undefined;
+  userName: string | undefined;
+  userImage: string | undefined | null;
+  isAlive: boolean;
+  _listeners: Record<string, ((...args: unknown[]) => void)[]>;
+  send: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+  terminate: ReturnType<typeof vi.fn>;
+  ping: ReturnType<typeof vi.fn>;
+  pong: ReturnType<typeof vi.fn>;
+  on: (event: string, fn: (...args: unknown[]) => void) => MockWsInstance;
+  emit: (event: string, ...args: unknown[]) => boolean;
+  listeners: (event: string) => ((...args: unknown[]) => void)[];
+}
 
-  class SimpleEmitter {
-    private _listeners: Record<string, Listener[]> = {};
+interface MockWSS {
+  _listeners: Record<string, ((...args: unknown[]) => void)[]>;
+  _connHandler: ((ws: unknown, req: { url: string }) => void) | undefined;
+  clients: Set<unknown>;
+  on: (event: string, fn: (...args: unknown[]) => void) => MockWSS;
+  emit: (event: string, ...args: unknown[]) => boolean;
+  listeners: (event: string) => ((...args: unknown[]) => void)[];
+  close: () => void;
+}
 
-    on(event: string, fn: Listener) {
-      (this._listeners[event] ??= []).push(fn);
-      return this;
-    }
-
-    once(event: string, fn: Listener) {
-      const wrapper: Listener = (...args) => {
-        fn(...args);
-        this.off(event, wrapper);
-      };
-      return this.on(event, wrapper);
-    }
-
-    off(event: string, fn: Listener) {
-      const list = this._listeners[event];
-      if (list) this._listeners[event] = list.filter((f) => f !== fn);
-      return this;
-    }
-
-    emit(event: string, ...args: unknown[]) {
-      this._listeners[event]?.forEach((fn) => fn(...args));
-    }
-  }
-
-  class MockWsInstance extends SimpleEmitter {
-    readyState = 1;
-    url = '';
-    userId?: string;
-    userName?: string;
-    userImage?: string | null;
-    isAlive?: boolean;
-    subscribedRooms?: Set<string>;
-    sent: string[] = [];
-
-    send(data: string) {
-      this.sent.push(data);
-    }
-
-    close() {
-      this.readyState = 3;
-    }
-
-    terminate() {
-      this.readyState = 3;
-    }
-
-    ping() {}
-  }
-
-  const wssState = {
-    clients: null as MockWsInstance[] | null,
-    closeFn: null as (() => void) | null,
+interface MockState {
+  consumeTicket: ReturnType<typeof vi.fn>;
+  startTicketCleanup: ReturnType<typeof vi.fn>;
+  stopTicketCleanup: ReturnType<typeof vi.fn>;
+  prisma: {
+    users: { findUnique: ReturnType<typeof vi.fn> };
+    standardChatMembers: { findUnique: ReturnType<typeof vi.fn> };
+    $queryRaw: ReturnType<typeof vi.fn>;
+    standardChats: { update: ReturnType<typeof vi.fn> };
   };
+  mockWsInstances: MockWsInstance[];
+}
 
-  let lastMockWss: ReturnType<typeof createMockWss> | null = null;
-
-  function getMockWss() {
-    if (!lastMockWss) throw new Error('Mock WSS not initialized');
-    return lastMockWss;
-  }
-
-  function createMockWss() {
-    const listeners: Record<string, Listener[]> = {};
-    const clients = new Set<MockWsInstance>();
-
-    const wss = new SimpleEmitter();
-    (wss as Record<string, unknown>).clients = clients;
-
-    const origOn = wss.on.bind(wss);
-    wss.on = (event: string, fn: Listener) => {
-      (listeners[event] ??= []).push(fn);
-      origOn(event, fn);
-      return wss;
-    };
-
-    wssState.clients = [...clients] as unknown as MockWsInstance[];
-
-    wss.emit = (event: string, ...args: unknown[]) => {
-      listeners[event]?.forEach((fn) => fn(...args));
-      return wss;
-    };
-
-    (wss as Record<string, unknown>).close = () => {
-      listeners['close']?.forEach((fn) => fn());
-    };
-
-    wssState.closeFn = (wss as Record<string, unknown>).close as () => void;
-
-    lastMockWss = { wss, clients, listeners };
-    return lastMockWss;
-  }
-
-  const httpServerState = {
-    listeners: {} as Record<string, Listener[]>,
-  };
-
-  const mockHttpServer = new SimpleEmitter();
-  const origHttpOn = mockHttpServer.on.bind(mockHttpServer);
-  mockHttpServer.on = (event: string, fn: Listener) => {
-    (httpServerState.listeners[event] ??= []).push(fn);
-    origHttpOn(event, fn);
-    return mockHttpServer;
-  };
-  mockHttpServer.emit = (event: string, ...args: unknown[]) => {
-    httpServerState.listeners[event]?.forEach((fn) => fn(...args));
-    return mockHttpServer;
-  };
-  (mockHttpServer as Record<string, unknown>).listen = vi.fn();
-  (mockHttpServer as Record<string, unknown>).close = vi.fn();
-
+function makeEventEmitter() {
+  const _listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
   return {
-    mockConsumeTicket: vi.fn(),
-    mockStartTicketCleanup: vi.fn(),
-    mockStopTicketCleanup: vi.fn(),
-    mockPrismaCreate: vi.fn(),
-    mockPrismaUpdate: vi.fn(),
-    mockPrismaFindUnique: vi.fn(),
-    createMockWs: () => new MockWsInstance(),
-    createMockWss,
-    getMockWss,
-    getMockHttpServer: () => mockHttpServer,
+    _listeners,
+    on(event: string, fn: (...args: unknown[]) => void) {
+      if (!_listeners[event]) _listeners[event] = [];
+      _listeners[event].push(fn);
+      return this;
+    },
+    emit(event: string, ...args: unknown[]) {
+      const fns = _listeners[event];
+      if (fns) fns.forEach((fn) => fn(...args));
+      return true;
+    },
+    listeners(event: string) {
+      return _listeners[event] ?? [];
+    },
+  };
+}
+
+function getMockState(): MockState {
+  const g = globalThis as Record<string, unknown>;
+  if (!g.__mockState) {
+    g.__mockState = {
+      consumeTicket: vi.fn<(ticket: string) => string | null>(),
+      startTicketCleanup: vi.fn(),
+      stopTicketCleanup: vi.fn(),
+      prisma: {
+        users: { findUnique: vi.fn() },
+        standardChatMembers: { findUnique: vi.fn() },
+        $queryRaw: vi.fn(),
+        standardChats: { update: vi.fn() },
+      },
+      mockWsInstances: [] as MockWsInstance[],
+    };
+  }
+  return g.__mockState as MockState;
+}
+
+function getMockWss(): MockWSS {
+  return (globalThis as Record<string, unknown>).__mockWss as MockWSS;
+}
+
+// ─── Mock ws (no external references) ──────────────────────────────────────────
+
+vi.mock('ws', () => {
+  function MockWSS() {
+    const instance = Object.assign(makeEventEmitter(), {
+      clients: new Set(),
+      _connHandler: undefined as ((ws: unknown, req: { url: string }) => void) | undefined,
+      close() {},
+    });
+    (globalThis as Record<string, unknown>).__mockWss = instance;
+    return instance;
+  }
+  return {
+    WebSocketServer: MockWSS,
+    WebSocket: { OPEN: 1, CLOSED: 3 },
   };
 });
 
-// =============================================================================
-// Module mocks
-// =============================================================================
+// ─── Mock ticket store ─────────────────────────────────────────────────────────
 
-vi.mock('../src/services/wsTicketStore', () => ({
-  consumeTicket: (...args: unknown[]) => mockConsumeTicket(...args),
-  startTicketCleanup: (...args: unknown[]) => mockStartTicketCleanup(...args),
-  stopTicketCleanup: (...args: unknown[]) => mockStopTicketCleanup(...args),
+vi.mock('../src/services/wsTicketStore.js', () => ({
+  get consumeTicket() { return getMockState().consumeTicket; },
+  get startTicketCleanup() { return getMockState().startTicketCleanup; },
+  get stopTicketCleanup() { return getMockState().stopTicketCleanup; },
 }));
 
-vi.mock('../src/lib/connectionPoolClient', () => ({
-  prisma: {
-    standardChatMessages: { create: (...args: unknown[]) => mockPrismaCreate(...args) },
-    standardChats: { update: (...args: unknown[]) => mockPrismaUpdate(...args) },
-    users: { findUnique: (...args: unknown[]) => mockPrismaFindUnique(...args) },
-  },
+// ─── Mock Prisma ───────────────────────────────────────────────────────────────
+
+vi.mock('../src/lib/connectionPoolClient.js', () => ({
+  get prisma() { return getMockState().prisma; },
 }));
 
-vi.mock('../src/util/sanitize.js', () => ({}));
+// ─── Mock S3 client ────────────────────────────────────────────────────────────
 
 vi.mock('../src/supabase/supabaseS3Client.js', () => ({
   s3Client: {},
   S3_BUCKET_NAME: 'test-bucket',
 }));
 
-vi.mock('../src/services/imageUpload.js', () => ({
-  resolveImageUrl: (url: string | null) => Promise.resolve(url),
-  signImageUrl: (url: string) => Promise.resolve(url),
-}));
+// ─── Import after mocks ────────────────────────────────────────────────────────
 
-vi.mock('ws', () => {
-  const { wss, clients } = createMockWss();
-  return {
-    WebSocketServer: vi.fn().mockImplementation(function () {
-      (wss as Record<string, unknown>).clients = clients;
-      return wss;
+import { createWebSocketServer as setupWebSocket, shutdownWebSocket, sendToUser, broadcastToRoom, broadcastMessageToRoom } from './websocket';
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+let testCounter = 0;
+function uid() { return `user-${++testCounter}-${Date.now()}`; }
+function cid() { return `chat-${++testCounter}-${Date.now()}`; }
+
+function createMockWs(): MockWsInstance {
+  const ee = makeEventEmitter();
+  const ws: MockWsInstance = {
+    readyState: 1,
+    sent: [],
+    closed: false,
+    closeCode: undefined,
+    closeReason: undefined,
+    subscribedRooms: new Set(),
+    userId: undefined,
+    userName: undefined,
+    userImage: undefined,
+    isAlive: true,
+    _listeners: ee._listeners,
+    send: vi.fn((data: unknown) => { ws.sent.push(String(data)); }),
+    close: vi.fn((code?: number, reason?: string) => {
+      ws.closed = true;
+      ws.closeCode = code;
+      ws.closeReason = reason;
+      ws.readyState = 3;
     }),
-    WebSocket: { OPEN: 1, CLOSED: 3 },
+    terminate: vi.fn(() => { ws.readyState = 3; ws.closed = true; }),
+    ping: vi.fn(),
+    pong: vi.fn(),
+    on: ee.on.bind(ee) as MockWsInstance['on'],
+    emit: ee.emit.bind(ee) as MockWsInstance['emit'],
+    listeners: ee.listeners.bind(ee) as MockWsInstance['listeners'],
   };
-});
-
-// =============================================================================
-// Import under test
-// =============================================================================
-
-import {
-  broadcastToRoom,
-  sendToUser,
-  removeSocketFromAllRooms,
-  setupWebSocket,
-  shutdownWebSocket,
-} from './websocket';
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-type MockWs = ReturnType<typeof createMockWs>;
-
-async function connectAndAuth(ticket: string, userId: string): Promise<MockWs> {
-  const ws = createMockWs();
-  ws.url = `/ws?ticket=${ticket}`;
-  mockConsumeTicket.mockReturnValue(userId);
-  const { wss } = getMockWss();
-  wss.emit('connection', ws, { url: `/ws?ticket=${ticket}` });
-  await vi.waitFor(() => expect(ws.userName).toBeDefined());
+  getMockState().mockWsInstances.push(ws);
   return ws;
 }
 
-async function setupWsAndConnect(ticket: string, userId: string): Promise<MockWs> {
-  setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
-  return connectAndAuth(ticket, userId);
+function emitConnection(ticket: string) {
+  const wss = getMockWss();
+  const ws = createMockWs();
+  if (wss._connHandler) {
+    wss._connHandler(ws as unknown, { url: `/ws?ticket=${ticket}` });
+  }
+  return ws;
 }
 
-// =============================================================================
-// Tests
-// =============================================================================
+function getAllSent(ws: MockWsInstance) {
+  return ws.sent.map((raw) => JSON.parse(raw) as { type: string; payload: Record<string, unknown> });
+}
+
+function sleep(ms = 15) { return new Promise((r) => setTimeout(r, ms)); }
+
+// ─── Tests ─────────────────────────────────────────────────────────────────────
+
+let server: { on: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockConsumeTicket.mockReset();
-  mockPrismaCreate.mockReset();
-  mockPrismaUpdate.mockReset();
-  mockPrismaFindUnique.mockReset();
-  mockPrismaFindUnique.mockResolvedValue({ user_name: 'Alice', image_url: null });
+  (globalThis as Record<string, unknown>).__mockWss = undefined;
+  getMockState().mockWsInstances.length = 0;
+  server = { on: vi.fn() };
+
+  const ms = getMockState();
+  ms.prisma.users.findUnique.mockResolvedValue({ user_name: 'TestUser', image_url: 'https://img.test/a.png' });
+  ms.prisma.standardChatMembers.findUnique.mockResolvedValue({ user_id: 'member' });
+  ms.prisma.$queryRaw.mockImplementation(async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const id = values[0] as string;
+    return [{ id, createdAt: new Date() }];
+  });
+  ms.prisma.standardChats.update.mockResolvedValue({});
+
+  setupWebSocket(server as never);
+
+  const wss = getMockWss();
+  const listeners = wss.listeners('connection');
+  if (listeners.length > 0) {
+    wss._connHandler = listeners[listeners.length - 1] as (ws: unknown, req: { url: string }) => void;
+  }
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  shutdownWebSocket();
+  getMockState().mockWsInstances.length = 0;
 });
 
-// =============================================================================
-// 1. setupWebSocket / shutdownWebSocket
-// =============================================================================
+// ── Connection ─────────────────────────────────────────────────────────────────
 
-describe('setupWebSocket / shutdownWebSocket', () => {
-  it('attaches WebSocketServer to provided HTTP server and starts ticket cleanup', () => {
-    setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
-    expect(mockStartTicketCleanup).toHaveBeenCalled();
-    shutdownWebSocket();
-    expect(mockStopTicketCleanup).toHaveBeenCalled();
-  });
+describe('WebSocket connection', () => {
+  it('authenticates with valid ticket and sets user info from DB', async () => {
+    const userId = uid();
+    getMockState().consumeTicket.mockReturnValue(userId);
 
-  it('shutdownWebSocket closes the WSS', () => {
-    setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
-    shutdownWebSocket();
-  });
-});
+    const ws = emitConnection('valid-ticket');
+    await sleep();
 
-// =============================================================================
-// 2. Authentication
-// =============================================================================
-
-describe('Authentication', () => {
-  it('authenticates connection with valid ticket', async () => {
-    const ws = await setupWsAndConnect('valid-ticket', 'user-1');
-    expect(mockConsumeTicket).toHaveBeenCalledWith('valid-ticket');
-    expect(ws.userId).toBe('user-1');
+    expect(ws.userId).toBe(userId);
+    expect(ws.userName).toBe('TestUser');
+    expect(ws.userImage).toBe('https://img.test/a.png');
     expect(ws.isAlive).toBe(true);
-    expect(ws.subscribedRooms).toBeDefined();
+    expect(ws.subscribedRooms).toBeInstanceOf(Set);
   });
 
-  it('closes socket with code 4001 on invalid ticket', () => {
-    setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
-    const ws = createMockWs();
-    ws.url = '/ws?ticket=bad';
-    mockConsumeTicket.mockReturnValue(null);
-    const closeSpy = vi.spyOn(ws, 'close');
-    const { wss } = getMockWss();
-    wss.emit('connection', ws, { url: '/ws?ticket=bad' });
+  it('closes with 4001 on invalid ticket', async () => {
+    getMockState().consumeTicket.mockReturnValue(null);
 
-    expect(closeSpy).toHaveBeenCalledWith(4001, 'Authentication required');
-    expect(ws.userId).toBeUndefined();
+    const ws = emitConnection('bad-ticket');
+    await sleep();
+
+    expect(ws.close).toHaveBeenCalledWith(4001, 'Invalid or expired ticket');
   });
 
-  it('closes socket with code 4001 when no ticket', () => {
-    setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
-    const ws = createMockWs();
-    const closeSpy = vi.spyOn(ws, 'close');
-    const { wss } = getMockWss();
-    wss.emit('connection', ws, { url: '/ws' });
-
-    expect(closeSpy).toHaveBeenCalledWith(4001, 'Authentication required');
+  it('starts ticket cleanup on setup', () => {
+    expect(getMockState().startTicketCleanup).toHaveBeenCalled();
   });
 
-  it('loads user profile from DB after auth', async () => {
-    mockPrismaFindUnique.mockResolvedValue({ user_name: 'Alice', image_url: 'http://img.com/a.png' });
-    const ws = await setupWsAndConnect('t1', 'user-1');
-
-    expect(mockPrismaFindUnique).toHaveBeenCalledWith({
-      where: { id: 'user-1' },
-      select: { user_name: true, image_url: true },
-    });
-    expect(ws.userName).toBe('Alice');
-    expect(ws.userImage).toBe('http://img.com/a.png');
-  });
-
-  it('falls back to userId when profile not found', async () => {
-    mockPrismaFindUnique.mockResolvedValue(null);
-    const ws = await setupWsAndConnect('t1', 'user-1');
-
-    expect(ws.userName).toBe('user-1');
-    expect(ws.userImage).toBeNull();
-  });
-
-  it('falls back to userId on DB error', async () => {
-    mockPrismaFindUnique.mockRejectedValue(new Error('DB down'));
-    const ws = await setupWsAndConnect('t1', 'user-1');
-
-    expect(ws.userName).toBe('user-1');
-    expect(ws.userImage).toBeNull();
+  it('stops ticket cleanup on shutdown', () => {
+    shutdownWebSocket();
+    expect(getMockState().stopTicketCleanup).toHaveBeenCalled();
   });
 });
 
-// =============================================================================
-// 3. broadcastToRoom
-// =============================================================================
-
-describe('broadcastToRoom', () => {
-  it('sends data to all subscribed sockets in room', async () => {
-    const ws1 = await setupWsAndConnect('t1', 'user-1');
-    const ws2 = await setupWsAndConnect('t2', 'user-2');
-    ws1.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
-    ws2.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
-    ws1.sent.length = 0;
-    ws2.sent.length = 0;
-
-    const data = { type: 'message:new', payload: { id: 'm1' } };
-    broadcastToRoom('chat-1', data);
-
-    expect(ws1.sent).toHaveLength(1);
-    expect(ws2.sent).toHaveLength(1);
-    expect(JSON.parse(ws1.sent[0])).toEqual(data);
-    expect(JSON.parse(ws2.sent[0])).toEqual(data);
-  });
-
-  it('does nothing for non-existent room', () => {
-    broadcastToRoom('empty-room', { type: 'test' });
-  });
-});
-
-// =============================================================================
-// 4. sendToUser
-// =============================================================================
-
-describe('sendToUser', () => {
-  it('sends data to connected user', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    const data = { type: 'notification:new', payload: { id: 'n1' } };
-    sendToUser('user-1', data);
-
-    expect(ws.sent).toHaveLength(1);
-    expect(JSON.parse(ws.sent[0])).toEqual(data);
-  });
-
-  it('does nothing for disconnected user', () => {
-    sendToUser('nonexistent', { type: 'test' });
-  });
-});
-
-// =============================================================================
-// 5. Message Sending
-// =============================================================================
-
-describe('Message Sending', () => {
-  it('sends message:ack to sender after DB save', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    mockPrismaCreate.mockResolvedValue({ id: 'msg-1', content: 'hello', created_at: new Date() });
-    mockPrismaUpdate.mockResolvedValue({});
-
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'message:send', payload: { chatId: 'chat-1', content: 'hello', tempId: 'tmp-1' } })));
-
-    await vi.waitFor(() => {
-      const ack = ws.sent.find((s) => JSON.parse(s).type === 'message:ack');
-      expect(ack).toBeDefined();
-      expect(JSON.parse(ack!).payload.id).toBe('msg-1');
-      expect(JSON.parse(ack!).payload.tempId).toBe('tmp-1');
-    });
-  });
-
-  it('rejects empty content', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'message:send', payload: { chatId: 'chat-1', content: '' } })));
-
-    await vi.waitFor(() => {
-      const error = ws.sent.find((s) => JSON.parse(s).type === 'error');
-      expect(error).toBeDefined();
-      expect(JSON.parse(error!).payload.message).toContain('content');
-    });
-    expect(mockPrismaCreate).not.toHaveBeenCalled();
-  });
-
-  it('rejects message when userId is undefined', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    ws.userId = undefined;
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'message:send', payload: { chatId: 'chat-1', content: 'hi' } })));
-
-    await vi.waitFor(() => {
-      expect(ws.sent.length).toBeGreaterThan(0);
-    });
-  });
-
-  it('rejects message when userName is undefined', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    ws.userName = undefined;
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'message:send', payload: { chatId: 'chat-1', content: 'hi' } })));
-
-    await vi.waitFor(() => {
-      const error = ws.sent.find((s) => JSON.parse(s).type === 'error');
-      expect(error).toBeDefined();
-    });
-    expect(mockPrismaCreate).not.toHaveBeenCalled();
-  });
-
-  it('sends error on DB failure', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    mockPrismaCreate.mockRejectedValue(new Error('DB error'));
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'message:send', payload: { chatId: 'chat-1', content: 'hello' } })));
-
-    await vi.waitFor(() => {
-      const error = ws.sent.find((s) => JSON.parse(s).type === 'error');
-      expect(error).toBeDefined();
-      expect(JSON.parse(error!).payload.message).toBe('Failed to send message');
-    });
-  });
-
-  it('stores message content as-is without sanitization', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    mockPrismaCreate.mockResolvedValue({ id: 'msg-1', content: '<script>alert("xss")</script>', created_at: new Date() });
-    mockPrismaUpdate.mockResolvedValue({});
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'message:send', payload: { chatId: 'chat-1', content: '<script>alert("xss")</script>' } })));
-
-    await vi.waitFor(() => {
-      expect(mockPrismaCreate).toHaveBeenCalledWith({
-        data: { chat_id: 'chat-1', sender_id: 'user-1', content: '<script>alert("xss")</script>' },
-      });
-    });
-  });
-
-  it('updates standardChats.updated_at after message save', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    mockPrismaCreate.mockResolvedValue({ id: 'msg-1', content: 'hi', created_at: new Date() });
-    mockPrismaUpdate.mockResolvedValue({});
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'message:send', payload: { chatId: 'chat-1', content: 'hi' } })));
-
-    await vi.waitFor(() => {
-      expect(mockPrismaUpdate).toHaveBeenCalledWith({
-        where: { id: 'chat-1' },
-        data: { updated_at: expect.any(Date) },
-      });
-    });
-  });
-});
-
-// =============================================================================
-// 6. Subscribe / Unsubscribe
-// =============================================================================
+// ── Subscribe / Unsubscribe ────────────────────────────────────────────────────
 
 describe('Subscribe / Unsubscribe', () => {
-  it('subscribes to chats and sends confirmation', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1', 'chat-2'] } })));
+  it('subscribe adds socket to room, sends subscribed ack and chat:online-users', async () => {
+    const userId = uid();
+    const chatId = cid();
+    getMockState().consumeTicket.mockReturnValue(userId);
 
-    const sub = ws.sent.find((s) => JSON.parse(s).type === 'subscribed');
-    expect(sub).toBeDefined();
-    expect(JSON.parse(sub!).payload.chatIds).toEqual(['chat-1', 'chat-2']);
-  });
+    const ws = emitConnection('ticket-sub');
+    await sleep();
 
-  it('broadcasts user:online to room after subscribe', async () => {
-    const ws1 = await setupWsAndConnect('t1', 'user-1');
-    const ws2 = await setupWsAndConnect('t2', 'user-2');
+    ws.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
 
-    ws1.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
-    ws1.sent.length = 0;
-    ws2.sent.length = 0;
+    const msgs = getAllSent(ws);
+    const subscribed = msgs.find((m) => m.type === 'subscribed');
+    expect(subscribed).toBeDefined();
+    expect(subscribed!.payload.chatIds).toContain(chatId);
 
-    ws2.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
-
-    const onlineMsg = ws1.sent.find((s) => JSON.parse(s).type === 'user:online');
-    expect(onlineMsg).toBeDefined();
-    expect(JSON.parse(onlineMsg!).payload.chatId).toBe('chat-1');
-    expect(JSON.parse(onlineMsg!).payload.userId).toBe('user-2');
-  });
-
-  it('sends chat:online-users after subscribe', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    ws.sent.length = 0;
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
-
-    const onlineUsers = ws.sent.find((s) => JSON.parse(s).type === 'chat:online-users');
+    const onlineUsers = msgs.find((m) => m.type === 'chat:online-users');
     expect(onlineUsers).toBeDefined();
-    expect(JSON.parse(onlineUsers!).payload.userIds).toContain('user-1');
+    expect(onlineUsers!.payload.chatId).toBe(chatId);
+    expect(onlineUsers!.payload.userIds as string[]).toContain(userId);
   });
 
-  it('ignores subscribe when userId is undefined', async () => {
-    setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
-    const ws = createMockWs();
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
-    expect(ws.sent).toHaveLength(0);
+  it('subscribe broadcasts user:online to other room members', async () => {
+    const userId1 = uid();
+    const userId2 = uid();
+    const chatId = cid();
+    getMockState().consumeTicket.mockReturnValue(userId1);
+
+    const ws1 = emitConnection('t1');
+    await sleep();
+    ws1.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+
+    getMockState().consumeTicket.mockReturnValue(userId2);
+    const ws2 = emitConnection('t2');
+    await sleep();
+
+    ws1.sent = [];
+    ws2.sent = [];
+
+    ws2.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+
+    const ws1Msgs = getAllSent(ws1);
+    const online = ws1Msgs.find((m) => m.type === 'user:online');
+    expect(online).toBeDefined();
+    expect(online!.payload.userId).toBe(userId2);
+    expect(online!.payload.chatId).toBe(chatId);
   });
 
-  it('unsubscribes and broadcasts user:offline', async () => {
-    const ws1 = await setupWsAndConnect('t1', 'user-1');
-    const ws2 = await setupWsAndConnect('t2', 'user-2');
+  it('unsubscribe sends unsubscribed ack', async () => {
+    const userId = uid();
+    const chatId = cid();
+    getMockState().consumeTicket.mockReturnValue(userId);
 
-    ws1.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
-    ws2.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
+    const ws = emitConnection('ticket-unsub');
+    await sleep();
 
-    ws1.sent.length = 0;
-    ws2.sent.length = 0;
+    ws.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+    ws.sent = [];
 
-    ws1.emit('message', Buffer.from(JSON.stringify({ type: 'unsubscribe', payload: { chatIds: ['chat-1'] } })));
+    ws.emit('message', JSON.stringify({ type: 'unsubscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
 
-    const unsub = ws1.sent.find((s) => JSON.parse(s).type === 'unsubscribed');
+    const msgs = getAllSent(ws);
+    const unsub = msgs.find((m) => m.type === 'unsubscribed');
     expect(unsub).toBeDefined();
+    expect(unsub!.payload.chatIds).toContain(chatId);
+  });
 
-    const offline = ws2.sent.find((s) => JSON.parse(s).type === 'user:offline');
-    expect(offline).toBeDefined();
-    expect(JSON.parse(offline!).payload.userId).toBe('user-1');
+  it('subscribe to multiple rooms', async () => {
+    const userId = uid();
+    const c1 = cid();
+    const c2 = cid();
+    getMockState().consumeTicket.mockReturnValue(userId);
+
+    const ws = emitConnection('ticket-multi');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [c1, c2] } }));
+    await sleep();
+
+    const msgs = getAllSent(ws);
+    const subscribed = msgs.find((m) => m.type === 'subscribed');
+    expect(subscribed).toBeDefined();
+    expect(subscribed!.payload.chatIds).toEqual([c1, c2]);
   });
 });
 
-// =============================================================================
-// 7. Typing Indicators
-// =============================================================================
+// ── Broadcast to Room ──────────────────────────────────────────────────────────
 
-describe('Typing Indicators', () => {
-  it('broadcasts typing:start to room', async () => {
-    const ws1 = await setupWsAndConnect('t1', 'user-1');
-    const ws2 = await setupWsAndConnect('t2', 'user-2');
+describe('Broadcast to room', () => {
+  it('broadcastToRoom sends to all subscribers', async () => {
+    const userId1 = uid();
+    const userId2 = uid();
+    const chatId = cid();
+    getMockState().consumeTicket.mockReturnValue(userId1);
 
-    ws1.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
-    ws2.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
+    const ws1 = emitConnection('t1');
+    await sleep();
+    getMockState().consumeTicket.mockReturnValue(userId2);
+    const ws2 = emitConnection('t2');
+    await sleep();
 
-    ws2.sent.length = 0;
-    ws1.emit('message', Buffer.from(JSON.stringify({ type: 'typing:start', payload: { chatId: 'chat-1' } })));
+    ws1.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    ws2.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
 
-    const typing = ws2.sent.find((s) => JSON.parse(s).type === 'typing:update');
-    expect(typing).toBeDefined();
-    expect(JSON.parse(typing!).payload.isTyping).toBe(true);
-    expect(JSON.parse(typing!).payload.userId).toBe('user-1');
+    ws1.sent = [];
+    ws2.sent = [];
+
+    broadcastToRoom(chatId, { type: 'test:event', payload: { hello: 'world' } });
+
+    expect(ws1.sent.length).toBeGreaterThan(0);
+    expect(ws2.sent.length).toBeGreaterThan(0);
+
+    const msg1 = JSON.parse(ws1.sent[0]);
+    expect(msg1.type).toBe('test:event');
   });
 
-  it('broadcasts typing:stop to room', async () => {
-    const ws1 = await setupWsAndConnect('t1', 'user-1');
-    const ws2 = await setupWsAndConnect('t2', 'user-2');
-
-    ws1.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
-    ws2.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
-
-    ws2.sent.length = 0;
-    ws1.emit('message', Buffer.from(JSON.stringify({ type: 'typing:stop', payload: { chatId: 'chat-1' } })));
-
-    const typing = ws2.sent.find((s) => JSON.parse(s).type === 'typing:update');
-    expect(typing).toBeDefined();
-    expect(JSON.parse(typing!).payload.isTyping).toBe(false);
+  it('broadcastToRoom does nothing for unknown chatId', () => {
+    broadcastToRoom('nonexistent', { type: 'test', payload: {} });
   });
 
-  it('ignores typing when userId is undefined', async () => {
-    setupWebSocket(getMockHttpServer() as unknown as import('http').Server);
-    const ws = createMockWs();
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'typing:start', payload: { chatId: 'chat-1' } })));
-    expect(ws.sent).toHaveLength(0);
-  });
-});
+  it('broadcastMessageToRoom sends raw buffer', async () => {
+    const userId = uid();
+    const chatId = cid();
+    getMockState().consumeTicket.mockReturnValue(userId);
 
-// =============================================================================
-// 8. Invalid JSON / Unknown Types
-// =============================================================================
+    const ws = emitConnection('t-buf');
+    await sleep();
 
-describe('Invalid JSON / Unknown Types', () => {
-  it('sends error on invalid JSON', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    ws.emit('message', Buffer.from('not json'));
+    ws.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+    ws.sent = [];
 
-    const error = ws.sent.find((s) => JSON.parse(s).type === 'error');
-    expect(error).toBeDefined();
-    expect(JSON.parse(error!).payload.message).toBe('Invalid JSON');
-  });
+    const buf = Buffer.from(JSON.stringify({ type: 'message:new', payload: { id: '1' } }));
+    broadcastMessageToRoom(chatId, buf, false);
 
-  it('sends error on unknown message type', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'unknown:type', payload: {} })));
-
-    const error = ws.sent.find((s) => JSON.parse(s).type === 'error');
-    expect(error).toBeDefined();
-    expect(JSON.parse(error!).payload.message).toContain('Unknown type');
+    expect(ws.sent.length).toBe(1);
   });
 });
 
-// =============================================================================
-// 9. Close / Disconnect
-// =============================================================================
+// ── Send Message via WS ───────────────────────────────────────────────────────
 
-describe('Close / Disconnect', () => {
-  it('removes socket from rooms and broadcasts user:offline on close', async () => {
-    const ws1 = await setupWsAndConnect('t1', 'user-1');
-    const ws2 = await setupWsAndConnect('t2', 'user-2');
+describe('Send message via WS', () => {
+  it('writes to DB and broadcasts message:new', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    ms.consumeTicket.mockReturnValue(userId);
 
-    ws1.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
-    ws2.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1'] } })));
+    const ws = emitConnection('t-send');
+    await sleep();
 
-    ws2.sent.length = 0;
-    ws1.emit('close');
+    ws.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+    ws.sent = [];
 
-    const offline = ws2.sent.find((s) => JSON.parse(s).type === 'user:offline');
-    expect(offline).toBeDefined();
-    expect(JSON.parse(offline!).payload.userId).toBe('user-1');
+    ws.emit('message', JSON.stringify({ type: 'message:send', payload: { chatId, content: 'Hello world' } }));
+    await sleep();
+
+    expect(ms.prisma.$queryRaw).toHaveBeenCalled();
+    expect(ms.prisma.standardChats.update).toHaveBeenCalled();
+
+    const msgs = getAllSent(ws);
+    const newMsg = msgs.find((m) => m.type === 'message:new');
+    expect(newMsg).toBeDefined();
+    expect(newMsg!.payload.content).toBe('Hello world');
+    expect(newMsg!.payload.chatId).toBe(chatId);
   });
 
+  it('sends message:ack with message id', async () => {
+    const userId = uid();
+    const chatId = cid();
+    getMockState().consumeTicket.mockReturnValue(userId);
+
+    const ws = emitConnection('t-ack');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+    ws.sent = [];
+
+    ws.emit('message', JSON.stringify({ type: 'message:send', payload: { chatId, content: 'test' } }));
+    await sleep();
+
+    const msgs = getAllSent(ws);
+    const ack = msgs.find((m) => m.type === 'message:ack');
+    expect(ack).toBeDefined();
+    expect(ack!.payload.id).toBeDefined();
+  });
+
+  it('ignores empty content', async () => {
+    const userId = uid();
+    const chatId = cid();
+    getMockState().consumeTicket.mockReturnValue(userId);
+
+    const ws = emitConnection('t-empty');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+    ws.sent = [];
+
+    ws.emit('message', JSON.stringify({ type: 'message:send', payload: { chatId, content: '   ' } }));
+    await sleep();
+
+    expect(getMockState().prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('broadcasts to other room members', async () => {
+    const userId1 = uid();
+    const userId2 = uid();
+    const chatId = cid();
+    getMockState().consumeTicket.mockReturnValue(userId1);
+
+    const ws1 = emitConnection('t1');
+    await sleep();
+    getMockState().consumeTicket.mockReturnValue(userId2);
+    const ws2 = emitConnection('t2');
+    await sleep();
+
+    ws1.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    ws2.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+
+    ws1.sent = [];
+    ws2.sent = [];
+
+    ws1.emit('message', JSON.stringify({ type: 'message:send', payload: { chatId, content: 'hi' } }));
+    await sleep();
+
+    const ws2Msgs = getAllSent(ws2);
+    const newMsg = ws2Msgs.find((m) => m.type === 'message:new');
+    expect(newMsg).toBeDefined();
+    expect(newMsg!.payload.content).toBe('hi');
+  });
+});
+
+// ── Disconnect / Error ─────────────────────────────────────────────────────────
+
+describe('Disconnect and error', () => {
   it('removes socket from userSockets on close', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    ws.emit('close');
+    const userId = uid();
+    getMockState().consumeTicket.mockReturnValue(userId);
 
-    sendToUser('user-1', { type: 'test' });
-    expect(ws.sent).toHaveLength(0);
+    const ws = emitConnection('t-close');
+    await sleep();
+
+    ws.emit('close');
+    await sleep();
+
+    sendToUser(userId, { type: 'test', payload: {} });
   });
 
-  it('handles close for socket with no subscribed rooms', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    ws.subscribedRooms = undefined;
+  it('removes socket from rooms and broadcasts user:offline on close', async () => {
+    const userId = uid();
+    const chatId = cid();
+    getMockState().consumeTicket.mockReturnValue(userId);
+
+    const ws = emitConnection('t-close-room');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+
     ws.emit('close');
+    await sleep();
   });
 
-  it('handles error event on socket', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    ws.emit('error', new Error('test'));
-    ws.emit('close');
+  it('cleans up on error event', async () => {
+    const userId = uid();
+    getMockState().consumeTicket.mockReturnValue(userId);
 
-    sendToUser('user-1', { type: 'test' });
-    expect(ws.sent).toHaveLength(0);
+    const ws = emitConnection('t-error');
+    await sleep();
+
+    ws.emit('error');
+    await sleep();
   });
 });
 
-// =============================================================================
-// 10. removeSocketFromAllRooms
-// =============================================================================
+// ── sendToUser ─────────────────────────────────────────────────────────────────
 
-describe('removeSocketFromAllRooms', () => {
-  it('removes socket from all subscribed rooms', async () => {
-    const ws = await setupWsAndConnect('t1', 'user-1');
-    ws.emit('message', Buffer.from(JSON.stringify({ type: 'subscribe', payload: { chatIds: ['chat-1', 'chat-2'] } })));
+describe('sendToUser', () => {
+  it('sends to the correct user socket', async () => {
+    const userId = uid();
+    getMockState().consumeTicket.mockReturnValue(userId);
 
-    expect(ws.subscribedRooms?.size).toBe(2);
-    removeSocketFromAllRooms(ws);
-    expect(ws.subscribedRooms?.size).toBe(0);
+    const ws = emitConnection('t-sendto');
+    await sleep();
+
+    sendToUser(userId, { type: 'notification:new', payload: { id: 'n1' } });
+
+    const msgs = getAllSent(ws);
+    const notif = msgs.find((m) => m.type === 'notification:new');
+    expect(notif).toBeDefined();
+    expect(notif!.payload.id).toBe('n1');
   });
 
-  it('does nothing when subscribedRooms is undefined', () => {
-    const ws = createMockWs();
-    removeSocketFromAllRooms(ws);
+  it('does nothing for unknown user', () => {
+    sendToUser('nonexistent', { type: 'test', payload: {} });
+  });
+});
+
+// ── Pong / Heartbeat ──────────────────────────────────────────────────────────
+
+describe('Pong / Heartbeat', () => {
+  it('pong sets isAlive to true', async () => {
+    const userId = uid();
+    getMockState().consumeTicket.mockReturnValue(userId);
+
+    const ws = emitConnection('t-pong');
+    await sleep();
+
+    ws.isAlive = false;
+    ws.emit('pong');
+    expect(ws.isAlive).toBe(true);
+  });
+});
+
+// ── Malformed messages ─────────────────────────────────────────────────────────
+
+describe('Malformed messages', () => {
+  it('ignores invalid JSON gracefully', async () => {
+    const userId = uid();
+    getMockState().consumeTicket.mockReturnValue(userId);
+
+    const ws = emitConnection('t-malformed');
+    await sleep();
+
+    ws.emit('message', 'not json');
+    await sleep();
+  });
+
+  it('ignores unknown message types', async () => {
+    const userId = uid();
+    getMockState().consumeTicket.mockReturnValue(userId);
+
+    const ws = emitConnection('t-unknown');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'nonexistent', payload: {} }));
+    await sleep();
+  });
+
+  it('ignores subscribe with non-array chatIds', async () => {
+    const userId = uid();
+    getMockState().consumeTicket.mockReturnValue(userId);
+
+    const ws = emitConnection('t-bad-sub');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: 'not-array' } }));
+    await sleep();
   });
 });

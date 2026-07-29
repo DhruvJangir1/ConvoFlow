@@ -149,17 +149,17 @@ export default function VerificationPage() {
   }
 
   return (
-    <div className="h-dvh overflow-y-auto flex items-center justify-center bg-[#09090b] px-4 py-8 sm:py-12">
-      <div className="w-full max-w-lg rounded-3xl border border-white/[0.06] bg-white/[0.02] p-4 sm:p-8 shadow-2xl">
+    <div className="h-dvh overflow-y-auto flex items-center justify-center bg-surface-base px-4 py-8 sm:py-12">
+      <div className="w-full max-w-lg rounded-3xl border border-border bg-surface-elevated/50 p-4 sm:p-8 shadow-2xl">
         <div className="flex items-start sm:items-center gap-3 sm:gap-4">
-          <div className="rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 p-3 text-white">
+          <div className="rounded-full bg-gradient-to-br from-accent-info to-accent p-3 text-white">
             <Mail className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-white">Verify your email</h2>
-            <p className="text-sm text-slate-400">
+            <h2 className="text-2xl font-bold text-text-primary">Verify your email</h2>
+            <p className="text-sm text-text-secondary">
               Enter the 6-digit code we sent to{' '}
-              <span className="font-medium text-white">{email || 'your email'}</span>
+              <span className="font-medium text-text-primary">{email || 'your email'}</span>
             </p>
           </div>
         </div>
@@ -173,7 +173,7 @@ export default function VerificationPage() {
                 value={digit}
                 onChange={e => handleDigitChange(idx, e.target.value)}
                 onKeyDown={e => handleKeyDown(idx, e)}
-                className="h-11 w-9 sm:h-14 sm:w-12 rounded-lg bg-white/[0.03] text-center text-base sm:text-lg font-medium text-white outline-none border border-white/[0.04] focus:border-blue-500"
+                className="h-11 w-9 sm:h-14 sm:w-12 rounded-lg bg-surface-raised text-center text-base sm:text-lg font-medium text-text-primary outline-none border border-border-subtle focus:border-accent-info"
                 inputMode="numeric"
                 type="text"
                 maxLength={1}
@@ -183,23 +183,23 @@ export default function VerificationPage() {
             ))}
           </div>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-accent-danger">{error}</p>}
           {message && (
-            <p className="text-sm text-green-400 flex items-center gap-2">
+            <p className="text-sm text-accent-success flex items-center gap-2">
               <CheckCircle className="h-4 w-4" />{message}
             </p>
           )}
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <p className="text-xs sm:text-sm text-slate-400">
-              Code expires in <span className="text-white">{timeDisplay}</span>
+            <p className="text-xs sm:text-sm text-text-secondary">
+              Code expires in <span className="text-text-primary">{timeDisplay}</span>
             </p>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               {!paramEmail && (
                 <input
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className="flex-1 sm:flex-initial rounded-xl bg-white/[0.03] py-2 px-3 text-sm text-white min-w-0"
+                  className="flex-1 sm:flex-initial rounded-xl bg-surface-raised py-2 px-3 text-sm text-text-primary min-w-0"
                   placeholder="your email"
                   inputMode="email"
                 />
@@ -209,7 +209,7 @@ export default function VerificationPage() {
                 onClick={handleResend}
                 disabled={loading || resendCooldown > 0}
                 className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs sm:text-sm ${
-                  resendCooldown > 0 ? 'bg-white/[0.03] text-slate-400' : 'bg-blue-600 text-white'
+                  resendCooldown > 0 ? 'bg-surface-raised text-text-muted' : 'bg-accent-info text-white'
                 }`}
               >
                 <RefreshCw className="h-4 w-4" />
@@ -222,7 +222,7 @@ export default function VerificationPage() {
             <button
               type="submit"
               disabled={loading || verified || digits.some(d => !d)}
-              className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 text-white font-semibold disabled:opacity-60"
+              className="flex-1 rounded-xl bg-gradient-to-r from-accent-info to-accent px-4 py-3 text-white font-semibold disabled:opacity-60"
             >
               {verified ? 'Verified' : loading ? 'Verifying...' : 'Verify & Continue'}
             </button>

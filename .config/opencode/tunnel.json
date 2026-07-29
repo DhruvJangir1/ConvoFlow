@@ -1,0 +1,9 @@
+{
+  "url": "https://abdominal-conical-awkward.ngrok-free.dev",
+  "tunnelId": "abdominal-conical-awkward",
+  "provider": "ngrok",
+  "port": 4096,
+  "targetPort": 4096,
+  "startedAt": "2026-07-27T00:55:24.622Z",
+  "lastUpdated": "2026-07-27T00:55:24.622Z"
+}

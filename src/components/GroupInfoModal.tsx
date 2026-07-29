@@ -26,7 +26,7 @@ export default function GroupInfoModal({ open, onClose, members }: GroupInfoModa
       slotProps={{
         paper: {
           sx: {
-            bgcolor: "#1A1A24",
+            bgcolor: "var(--color-surface-raised)",
             borderRadius: 3,
             boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
             backgroundImage: "none",
@@ -38,7 +38,7 @@ export default function GroupInfoModal({ open, onClose, members }: GroupInfoModa
     >
       <DialogTitle
         sx={{
-          color: "#F0F0F5",
+          color: "var(--color-text-primary)",
           fontSize: { xs: "15px", sm: "17px" },
           fontWeight: 600,
           pb: 1,
@@ -50,7 +50,7 @@ export default function GroupInfoModal({ open, onClose, members }: GroupInfoModa
         }}
       >
         Group Members
-        <IconButton onClick={onClose} size="small" sx={{ color: "#55556A" }}>
+        <IconButton onClick={onClose} size="small" sx={{ color: "var(--color-text-muted)" }}>
           <Close fontSize="small" />
         </IconButton>
       </DialogTitle>

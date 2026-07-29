@@ -87,12 +87,12 @@ export default function AddNewFriendModal({ isOpen, onClose, onSend, sending }: 
           </p>
 
           {status === "success" ? (
-            <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-500/10 px-3 py-2.5 text-sm text-green-400">
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-accent-success/10 px-3 py-2.5 text-sm text-accent-success">
               <CheckCircle className="h-4 w-4 shrink-0" />
               {message}
             </div>
           ) : status === "error" ? (
-            <div className="mt-4 flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-2.5 text-sm text-red-400">
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-accent-danger/10 px-3 py-2.5 text-sm text-accent-danger">
               <AlertCircle className="h-4 w-4 shrink-0" />
               {message}
             </div>

@@ -1,9 +1,9 @@
 import { X, Eye, Camera, Upload, Trash2 } from "lucide-react";
+import { clerkFetch } from "../lib/clerkFetch";
 import { useState, useRef, useEffect } from "react";
 import UserAvatar from "../components/UserAvatar";
 import { useDispatch } from "react-redux";
 import { updateUserProfileImage } from "../store/userAuthSlice";
-import { clerkFetch } from "../lib/clerkFetch";
 
 interface Props {
   onClose: () => void;

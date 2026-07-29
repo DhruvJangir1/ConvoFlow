@@ -17,23 +17,22 @@ import type { Notification } from "../types/chat";
 import type { Chat } from "../types/chat";
 import { useQueryClient } from "@tanstack/react-query";
 import { chatKeys } from "../lib/queryKeys";
-import { useWebSocket } from "../context/WebSocketContext";
 
 const typeConfig: Record<string, { icon: typeof Bell; color: string; bg: string }> = {
   friend_request: {
     icon: UserPlus,
-    color: "text-purple-400",
-    bg: "bg-purple-500/10",
+    color: "text-accent-info",
+    bg: "bg-accent-info/10",
   },
   friend_request_accepted: {
     icon: UserCheck,
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10",
+    color: "text-accent-success",
+    bg: "bg-accent-success/10",
   },
   friend_request_rejected: {
     icon: UserX,
-    color: "text-red-400",
-    bg: "bg-red-500/10",
+    color: "text-accent-danger",
+    bg: "bg-accent-danger/10",
   },
 };
 
@@ -57,7 +56,6 @@ export default function NotificationsPage() {
   const markAllReadMutation = useMarkAllNotificationsRead();
   const rejectMutation = useRejectFriendRequest();
   const acceptMutation = useAcceptFriendRequest();
-  const { subscribeToChats } = useWebSocket();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [acceptLoading, setAcceptLoading] = useState(false);
@@ -134,7 +132,6 @@ export default function NotificationsPage() {
           };
           dispatch(addChat(newChat));
           queryClient.setQueryData(chatKeys.messages(chatId), { messages: [], hasMore: false });
-          subscribeToChats([chatId]);
           navigate(`/chat/${chatId}`);
         } catch {
           setAcceptLoading(false);
@@ -149,7 +146,7 @@ export default function NotificationsPage() {
         setActionLoading(null);
       },
     });
-  }, [acceptMutation, dispatch, queryClient, subscribeToChats, navigate]);
+  }, [acceptMutation, dispatch, queryClient, navigate]);
 
   const handleCreateChat = useCallback(async (notification: Notification) => {
     markAsRead(notification.id);
@@ -172,7 +169,7 @@ export default function NotificationsPage() {
   const read = notifications.filter(n => n.read_at);
 
   function renderNotification(n: Notification) {
-    const config = typeConfig[n.type] ?? { icon: Bell, color: "text-blue-400", bg: "bg-blue-500/10" };
+    const config = typeConfig[n.type] ?? { icon: Bell, color: "text-accent", bg: "bg-accent/10" };
     const Icon = config.icon;
     const isUnread = !n.read_at;
     const isFriendReq = n.type === 'friend_request';
@@ -186,14 +183,14 @@ export default function NotificationsPage() {
 
         <div className={`min-w-0 flex-1 rounded-xl border p-3 sm:p-4 ${
           isUnread
-            ? "border-yellow-500/30 bg-[#1c1a10]"
-            : "border-zinc-800/50 bg-[#17171a]"
+            ? "border-accent-warning/30 bg-accent-warning/5"
+            : "border-border bg-surface-elevated"
         }`}>
           <div className="flex items-start justify-between gap-2 sm:gap-4">
-            <h3 className="text-sm font-semibold text-zinc-100 break-words">
+            <h3 className="text-sm font-semibold text-text-primary break-words">
               {n.content ?? n.type}
             </h3>
-            <span className="shrink-0 text-xs text-zinc-500">
+            <span className="shrink-0 text-xs text-text-muted">
               {relativeTime(n.created_at)}
             </span>
           </div>
@@ -203,7 +200,7 @@ export default function NotificationsPage() {
               <button
                 onClick={() => handleAccept(n)}
                 disabled={actionLoading === n.id}
-                className="flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md bg-accent-success/10 px-3 py-1.5 text-xs font-medium text-accent-success transition-colors hover:bg-accent-success/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {actionLoading === n.id ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -214,7 +211,7 @@ export default function NotificationsPage() {
               <button
                 onClick={() => handleReject(n)}
                 disabled={actionLoading === n.id}
-                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {actionLoading === n.id ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -229,7 +226,7 @@ export default function NotificationsPage() {
             <div className="mt-3">
               <button
                 onClick={() => handleCreateChat(n)}
-                className="flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20"
+                className="flex items-center gap-1.5 rounded-md bg-accent-success/10 px-3 py-1.5 text-xs font-medium text-accent-success transition-colors hover:bg-accent-success/20"
               >
                 <Send className="h-3 w-3" />
                 Send Message
@@ -239,29 +236,29 @@ export default function NotificationsPage() {
         </div>
 
         {isUnread && (
-          <span className="absolute right-2 top-3 h-2 w-2 rounded-full bg-yellow-400" />
+          <span className="absolute right-2 top-3 h-2 w-2 rounded-full bg-accent-warning" />
         )}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col bg-[#121214]">
-      <div className="flex items-center justify-between border-b border-zinc-800/60 px-4 sm:px-6 py-3">
+    <div className="flex flex-1 flex-col bg-surface">
+      <div className="flex items-center justify-between border-b border-border px-4 sm:px-6 py-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
             aria-label="Go back"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 lg:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary lg:hidden"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <h1 className="text-base sm:text-lg font-semibold text-zinc-100">Notifications</h1>
+          <h1 className="text-base sm:text-lg font-semibold text-text-primary">Notifications</h1>
         </div>
         {unread.length > 0 && (
           <button
             onClick={markAllAsRead}
-            className="shrink-0 rounded-md bg-yellow-500/10 px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-yellow-400 transition-colors hover:bg-yellow-500/20"
+            className="shrink-0 rounded-md bg-accent-warning/10 px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-accent-warning transition-colors hover:bg-accent-warning/20"
           >
             Mark all as read
           </button>
@@ -269,17 +266,17 @@ export default function NotificationsPage() {
       </div>
       <div className="flex-1 overflow-y-auto">
         <div className="relative px-3 sm:px-6 py-4 sm:py-5">
-          <div className="absolute bottom-0 left-6 sm:left-10.25 top-0 w-px bg-zinc-800" />
+          <div className="absolute bottom-0 left-6 sm:left-10.25 top-0 w-px bg-border" />
 
           {notifLoading ? (
-            <p className="text-sm text-zinc-500">Loading...</p>
+            <p className="text-sm text-text-muted">Loading...</p>
           ) : notifications.length === 0 ? (
-            <p className="text-sm text-zinc-500">No notifications yet</p>
+            <p className="text-sm text-text-muted">No notifications yet</p>
           ) : (
             <div className="relative space-y-6">
               {unread.length > 0 && (
                 <section>
-                  <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
                     Unread ({unread.length})
                   </h2>
                   <div className="space-y-4">
@@ -290,7 +287,7 @@ export default function NotificationsPage() {
 
               {read.length > 0 && (
                 <section>
-                  <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
                     Read ({read.length})
                   </h2>
                   <div className="space-y-4">

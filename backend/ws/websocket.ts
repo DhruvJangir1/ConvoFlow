@@ -1,403 +1,319 @@
+import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
-import http from 'http';
-import type { IncomingMessage } from 'http';
-import { consumeTicket, startTicketCleanup, stopTicketCleanup } from '../src/services/wsTicketStore';
-import { prisma } from '../src/lib/connectionPoolClient';
-import { resolveImageUrl } from '../src/services/imageUpload.js';
+import type { Server } from 'http';
+import { consumeTicket, startTicketCleanup, stopTicketCleanup } from '../src/services/wsTicketStore.js';
+import { prisma } from '../src/lib/connectionPoolClient.js';
+import { insertStandardChatMessage, requireChatMembership } from '../src/services/chatMessageService.js';
+import type { MessageSendPayload, SubscribePayload, WsClientMessage } from './wsTypes.js';
 
-
-
-interface AuthenticatedSocket extends WebSocket {
-  userId?: string;
-  userName?: string;
-  userImage?: string | null;
-  isAlive?: boolean;
-  subscribedRooms?: Set<string>;
+interface AuthenticatedSocket extends WebSocket { // this type helps for sending messages fast and keep up with user's other needed data to not lookup in the DB
+  userId: string;
+  userName: string;
+  userImage: string | null;
+  isAlive: boolean;
+  subscribedRooms: Set<string>;
 }
 
-type ClientMessage =
-  | { type: 'subscribe'; payload: { chatIds: string[] } }
-  | { type: 'unsubscribe'; payload: { chatIds: string[] } }
-  | { type: 'message:send'; payload: { chatId: string; content: string } }
-  | { type: 'typing:start'; payload: { chatId: string } }
-  | { type: 'typing:stop'; payload: { chatId: string } };
-
-const userSockets = new Map<string, AuthenticatedSocket>();
+const userSockets = new Map<string, AuthenticatedSocket[]>();
 const chatRooms = new Map<string, Set<AuthenticatedSocket>>();
+
 let wss: WebSocketServer | null = null;
 
-// ─── MODULE LOADED ───────────────────────────────────────────────
-console.log('[ws-module] websocket.ts module loaded (before any function runs)');
-
-function authenticateConnection(request: IncomingMessage): string | null {
-  const urlString = request.url;
-  if (urlString === undefined) {
-    return null;
-  }
-  const url = new URL(urlString, 'http://localhost');
-  const ticket = url.searchParams.get('ticket');
-  if (ticket === null) {
-    return null;
-  }
-  const userId = consumeTicket(ticket);
-  return userId;
-}
-
-function getOnlineUsersInChat(chatId: string): string[] {
-  const sockets = chatRooms.get(chatId);
-  if (!sockets) return [];
-  return [...sockets]
-    .map((s) => s.userId)
-    .filter((id): id is string => id !== undefined);
-}
-
-export function broadcastToRoom(chatId: string, data: object): void {
-  const room = chatRooms.get(chatId);
-  console.log(`[ws:broadcast] Broadcasting to room "${chatId}" — ${room ? room.size : 0} sockets in room`);
-  if (!room || room.size === 0) {
-    console.log(`[ws:broadcast] Room "${chatId}" doesn't exist or is empty, skipping`);
-    return;
-  }
-  const payload = JSON.stringify(data);
-  for (const ws of room) {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(payload);
-    }
+export function authenticateConnection(url: string): string | null { // this consumes the wsTicket from a user, and makes sure we authenticate him, and returns his id
+  try {
+    const backendUrl = process.env.RENDER_API_URL ?? 'http://localhost';
+    const parsed = new URL(url, backendUrl);
+    const ticket = parsed.searchParams.get('ticket');
+    if (!ticket) return null;
+    const userId = consumeTicket(ticket);
+    return userId;
+  } catch {
+    return null
   }
 }
 
-export function sendToUser(userId: string, data: object): void {
-  const ws = userSockets.get(userId);
-  console.log(`[ws:sendToUser] looking for socket for user ${userId} — found: ${!!ws}, open: ${ws?.readyState === WebSocket.OPEN}`);
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(data));
-    console.log(`[ws:sendToUser] message sent to user ${userId}, type: ${(data as { type?: string }).type}`);
-  }
-}
-
-function sendToSocket(ws: AuthenticatedSocket, data: object): void {
+export function sendMessageToUser(ws: WebSocket, data: Record<string, unknown>): void {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(data));
   }
 }
 
-function addToRoom(ws: AuthenticatedSocket, chatId: string): void {
-  if (!chatRooms.has(chatId)) {
-    chatRooms.set(chatId, new Set());
-    console.log(`[ws:room] Created new room "${chatId}"`);
-  }
 
+export function broadcastToRoom(chatId: string, data: Record<string, unknown>): void {
   const room = chatRooms.get(chatId);
-  if (room !== undefined) {
-    room.add(ws);
-    console.log(`[ws:room] Added user ${ws.userId} to room "${chatId}" (${room.size} sockets in room)`);
-  }
+  if (!room) return;
+  const payload = JSON.stringify(data);
 
-  if (ws.subscribedRooms === undefined) {
-    ws.subscribedRooms = new Set();
+  let sent = 0;
+
+  for (const member of room) {
+    if (member.readyState === WebSocket.OPEN) {
+      member.send(payload);
+      sent++;
+    }
   }
-  ws.subscribedRooms.add(chatId);
+  console.log(`[WS] broadcastMessageToRoom: chatId=${chatId} roomSize=${room.size} sent=${sent}`)
 }
 
-function removeFromRoom(ws: AuthenticatedSocket, chatId: string): void {
-  const room = chatRooms.get(chatId);
-  if (room !== undefined) {
-    room.delete(ws);
-    console.log(`[ws:room] Removed user ${ws.userId} from room "${chatId}" (${room.size} remaining)`);
+export function sendToUser(userId: string, data: Record<string, unknown>): void {
+  const sockets = userSockets.get(userId);
+  if (sockets) {
+    for (const ws of sockets) {
+      sendMessageToUser(ws, data);
+    }
   }
-  if (ws.subscribedRooms !== undefined) {
-    ws.subscribedRooms.delete(chatId);
+}
+
+export function broadcastMessageToRoom(chatId: string, buf: Buffer, isBinary: boolean): void {
+  const room = chatRooms.get(chatId);
+  if (!room) return;
+  for (const member of room) {
+    if (member.readyState === WebSocket.OPEN) {
+      member.send(buf, { binary: isBinary });
+    }
   }
 }
 
 export function removeSocketFromAllRooms(ws: AuthenticatedSocket): void {
-  if (ws.subscribedRooms === undefined) {
-    return;
-  }
-  const roomIds = [...ws.subscribedRooms];
-  console.log(`[ws:room] Removing user ${ws.userId} from all ${roomIds.length} rooms`);
-  for (const chatId of roomIds) {
-    const room = chatRooms.get(chatId);
-    if (room !== undefined) {
-      room.delete(ws);
-      console.log(`[ws:room] Cleaned user ${ws.userId} from room "${chatId}" (${room.size} remaining)`);
+  if (!ws.subscribedRooms) return;
+  for (const chatId of ws.subscribedRooms) {
+    unsubscribeFromRoom(chatId, ws);
+    if (ws.userId) {
+      broadcastToRoom(chatId, { type: 'user:offline', payload: { chatId, userId: ws.userId } });
     }
   }
   ws.subscribedRooms.clear();
 }
 
-export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chatId: string; content: string; tempId?: string }): Promise<void> {
-  const { chatId, content, tempId } = payload;
+export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chatId: string; content: string; sentAt?: number; tempId?: string }): Promise<void> {
+  if (!ws.userId) return;
+  const { chatId, content, sentAt, tempId } = payload;
 
-  if (ws.userId === undefined) {
-    console.log('[ws:message] REJECTED — userId is undefined');
-    sendToSocket(ws, { type: 'error', payload: { message: 'Not authenticated' } });
-    return;
-  }
+  if (!content || typeof content !== 'string' || !content.trim()) return;
+  if (!chatId || chatId === '') return;
 
-  if (ws.userName === undefined) {
-    console.log('[ws:message] REJECTED — userName is undefined');
-    sendToSocket(ws, { type: 'error', payload: { message: 'Not authenticated' } });
-    return;
-  }
+  const receivedAt = Date.now();
 
-  if (!content || typeof content !== 'string' || !content.trim()) {
-    console.log('[ws:message] REJECTED — empty content');
-    sendToSocket(ws, { type: 'error', payload: { message: 'content must be a non-empty string' } });
-    return;
-  }
+  const isMember = await requireChatMembership(ws.userId, chatId);
+  if (!isMember) return;
 
-  try {
-    const message = await prisma.standardChatMessages.create({
-      data: { chat_id: chatId, sender_id: ws.userId, content },
-    });
-    console.log(`[ws:message] Message ${message.id} saved to DB`);
+  const newMessageId = crypto.randomUUID();
+  const dbStart = Date.now();
+  const { id, createdAt } = await insertStandardChatMessage(newMessageId, chatId, ws.userId, content.trim());
+  const dbTime = Date.now() - dbStart;
 
-    await prisma.standardChats.update({
-      where: { id: chatId },
-      data: { updated_at: new Date() },
-    });
-
-    sendToSocket(ws, { type: 'message:ack', payload: { id: message.id, tempId } });
-    console.log(`[ws:message] Sent ack for message ${message.id} to sender`);
-
-    broadcastToRoom(chatId, {
-      type: 'message:new',
-      payload: {
-        id: message.id,
-        chatId,
-        senderId: ws.userId,
-        senderName: ws.userName,
-        senderImage: ws.userImage ?? null,
-        content: message.content,
-        createdAt: message.created_at,
-      },
-    });
-
-    console.log(`[ws:message] Message ${message.id} broadcast complete`);
-
-  } catch (error) {
-    console.error('[ws:message] ERROR:', error);
-    sendToSocket(ws, { type: 'error', payload: { message: 'Failed to send message' } });
-  }
-}
-
-function handleTyping(ws: AuthenticatedSocket, type: 'typing:start' | 'typing:stop', payload: { chatId: string }): void {
-  if (ws.userId === undefined) {
-    return;
-  }
-  broadcastToRoom(payload.chatId, {
-    type: 'typing:update',
-    payload: { chatId: payload.chatId, userId: ws.userId, isTyping: type === 'typing:start' },
+  prisma.standardChats.update({
+    where: { id: chatId },
+    data: { updated_at: new Date() },
   });
+
+  sendMessageToUser(ws, { type: 'message:ack', payload: { id, tempId } });
+
+  broadcastToRoom(chatId, {
+    type: 'message:new',
+    payload: {
+      id,
+      chatId,
+      senderId: ws.userId,
+      senderName: ws.userName || ws.userId.slice(0, 8),
+      senderImage: ws.userImage ?? null,
+      content: content.trim(),
+      createdAt,
+      isEdited: false,
+      isAnonymous: false,
+      messageType: 'text',
+      sentAt,
+      chatType: 'standard',
+    },
+  });
+
+  const total = Date.now() - receivedAt;
+  console.log(`[WS] handleSendMessage: chatId=${chatId} dbTime=${dbTime}ms total=${total}ms +${sentAt ? Date.now() - sentAt : '?'}ms`);
 }
 
-function handleSubscribe(ws: AuthenticatedSocket, chatIds: string[]): void {
-  console.log(`[ws:subscribe] User ${ws.userId} subscribing to chats: ${chatIds}`);
-  if (ws.userId === undefined) {
-    console.log('[ws:subscribe] REJECTED — userId is undefined');
+export function subscribeToRoom(chatId:string,userId:string, ws: AuthenticatedSocket){
+  if (!userSockets.has(userId)){
+    userSockets.set(userId,[ws]);
+  }
+
+  ws.subscribedRooms.add(chatId);
+  const existingChatUsersSet = chatRooms.get(chatId);
+
+  if (existingChatUsersSet){
+    existingChatUsersSet.add(ws);
+    chatRooms.set(chatId,existingChatUsersSet);
     return;
   }
 
-  for (const id of chatIds) {
-    addToRoom(ws, id);
-  }
-  sendToSocket(ws, { type: 'subscribed', payload: { chatIds } });
-  console.log(`[ws:subscribe] Confirmed subscription to ${chatIds}`);
+  const newSet = new Set<AuthenticatedSocket>();
+  newSet.add(ws);
 
-  for (const id of chatIds) {
-    broadcastToRoom(id, {
-      type: 'user:online',
-      payload: { chatId: id, userId: ws.userId },
-    });
-    sendToSocket(ws, {
-      type: 'chat:online-users',
-      payload: { chatId: id, userIds: getOnlineUsersInChat(id) },
-    });
-  }
+  chatRooms.set(chatId,newSet);
 }
 
-function handleUnsubscribe(ws: AuthenticatedSocket, chatIds: string[]): void {
-  console.log(`[ws:unsubscribe] User ${ws.userId} unsubscribing from chats: ${chatIds}`);
-  if (ws.userId === undefined) {
-    return;
-  }
+function unsubscribeFromRoom(chatId: string, ws: AuthenticatedSocket): void {
+  ws.subscribedRooms.delete(chatId);
+  const room = chatRooms.get(chatId);
 
-  for (const id of chatIds) {
-    removeFromRoom(ws, id);
-    broadcastToRoom(id, {
-      type: 'user:offline',
-      payload: { chatId: id, userId: ws.userId },
-    });
-  }
-  sendToSocket(ws, { type: 'unsubscribed', payload: { chatIds } });
+  if (!room) return;
+
+  room.delete(ws);
+  if (room.size === 0) chatRooms.delete(chatId);
 }
 
-function handleMessage(ws: AuthenticatedSocket, raw: Buffer): void {
-  let msg: ClientMessage;
-  try {
-    msg = JSON.parse(raw.toString());
-  } catch {
-    console.log(`[ws:message] INVALID JSON from user ${ws.userId}`);
-    sendToSocket(ws, { type: 'error', payload: { message: 'Invalid JSON' } });
-    return;
-  }
-
-  console.log(`[ws:message] Received type="${msg.type}" from user ${ws.userId}`);
-
-  switch (msg.type) {
-    case 'subscribe':
-      handleSubscribe(ws, msg.payload.chatIds);
-      break;
-
-    case 'unsubscribe':
-      handleUnsubscribe(ws, msg.payload.chatIds);
-      break;
-
-    case 'message:send':
-      handleSendMessage(ws, msg.payload);
-      break;
-
-    case 'typing:start':
-    case 'typing:stop':
-      handleTyping(ws, msg.type, msg.payload);
-      break;
-
-    default:
-      console.log(`[ws:message] Unknown message type: ${(msg as unknown as { type: string }).type}`);
-      sendToSocket(ws, { type: 'error', payload: { message: `Unknown type: ${(msg as unknown as { type: string }).type}` } });
-  }
-}
-
-function handleClose(ws: AuthenticatedSocket): void {
-  const userId = ws.userId;
-  console.log(`[ws:close] Socket closing for user ${userId || 'unknown'}`);
-
-  if (ws.subscribedRooms !== undefined && ws.subscribedRooms.size > 0) {
-    const rooms = [...ws.subscribedRooms];
-    console.log(`[ws:close] User ${userId} was in ${rooms.length} rooms, cleaning up`);
-    removeSocketFromAllRooms(ws);
-
-    for (const chatId of rooms) {
-      broadcastToRoom(chatId, {
-        type: 'user:offline',
-        payload: { chatId, userId: userId },
-      });
-    }
-  }
-
-  if (userId !== undefined && userSockets.get(userId) === ws) {
-    userSockets.delete(userId);
-    console.log(`[ws:close] User ${userId} fully disconnected (${userSockets.size} sockets remaining)`);
-  }
-}
-
-function startHeartbeat(): void {
-  console.log('[ws:heartbeat] Starting heartbeat interval (30s)');
-  const interval = setInterval(() => {
-    if (wss !== null) {
-      console.log(`[ws:heartbeat] Ping check — ${wss.clients.size} connected clients`);
-      wss.clients.forEach((client) => {
-        const ws = client as AuthenticatedSocket;
-        if (ws.isAlive === false) {
-          console.log(`[ws:heartbeat] Terminating stale client ${ws.userId}`);
-          ws.terminate();
-          return;
-        }
-        ws.isAlive = false;
-        ws.ping();
-      });
-    }
-  }, 30_000);
-  if (wss !== null) {
-    wss.on('close', () => clearInterval(interval));
-  }
-}
-
-export function setupWebSocket(server: http.Server): WebSocketServer {
-  console.log('[ws:setup] ===== SETUP WEBSOCKET CALLED =====');
-  console.log('[ws:setup] Attaching WebSocketServer to provided HTTP server');
-
-  console.log('[ws:setup] Creating WebSocketServer on path /ws');
-
+export function createWebSocketServer(server: Server): void {
   wss = new WebSocketServer({ server, path: '/ws' });
-  console.log('[ws:setup] WebSocketServer instance created, registering connection handler');
+  startTicketCleanup();
 
-  wss.on('connection', async (ws: AuthenticatedSocket, request: IncomingMessage) => {
-    console.log('[ws:setup] *** NEW CONNECTION RECEIVED ***');
+  wss.on('connection', async (ws: AuthenticatedSocket, req) => {
+    const url = req.url ?? '';
+    const userId = authenticateConnection(url);
 
-    const userId = authenticateConnection(request);
     if (!userId) {
-      console.log('[ws:setup] Authentication FAILED — closing socket with code 4001');
-      ws.close(4001, 'Authentication required');
+      ws.close(4001, 'Invalid or expired ticket');
       return;
     }
-
-    console.log(`[ws:setup] Authentication SUCCESS — user ID: ${userId}`);
 
     ws.userId = userId;
     ws.isAlive = true;
     ws.subscribedRooms = new Set();
 
-    ws.on('pong', () => {
-      console.log(`[ws:pong] Received pong from ${ws.userId}`);
-      ws.isAlive = true;
-    });
+    console.log(`[WS] connection: userId=${userId}`);
 
-    ws.on('message', (raw: Buffer) => {
-      handleMessage(ws, raw);
-    });
-
-    ws.on('close', () => {
-      console.log(`[ws:setup] Socket 'close' event fired for ${ws.userId}`);
-      handleClose(ws);
-    });
-
-    ws.on('error', (err) => {
-      console.log(`[ws:setup] Socket 'error' event for ${ws.userId}: ${err}`);
-    });
-
-    console.log(`[ws:setup] Event listeners registered for ${userId} — fetching profile from DB`);
-    userSockets.set(userId, ws);
-    console.log(`[ws:setup] Socket stored for ${userId} — ${userSockets.size} total unique users connected`);
     try {
       const user = await prisma.users.findUnique({
         where: { id: userId },
         select: { user_name: true, image_url: true },
       });
-      if (user !== null) {
-        ws.userName = user.user_name;
-        ws.userImage = user.image_url ? await resolveImageUrl(user.image_url) : null;
-        console.log(`[ws:setup] User profile loaded: name="${user.user_name}"`);
+      if (user) {
+        ws.userName = user.user_name || userId.slice(0, 8);
+        ws.userImage = user.image_url;
       } else {
-        ws.userName = userId;
+        ws.userName = userId.slice(0, 8);
         ws.userImage = null;
-        console.log(`[ws:setup] No user profile found, using ID as name`);
       }
-    } catch {
-      ws.userName = userId;
-      ws.userImage = null;
-      console.log(`[ws:setup] DB error loading profile, using ID as name`);
+    } catch (err){
+      console.error(err)
     }
 
-    console.log(`[ws:setup] === CONNECTION FULLY ESTABLISHED for ${ws.userName} (${userId}) ===`);
+    const existing = userSockets.get(userId);
+    if (existing) {
+      existing.push(ws);
+    } else {
+      userSockets.set(userId, [ws]);
+    }
+    console.log(`[WS] connection complete: userId=${userId} userName=${ws.userName} totalUserSockets=${userSockets.size}`);
+
+    ws.on('pong', () => { ws.isAlive = true; });
+
+    ws.on('message', async (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString()) as WsClientMessage
+    
+        switch (msg.type) {
+          case 'subscribe': {
+            const chatIds = msg.payload.chatIds;
+            if (!Array.isArray(chatIds)) break;
+
+            const [standardMemberships, anonMemberships] = await Promise.all([
+              prisma.standardChatMembers.findMany({
+                where: { user_id: userId, chat_id: { in: chatIds } },
+                select: { chat_id: true },
+              }),
+              prisma.anonymousChatMembers.findMany({
+                where: { id: userId, chat_id: { in: chatIds } },
+                select: { chat_id: true },
+              }),
+            ]);
+            const validIds = new Set([
+              ...standardMemberships.map((m) => m.chat_id),
+              ...anonMemberships.map((m) => m.chat_id),
+            ]);
+
+            for (const chatId of chatIds) {
+              if (!validIds.has(chatId)) continue;
+              subscribeToRoom(chatId,userId,ws);
+              broadcastToRoom(chatId, { type: 'user:online', payload: { chatId, userId } });
+
+              const memberSockets = chatRooms.get(chatId);
+              const userIds = [];
+              if (memberSockets) {
+                for (const memberSocket of memberSockets) {
+                  if (memberSocket.userId) {
+                    userIds.push(memberSocket.userId);
+                  }
+                }
+              }
+              sendMessageToUser(ws, { type: 'chat:online-users', payload: { chatId, userIds } });
+            }
+            sendMessageToUser(ws, { type: 'subscribed', payload: { chatIds } });
+            break;
+          }
+          case 'unsubscribe': {
+            const chatIds = msg.payload.chatIds;
+            if (!Array.isArray(chatIds)) break;
+            for (const chatId of chatIds) {
+              unsubscribeFromRoom(chatId, ws);
+              broadcastToRoom(chatId, { type: 'user:offline', payload: { chatId, userId } });
+            }
+            sendMessageToUser(ws, { type: 'unsubscribed', payload: { chatIds } });
+            break;
+          }
+          case 'message:send': {
+            const msgPayload = msg.payload as MessageSendPayload;
+            await handleSendMessage(ws, msgPayload);
+            break;
+          }
+        }
+      } catch (err){
+        console.error(err);
+      }
+    });
+
+    function removeSocket() {
+      removeSocketFromAllRooms(ws);
+      if (!userId){
+        console.log('[websockets/removeSocket] couldnt find userId')
+        return;
+      }
+      const sockets = userSockets.get(userId);
+      if (sockets) {
+        const idx = sockets.indexOf(ws);
+        if (idx >= 0) sockets.splice(idx, 1);
+        if (sockets.length === 0) userSockets.delete(userId);
+      }
+    }
+
+    ws.on('close', () => {
+      console.log(`[WS] disconnect: userId=${userId}`);
+      removeSocket();
+    });
+
+    ws.on('error', () => {
+      removeSocket();
+    });
   });
 
-  console.log('[ws:setup] Starting ticket cleanup & heartbeat');
-  startTicketCleanup();
-  startHeartbeat();
-  console.log('[ws:setup] ===== SETUP WEBSOCKET COMPLETE =====');
-  return wss;
+  const heartbeat = setInterval(() => {
+    if (!wss) return;
+    wss.clients.forEach((ws) => {
+      const authWs = ws as AuthenticatedSocket;
+      if (!authWs.isAlive) { 
+        authWs.terminate(); 
+        return; 
+      }
+      authWs.isAlive = false;
+      authWs.ping();
+    });
+  }, 30_000);
+
+  wss.on('close', () => clearInterval(heartbeat));
 }
 
 export function shutdownWebSocket(): void {
-  console.log('[ws:shutdown] Shutting down WebSocket server...');
   stopTicketCleanup();
-  if (wss !== null) {
-    const count = wss.clients.size;
-    console.log(`[ws:shutdown] Closing ${count} active client connections`);
-    wss.clients.forEach((c) => c.close(1001, 'Server shutting down'));
+  if (wss) {
     wss.close();
-    console.log('[ws:shutdown] WebSocket server closed');
+    wss = null;
   }
 }

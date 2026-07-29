@@ -3,10 +3,11 @@ import type { Request, Response } from 'express';
 import multer, { type FileFilterCallback } from 'multer';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
-import { broadcastToRoom } from '../../ws/websocket.js';
 import { findDmChat, createDmChat } from '../services/dmChat.js';
 import { uploadImageToStorage, signImageUrl } from '../services/imageUpload.js';
 import { signChatAvatar, signMemberImages, signSenderImage } from './chatImageHelpers.js';
+import { broadcastToRoom } from '../../ws/websocket.js';
+import { requireChatMembership } from '../services/chatMessageService.js';
 
 type ChatUploadRequest = Request & {
   file?: {
@@ -20,7 +21,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req: Request, file: { mimetype: string }, cb: FileFilterCallback) => {
-    if (file.mimetype.startsWith('image/')) {
+    if (file.mimetype.startsWith('image/') && file.mimetype !== 'image/svg+xml') {
       cb(null, true);
       return;
     }
@@ -29,20 +30,6 @@ const upload = multer({
 });
 
 console.log('[chat module] backend/src/chat/chat.ts loaded');
-
-async function requireChatMembership(userId: string, chatId: string): Promise<boolean> {
-  console.log(`[requireChatMembership] checking membership for user ${userId} in chat ${chatId}`);
-  const membership = await prisma.standardChatMembers.findUnique({
-    where: { chat_id_user_id:{ chat_id:chatId, user_id:userId } },
-    select: { user_id: true },
-  });
-  console.log(`[requireChatMembership] membership result for user ${userId} in chat ${chatId}: ${membership ? 'FOUND' : 'NOT_FOUND'}`);
-  
-  const memberShipExists = membership !== null;
-  console.log(`[requireChatMembership] ${memberShipExists}`)
-  
-  return memberShipExists
-}
 
 const ChatRouter = Router();
 
@@ -241,19 +228,6 @@ ChatRouter.post('/:chatId/image', authenticate, upload.single('image'), async (r
 
     const signedSenderImage = await signSenderImage(message.USERS.image_url ?? null);
 
-    broadcastToRoom(chatId, {
-      type: 'message:new',
-      payload: {
-        id: message.id,
-        chatId,
-        senderId: message.sender_id,
-        senderName: message.USERS.user_name ?? userId,
-        senderImage: signedSenderImage,
-        content: uploadResult.url,
-        createdAt: message.created_at,
-        messageType: message.message_type,
-      },
-    });
 
     res.status(201).json({
       success: true,
@@ -368,6 +342,20 @@ ChatRouter.post('/:chatId/:userId/appendMessage', authenticate, async (req: Requ
   }
 
   try {
+    // Look up sender info for the broadcast
+    const sender = await prisma.users.findUnique({
+      where: { id: userId },
+      select: { user_name: true, image_url: true },
+    });
+
+    if(!sender){
+      res.status(404).json({error:'User Not Found'})
+      console.log('[/chat/appendMessage] sender not found')
+      return;
+    }
+
+    const signedSenderImage = await signSenderImage(sender.image_url ?? null);
+    const senderName = sender.user_name ?? userId.slice(0, 8);
 
     const newMessage = await prisma.standardChatMessages.create({
       data: {
@@ -383,28 +371,29 @@ ChatRouter.post('/:chatId/:userId/appendMessage', authenticate, async (req: Requ
     });
 
     console.log(`[chat:POST /:chatId/messages] message created with id ${newMessage.id} in chat ${chatId}`);
-    console.log(`[chat:POST /:chatId/messages] the message with id ${newMessage.id} in chat ${chatId} is about to be BROADCASTED`);
-
-    const signedSenderImage = await signSenderImage(newMessage.USERS.image_url ?? null);
 
     broadcastToRoom(chatId, {
       type: 'message:new',
       payload: {
         id: newMessage.id,
         chatId,
-        senderId: newMessage.sender_id,
-        senderName: newMessage.USERS.user_name ?? userId,
+        senderId: userId,
+        senderName,
         senderImage: signedSenderImage,
         content: newMessage.content,
-        createdAt: newMessage.created_at,
+        createdAt: newMessage.created_at.toISOString(),
+        isEdited: false,
+        messageType: 'text',
       },
     });
+      console.log(`broadcasted msg: ${Date.now()}`)
 
-    await prisma.standardChats.update({
+    console.log(`[chat:POST /:chatId/messages] ✓ Broadcasted message to room ${chatId}`);
+    prisma.standardChats.update({
       where: { id: chatId },
       data: { updated_at: new Date() },
     });
-    console.log(`[chat:POST /:chatId/messages] chat ${chatId} updated_at refreshed`);
+
 
     res.status(201).json({ message: newMessage });
   } catch (error) {
@@ -537,10 +526,6 @@ ChatRouter.delete('/:chatId/messages/:messageId/:userId', authenticate, async (r
       where: { id: messageId },
     });
 
-    broadcastToRoom(chatId, {
-      type: 'message:delete',
-      payload: { chatId, messageId, senderId: userId, isAnonymous: false },
-    });
 
     console.log(`[chat:DELETE /:chatId/messages/:messageId] message ${messageId} deleted successfully`);
 

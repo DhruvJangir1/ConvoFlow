@@ -124,7 +124,7 @@ export default function FriendRequestModal({
           <p className="mt-1 text-sm text-text-muted">wants to be friends with you</p>
 
           {error && (
-            <div className="mt-4 flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-2.5 text-sm text-red-400">
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-accent-danger/10 px-3 py-2.5 text-sm text-accent-danger">
               <AlertCircle className="h-4 w-4 shrink-0" />
               {error}
             </div>
@@ -146,7 +146,7 @@ export default function FriendRequestModal({
             <button
               onClick={handleAccept}
               disabled={loading}
-              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2.5 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent-success px-4 py-2.5 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-accent-success disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
                 <>

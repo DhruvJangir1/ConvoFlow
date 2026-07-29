@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../store/store";
-import { useWebSocket } from "../../context/WebSocketContext";
 import { clerkFetch } from "../../lib/clerkFetch";
 import { useAnonymousRoomQuery } from "../../hooks/useAnonymousRoomQuery";
 import { useAnonymousMessagesQuery } from "../../hooks/useAnonymousMessagesQuery";
@@ -12,7 +11,7 @@ import {
   useAnonymousDeleteMessageMutation,
   useAnonymousVoteMutation,
 } from "../../hooks/useAnonymousMutations";
-import MessageList from "../../components/MessageList";
+import AnonymousMessageFeed from "../../components/AnonymousMessageFeed";
 import ConfirmModal from "../../modals/ConfirmModal";
 import type { AnonymousChatMessages } from "../../types/chat";
 import AnonymousChatHeader from "./AnonymousChatHeader";
@@ -21,8 +20,6 @@ import AnonymousChatComposer from "./AnonymousChatComposer";
 export default function AnonymousChat() {
   const { id: roomId } = useParams();
   const user = useSelector((s: RootState) => s.userAuth.user);
-  const { subscribeToChats, onMessage } = useWebSocket();
-
   const [messages, setMessages] = useState<AnonymousChatMessages[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -34,16 +31,7 @@ export default function AnonymousChat() {
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const oldestDateRef = useRef<string | null>(null);
-  const prevRoomRef = useRef<string | null>(null);
   const ownMessageIds = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!roomId || !user) return;
-
-    prevRoomRef.current = roomId;
-    subscribeToChats([roomId]);
-
-  }, [roomId, user, subscribeToChats]);
 
   const { data: roomDetail } = useAnonymousRoomQuery(roomId);
   const roomName = roomDetail?.name ?? "Anonymous Chat";
@@ -86,10 +74,28 @@ export default function AnonymousChat() {
     }
 
     queueMicrotask(() => {
-      // Hydrate the list once the fetched messages are ready.
-      setMessages(messagesData.messages);
-      setHasMore(messagesData.hasMore);
-      setLoading(false);
+      setMessages((prev) => {
+        const pending = prev.filter((m) => String(m.id).startsWith('temp-'));
+        if (pending.length === 0) {
+          if (prev.length === messagesData.messages.length &&
+              prev.every((m, i) => m.id === messagesData.messages[i].id)) {
+            return prev;
+          }
+          return messagesData.messages;
+        }
+        const cacheIds = new Set(messagesData.messages.map((m) => m.id));
+        const unresolved = pending.filter((m) => !cacheIds.has(m.id));
+        const merged = unresolved.length > 0
+          ? [...messagesData.messages, ...unresolved]
+          : messagesData.messages;
+        if (prev.length === merged.length &&
+            prev.every((m, i) => m.id === merged[i].id)) {
+          return prev;
+        }
+        return merged;
+      });
+      setHasMore((prev) => prev === messagesData.hasMore ? prev : messagesData.hasMore);
+      setLoading((prev) => prev ? false : prev);
       if (messagesData.messages.length > 0) {
         oldestDateRef.current = messagesData.messages[0].createdAt;
       } else {
@@ -98,36 +104,6 @@ export default function AnonymousChat() {
       }
     });
   }, [messagesData, roomId]);
-
-  useEffect(() => {
-    if (!roomId || !user) return;
-    const unsub = onMessage((msg) => {
-      if (msg.type === 'message:new' && msg.payload.chatId === roomId) {
-        const isOwn = ownMessageIds.current.has(msg.payload.id) || msg.payload.senderId === user.id;
-        const isAnon = msg.payload.isAnonymous ?? true;
-
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.payload.id)) return prev;
-          return [...prev, {
-            id: msg.payload.id,
-            chatId: roomId,
-            content: msg.payload.content,
-            senderId: isOwn ? user.id : (isAnon ? "other" : (msg.payload.senderId ?? "other")),
-            senderName: isAnon ? "Anonymous" : (isOwn ? user.user_name : (msg.payload.senderName ?? "Anonymous")),
-            senderImage: isAnon ? null : (msg.payload.senderImage ?? null),
-            createdAt: msg.payload.createdAt,
-            isOwn,
-            isEdited: false,
-            messageType: 'text',
-            isAnonymous: isAnon,
-            totalUpvotes: 0,
-            userVote: null,
-          }];
-        });
-      }
-    });
-    return unsub;
-  }, [roomId, user, onMessage]);
 
   async function loadMoreMessages() {
     if (!roomId || loadingMore || !hasMore || !oldestDateRef.current || !user) return;
@@ -334,7 +310,7 @@ export default function AnonymousChat() {
   return (
     <div className="flex flex-1 flex-col bg-surface">
       <AnonymousChatHeader roomName={roomName} />
-      <MessageList
+      <AnonymousMessageFeed
         messages={messages}
         loading={loading}
         loadingMore={loadingMore}

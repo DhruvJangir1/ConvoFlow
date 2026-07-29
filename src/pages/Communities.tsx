@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Bell, User, Menu } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import { useAnonymousRoomsQuery } from "../hooks/useAnonymousRoomsQuery";
 import { formatSmartDate } from "../lib/dateFormat";
-import { useWebSocket } from "../context/WebSocketContext";
 import AddFriendButton from "../components/AddFriendButton";
-import ProfileModal from "../modals/ProfileModal";
+
 
 function getInitials(name: string): string {
   return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
@@ -31,15 +30,7 @@ export default function Communities() {
   const navigate = useNavigate();
   const { setShowOverlay } = useOutletContext<RootLayoutCtx>();
   const [searchQuery, setSearchQuery] = useState("");
-  const [profileOpen, setProfileOpen] = useState(false);
   const { data: anonRooms = [] } = useAnonymousRoomsQuery();
-  const { subscribeToChats } = useWebSocket();
-
-  useEffect(() => {
-    if (anonRooms.length > 0) {
-      subscribeToChats(anonRooms.map(r => r.id));
-    }
-  }, [anonRooms, subscribeToChats]);
 
   const filteredAnon = useMemo(
     () => anonRooms
@@ -71,7 +62,7 @@ export default function Communities() {
             <Bell className="h-4 w-4" />
           </button>
           <button
-            onClick={() => setProfileOpen(true)}
+            onClick={() => navigate("/profile")}
             aria-label="Profile"
             className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary hover:bg-surface-raised hover:text-text-primary transition-colors"
           >
@@ -147,8 +138,6 @@ export default function Communities() {
           ))
         )}
       </div>
-
-      <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { useDispatch } from 'react-redux';
 import { useUser, useAuth as useClerkAuth } from '@clerk/react';
 import { setUser, type User } from '../store/userAuthSlice';
+import { resetChats } from '../store/chatSlice';
 import { clerkFetch, setGetTokenFn } from '../lib/clerkFetch';
 
 interface AuthContextValue {
@@ -44,7 +45,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             is_verified: data.user.is_verified,
             last_login: data.user.last_login,
             user_tag: data.user.user_tag,
+            bio: data.user.bio,
           };
+          
           dispatch(setUser(dbUser));
         } catch {
           dispatch(setUser(null));
@@ -55,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       fetchDbUser();
     } else {
       dispatch(setUser(null));
+      dispatch(resetChats());
       setDbUserFetched(true);
     }
   }, [isLoaded, clerkUser, dispatch]);

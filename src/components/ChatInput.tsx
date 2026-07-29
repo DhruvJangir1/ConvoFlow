@@ -1,70 +1,62 @@
 import { Paperclip, ArrowUp, X } from "lucide-react";
-import { useRef, useEffect, useCallback, useState, type Dispatch, type SetStateAction } from "react";
+import { useRef, useState, useEffect, type Dispatch, type SetStateAction } from "react";
 import { useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
-import { useWebSocket } from "../context/WebSocketContext";
 import { clerkFetch } from "../lib/clerkFetch";
-import { useSendMessageMutation } from "../hooks/useChatMutations";
+import { useWebSocket } from "../context/WebSocketContext";
 import type { ChatMessages } from "../types/chat";
 
 type ChatInputProps = {
-  setMessages?: Dispatch<SetStateAction<ChatMessages[]>>;
-  value?: string;
-  onChange?: (value: string) => void;
-  onSend?: () => void;
-  sendImage?: (file: File) => void;
-  onSendImageWithText?: (image: File, text: string) => Promise<void>;
-  disabled?: boolean;
-  isAnonymous?: boolean;
-  onAnonymousToggle?: () => void;
+  setMessages: Dispatch<SetStateAction<ChatMessages[]>>;
 };
 
-export default function ChatInput({ setMessages, value, onChange, onSend, sendImage, onSendImageWithText, disabled }: ChatInputProps) {
-  const internal = setMessages !== undefined;
+export default function ChatInput({ setMessages }: ChatInputProps) {
+  const user = useSelector((s: RootState) => s.userAuth.user);
+  const { chatId } = useParams();
+  const { send, onMessage } = useWebSocket();
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [internalText, setInternalText] = useState("");
+  const [messageText, setMessageText] = useState("");
   const [pendingImage, setPendingImage] = useState<File | null>(null);
   const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
-  const messageText = internal ? internalText : (value ?? "");
-  const setMessageText = internal ? setInternalText : (onChange ?? (() => {}));
-
-  const user = useSelector((s: RootState) => s.userAuth.user);
-  const isConnected = useSelector((s: RootState) => s.userAuth.isConnected);
-  const { chatId } = useParams();
-  const { send } = useWebSocket();
-  const sendMessageMutation = useSendMessageMutation();
+  useEffect(() => {
+    const unsub = onMessage((msg) => {
+      if (msg.type === "message:ack" && msg.payload.tempId) {
+        setMessages((prev) =>
+          prev.map((m) => m.id === msg.payload.tempId ? { ...m, id: msg.payload.id } : m),
+        );
+      }
+    });
+    return unsub;
+  }, [onMessage, setMessages]);
 
   const hasContent = messageText.trim().length > 0;
-  const canSend = (hasContent || pendingImage) && !disabled && !sending;
+  const canSend = (hasContent || pendingImage !== null) && !sending;
 
-  const resize = useCallback(() => {
+  function resizeTextarea() {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, []);
+    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+  }
 
   useEffect(() => {
-    resize();
-  }, [messageText, resize]);
-
-  useEffect(() => {
-    return () => {
-      if (pendingImagePreview) URL.revokeObjectURL(pendingImagePreview);
-    };
-  }, [pendingImagePreview]);
+    resizeTextarea();
+  }, [messageText]);
 
   function clearPendingImage() {
-    if (pendingImagePreview) URL.revokeObjectURL(pendingImagePreview);
+    if (pendingImagePreview) {
+      URL.revokeObjectURL(pendingImagePreview);
+    }
     setPendingImage(null);
     setPendingImagePreview(null);
   }
 
-  async function internalSendImage(file: File) {
-    if (!user || !chatId || !setMessages) return;
+  async function uploadImage(file: File) {
+    if (!user || !chatId) return;
     const formData = new FormData();
     formData.append("image", file, file.name);
     try {
@@ -76,19 +68,15 @@ export default function ChatInput({ setMessages, value, onChange, onSend, sendIm
         const err = await res.json().catch(() => ({ error: "Failed to upload image" }));
         throw new Error(err.error);
       }
-      const data = await res.json();
-      if (!data.url) {
-        throw new Error("Image upload did not return a URL");
-      }
     } catch {
-      // image upload failed
+      // image upload failed silently
     }
   }
 
-  async function internalSendMessage() {
-    if (!chatId || !messageText.trim() || !user || !setMessages) return;
+  async function sendTextMessage() {
+    if (!chatId || !messageText.trim() || !user) return;
     const trimmed = messageText.trim();
-    const tempId = `temp-${Date.now()}`;
+    const tempId = "temp-" + Date.now();
     const optimistic: ChatMessages = {
       id: tempId,
       chatId,
@@ -97,105 +85,50 @@ export default function ChatInput({ setMessages, value, onChange, onSend, sendIm
       createdAt: new Date().toISOString(),
       isOwn: true,
       senderName: user.user_name,
-      senderImage: user.image_url ?? null,
+      senderImage: user.image_url || null,
       isEdited: false,
       messageType: "text",
     };
     setMessages((prev) => [...prev, optimistic]);
-    setInternalText("");
-    if (isConnected) {
-      send("message:send", { chatId, content: trimmed, tempId });
-    } else {
-      sendMessageMutation.mutate(
-        { chatId, content: trimmed, userId: user.id },
-        {
-          onSuccess: (data) => {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === tempId
-                  ? { ...m, id: data.message.id, createdAt: data.message.created_at }
-                  : m,
-              ),
-            );
-          },
-          onError: () => {
-            setMessages((prev) => prev.filter((m) => m.id !== tempId));
-          },
-        },
-      );
-    }
-  }
+    setMessageText("");
 
-  async function internalSendImageWithText(file: File, text: string) {
-    if (!user || !chatId || !setMessages) return;
-    await internalSendImage(file);
-    if (text) {
-      const trimmed = text;
-      const tempId = `temp-${Date.now()}`;
-      const optimistic: ChatMessages = {
-        id: tempId,
-        chatId,
-        senderId: user.id,
-        content: trimmed,
-        createdAt: new Date().toISOString(),
-        isOwn: true,
-        senderName: user.user_name,
-        senderImage: user.image_url ?? null,
-        isEdited: false,
-        messageType: "text",
-      };
-      setMessages((prev) => [...prev, optimistic]);
-      if (isConnected) {
-        send("message:send", { chatId, content: trimmed, tempId });
-      } else {
-        sendMessageMutation.mutate(
-          { chatId, content: trimmed, userId: user.id },
-          {
-            onSuccess: (data) => {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === tempId
-                    ? { ...m, id: data.message.id, createdAt: data.message.created_at }
-                    : m,
-                ),
-              );
-            },
-            onError: () => {
-              setMessages((prev) => prev.filter((m) => m.id !== tempId));
-            },
-          },
-        );
+    const sent = send("message:send", { chatId, content: trimmed, sentAt: Date.now(), tempId });
+    if (sent) return;
+
+    try {
+      const res = await clerkFetch(`/api/chats/${chatId}/${user.id}/appendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: trimmed, chatId, userId: user.id }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.message && data.message.id) {
+          setMessages((prev) =>
+            prev.map((m) => m.id === tempId ? { ...m, id: data.message.id } : m),
+          );
+        }
       }
+    } catch {
+      // REST fallback failed — message stays as pending in local state
     }
   }
 
   async function handleSend() {
-    if (pendingImage) {
-      const text = messageText.trim();
+    if (pendingImage !== null) {
       setSending(true);
       try {
-        if (internal) {
-          if (text) {
-            await internalSendImageWithText(pendingImage, text);
-          } else {
-            await internalSendImage(pendingImage);
-          }
-        } else {
-          if (text && onSendImageWithText) {
-            await onSendImageWithText(pendingImage, text);
-          } else if (sendImage) {
-            sendImage(pendingImage);
-          }
+        await uploadImage(pendingImage);
+        if (messageText.trim()) {
+          await sendTextMessage();
         }
       } finally {
         setSending(false);
       }
       clearPendingImage();
       setMessageText("");
-    } else if (internal) {
-      await internalSendMessage();
     } else {
-      onSend?.();
+      await sendTextMessage();
     }
   }
 
@@ -203,14 +136,14 @@ export default function ChatInput({ setMessages, value, onChange, onSend, sendIm
     if (e.key === "Enter" && !e.shiftKey && canSend) {
       e.preventDefault();
       handleSend();
-    }
-    else if (e.key === "Escape") {
-      if (pendingImage) {
+    } else if (e.key === "Escape") {
+      if (pendingImage !== null) {
         clearPendingImage();
       } else if (messageText.length > 0) {
         setMessageText("");
       } else {
-        textareaRef.current?.blur();
+        const el = textareaRef.current;
+        if (el) el.blur();
       }
     }
   }
@@ -218,21 +151,28 @@ export default function ChatInput({ setMessages, value, onChange, onSend, sendIm
   function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
     if (sending) return;
 
-    const imageFile = Array.from(e.clipboardData.files ?? []).find((file) => file.type.startsWith("image/"));
+    const items = e.clipboardData.items || [];
+    const files = e.clipboardData.files || [];
+
+    const imageFile = Array.from(files).find((file) => file.type.startsWith("image/"));
     if (imageFile) {
       e.preventDefault();
-      if (pendingImagePreview) URL.revokeObjectURL(pendingImagePreview);
+      if (pendingImagePreview) {
+        URL.revokeObjectURL(pendingImagePreview);
+      }
       setPendingImage(imageFile);
       setPendingImagePreview(URL.createObjectURL(imageFile));
       return;
     }
 
-    const imageItem = Array.from(e.clipboardData.items ?? []).find((item) => item.type.startsWith("image/"));
+    const imageItem = Array.from(items).find((item) => item.type.startsWith("image/"));
     if (imageItem) {
       const file = imageItem.getAsFile();
       if (file) {
         e.preventDefault();
-        if (pendingImagePreview) URL.revokeObjectURL(pendingImagePreview);
+        if (pendingImagePreview) {
+          URL.revokeObjectURL(pendingImagePreview);
+        }
         setPendingImage(file);
         setPendingImagePreview(URL.createObjectURL(file));
       }
@@ -246,23 +186,23 @@ export default function ChatInput({ setMessages, value, onChange, onSend, sendIm
           <img
             src={pendingImagePreview}
             alt="Preview"
-            className="h-24 w-24 rounded-xl object-cover border border-zinc-700"
+            className="h-24 w-24 rounded-xl object-cover border border-border"
           />
           <button
             type="button"
             aria-label="Remove image"
             onClick={clearPendingImage}
-            className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-700 text-text-secondary hover:bg-zinc-600 hover:text-text-primary transition-colors"
+            className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-surface-raised text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors"
           >
             <X className="h-3 w-3" />
           </button>
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 bg-zinc-900/60 backdrop-blur-md border border-zinc-800/50 rounded-full px-2 py-1.5">
+      <div className="flex items-center gap-1.5 bg-surface-elevated/60 backdrop-blur-md border border-border rounded-full px-2 py-1.5 transition-all duration-300 focus-within:border-accent/30 focus-within:shadow-[0_0_12px_rgba(29,78,216,0.08)]">
         <button
           aria-label="Attach file"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors duration-150 hover:bg-white/10 hover:text-text-primary"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors duration-150 hover:bg-surface-hover hover:text-text-primary"
         >
           <Paperclip className="h-4 w-4" />
         </button>
@@ -275,7 +215,7 @@ export default function ChatInput({ setMessages, value, onChange, onSend, sendIm
           onPaste={handlePaste}
           aria-label="Message input"
           aria-multiline="true"
-          placeholder={pendingImage ? "Add a caption..." : "Message..."}
+          placeholder={pendingImage !== null ? "Add a caption..." : "Message..."}
           rows={1}
           className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-1 py-2 text-[15px]/[1.6] text-text-primary placeholder-text-muted outline-none"
         />
@@ -285,10 +225,11 @@ export default function ChatInput({ setMessages, value, onChange, onSend, sendIm
           aria-disabled={!canSend}
           disabled={!canSend}
           onClick={canSend ? handleSend : undefined}
-          className="group flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-white transition-all duration-150 hover:brightness-110 active:scale-[0.92]"
+          className="group flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-surface-base transition-all duration-150 hover:brightness-110 active:scale-[0.92]"
           style={{
-            background: canSend ? "#007AFF" : "transparent",
+            background: canSend ? "var(--color-accent)" : "transparent",
             opacity: canSend ? 1 : 0.4,
+            boxShadow: canSend ? "var(--glow-sm)" : "none",
           }}
         >
           <ArrowUp className="h-4 w-4 transition-transform duration-150 group-hover:-translate-y-0.5" />

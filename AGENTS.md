@@ -102,7 +102,7 @@ src/
 ├── context/                  # React Context providers (global state that lives across route changes)
 │   ├── AuthContext.tsx        # Syncs Clerk user to Redux — reads useUser()/useAuth() from Clerk
 │   ├── ChatContext.tsx        # Fetches + syncs chat list to Redux, auto-subscribes WS rooms
-│   └── WebSocketContext.tsx   # WS connection lifecycle, subscribe queue, message dispatch (uses clerkFetch)
+│   └── WebSocketContext.tsx   # WS connection lifecycle, subscribe queue, delegates cache mutations to wsCacheHandlers
 ├── hooks/                    # Custom React hooks (data fetching + mutations via TanStack Query)
 │   ├── useChatsQuery.ts
 │   ├── useChatMessagesQuery.ts
@@ -113,7 +113,8 @@ src/
 │   ├── useAnonymousRoomsQuery.ts
 │   ├── useAnonymousRoomQuery.ts
 │   ├── useAnonymousMessagesQuery.ts
-│   └── useAnonymousMutations.ts
+│   ├── useAnonymousMutations.ts
+│   └── wsCacheHandlers.ts    # WS-triggered TanStack cache mutations (plain functions, no hooks)
 ├── layouts/                  # Layout components (structural wrappers for pages)
 │   ├── RootLayout.tsx        # Wraps protected routes in Sidebar + ChatList + providers
 │   ├── ShellLayout.tsx
@@ -516,8 +517,8 @@ ConvoFlow uses **Clerk** for authentication. Clerk handles user management, sess
 1. User clicks logout in Navbar or ProfileModal
 2. Component calls useClerk().signOut()
 3. Clerk destroys the session and clears its internal state
-4. useUser() returns null → AuthContext dispatches setUser(null) → Redux clears user
-5. ProtectedRoute redirects to /login
+4. useUser() returns null → AuthContext dispatches setUser(null) + resetChats() → Redux clears user + chat state
+5. ProtectedRoute detects user is null via useEffect → navigates to /login
 ```
 
 ### `clerkFetch` Utility (`src/lib/clerkFetch.ts`)
@@ -535,7 +536,8 @@ How it works:
 2. `clerkFetch` calls `getTokenFn()` to get the current Clerk JWT
 3. Attaches it as `Authorization: Bearer <token>` header
 4. Calls `fetch()` with the modified headers and `credentials: 'include'`
-5. If `getToken` returns null, logs a warning — the request will likely 401
+5. If the response is 401, calls `getTokenFn()` once more (forces a fresh JWT) and retries the request
+6. If `getToken` returns null, the request proceeds without an Authorization header and will likely 401
 
 This means **all 13 frontend files** that make API calls (10 hooks, 2 modals, 1 page) use `clerkFetch` instead of raw `fetch`.
 
@@ -547,9 +549,10 @@ Every protected API route uses this middleware:
 import { verifyClerkToken, fetchClerkUser } from '../lib/auth.js';
 
 export async function authenticate(req, res, next) {
-  // 1. Extract Bearer token from Authorization header
-  // 2. If missing → 401 "Authentication required"
+  // 1. Extract Bearer token from Authorization header using regex /^Bearer\s+(.+)$/i
+  // 2. If missing or malformed → 401 "Authentication required"
   // 3. Call verifyClerkToken(token) → { sub: clerkId }
+  //    On TokenVerificationError (expired/invalid) → 401, not 500
   // 4. Look up user by clerk_id in DB → set req.user = { id: dbUuid, email } → next()
   // 5. If not found → auto-provision: fetchClerkUser → Supabase auth user → Prisma create
 }
@@ -557,7 +560,7 @@ export async function authenticate(req, res, next) {
 
 **Auto-provisioning flow** (when a Clerk user has no DB row):
 1. `fetchClerkUser(clerkId)` → gets email from Clerk API
-2. Check for existing user by email → link `clerk_id` if found
+2. Check for existing user by email → if found and has a `clerk_id` already set to a different value, reject with 409 (prevents account takeover)
 3. Otherwise: `supabase.auth.admin.createUser()` → `prisma.clerkUsers.upsert()` → `prisma.users.create()`
 
 **Clerk ID vs DB UUID**: Clerk user IDs (e.g., `user_3Gp...`) are **not** UUIDs. The middleware maps them to internal DB UUIDs via the `clerk_id` column on `USERS`. The `req.user.id` is always the DB UUID, never the Clerk ID.
@@ -610,7 +613,9 @@ A "room" is a chat. When a user subscribes to a chat, their socket is added to a
 ```
 Subscribe:
   Client sends: { type: "subscribe", payload: { chatIds: ["id1", "id2"] } }
+  Server: batch query standardChatMembers + anonymousChatMembers → validIds
   Server: for each chatId:
+    - if chatId not in validIds → skip (membership enforcement)
     - chatRooms.get(chatId) ?? new Set() → add ws
     - ws.subscribedRooms.add(chatId)
   Server sends back: { type: "subscribed", payload: { chatIds } }
@@ -683,9 +688,23 @@ The client maintains:
 On mount (when `user` becomes available):
 1. Fetch ticket from `/api/auth/WsTicketRouter/ws-ticket` via **`clerkFetch`** (sends Clerk JWT)
 2. Open WebSocket with ticket
-3. On open: send all pending subscriptions from `subscribedChatsRef`
-4. On message: parse JSON, dispatch to registered handlers + messageHandlers callbacks
+3. On open: fetch all chat IDs (standard + anonymous) via `clerkFetch`, subscribe to all rooms
+4. On message: parse JSON, delegate to typed handlers that call `wsCacheHandlers.ts` functions
 5. On close: schedule reconnect after 2 seconds
+
+**Cache mutation delegation**: `WebSocketContext` does NOT contain inline cache logic. All TanStack Query cache mutations for WS events are handled by plain functions in `wsCacheHandlers.ts`:
+
+| WS Event | Handler Function | Cache Updated |
+|----------|-----------------|---------------|
+| `message:new` (standard) | `addMessageToChatCache()` | `chatKeys.messages()` + `chatKeys.lists()` |
+| `message:new` (anonymous) | `addMessageToAnonCache()` | `anonChatKeys.messages()` + `anonChatKeys.lists()` |
+| `message:delete` (standard) | `removeMessageFromChatCache()` | `chatKeys.messages()` |
+| `message:delete` (anonymous) | `removeMessageFromAnonCache()` | `anonChatKeys.messages()` |
+| `chat:new` | `addChatFromWs()` | `chatKeys.lists()` + Redux `addChat` |
+| `notification:new` | `addNotificationFromWs()` | `notifKeys.lists()` + Redux `incrementUnreadNotif` |
+| `chat:online-users` | inline `dispatch(setOnlineUsers)` | Redux only |
+| `user:online` | inline `dispatch(addOnlineUser)` | Redux only |
+| `user:offline` | inline `dispatch(removeOnlineUser)` | Redux only |
 
 ---
 
@@ -840,6 +859,7 @@ State: {
 | `setOnlineUsers({ chatId, userIds })` | Set online users for a chat |
 | `addOnlineUser({ chatId, userId })` | Add user to online list |
 | `removeOnlineUser({ chatId, userId })` | Remove user from online list |
+| `resetChats()` | Reset to initial state (dispatched on logout) |
 
 ---
 
@@ -867,7 +887,7 @@ notifKeys = {
 };
 ```
 
-The WebSocket handlers in `WebSocketContext.tsx` update these caches in real-time when `message:new`, `message:delete`, or `chat:new` events arrive.
+The WebSocket handlers in `WebSocketContext.tsx` delegate cache mutations to `wsCacheHandlers.ts` which updates these caches in real-time when `message:new`, `message:delete`, `chat:new`, or `notification:new` events arrive.
 
 ---
 
@@ -897,12 +917,19 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 | Layer | Implementation |
 |-------|---------------|
 | **HTTP Headers** | Helmet (CSP, HSTS, frameguard, noSniff, hidePoweredBy, referrerPolicy, etc.) |
-| **CSRF** | `validateOrigin.ts` checks `x-forwarded-host` (production) or `Origin`/`Referer` (dev) on mutating requests |
-| **Rate Limiting** | Redis-backed sorted set: 10 attempts/min per IP, 5-min block. Falls back to in-memory Map when Redis is unavailable. |
-| **Authentication** | Clerk handles session management, token rotation, MFA, and social OAuth. Backend verifies JWTs via `lib/auth.ts` wrapper (abstracts `@clerk/backend`). |
-| **Chat Membership** | `requireChatMembership()` checks `StandardChatMembers` before allowing message read/write |
-| **Image Storage** | S3 bucket is private. All URLs are presigned (1-hour expiry). Never stored in client state. |
-| **Origin Validation** | `x-forwarded-host` header checked against `CORS_ORIGIN` in production; standard `Origin`/`Referer` in dev |
+| **CSRF** | `validateOrigin.ts` checks `x-forwarded-host` (production) with `Origin` header fallback, or `Origin`/`Referer` (dev) on mutating requests |
+| **Rate Limiting** | Redis-backed sorted set: 10 attempts/min per IP, 5-min block. Falls back to in-memory Map when Redis is unavailable. Applied to `/verify`, `/resend-verification`, and `/api/friends/send` |
+| **Authentication** | Clerk handles session management, token rotation, MFA, and social OAuth. Backend verifies JWTs via `lib/auth.ts` wrapper (abstracts `@clerk/backend`). Expired JWTs return 401 (not 500). |
+| **Chat Membership** | `requireChatMembership()` checks `StandardChatMembers` before allowing message read/write. WS subscribe handler batch-checks `standardChatMembers` + `anonymousChatMembers` before joining a room. |
+| **Image Storage** | S3 bucket is private. All URLs are presigned (1-hour expiry). Never stored in client state. SVG uploads (`image/svg+xml`) are rejected. |
+| **Origin Validation** | `x-forwarded-host` header checked against `CORS_ORIGIN` in production, falls back to standard `Origin` header. Standard `Origin`/`Referer` in dev. |
+| **Auto-Provision Guard** | When linking existing accounts by email, `clerk_id` is checked — if already set to a different Clerk account, the link is rejected (409). |
+| **401 Retry** | `clerkFetch` auto-retries once on 401 by calling `getToken()` again (forces a fresh JWT). |
+| **Logout Cleanup** | `AuthContext` dispatches `resetChats()` on logout, clearing Redux chat state. `ProtectedRoute` has a `useEffect` that watches `user` and redirects on session expiry. |
+| **Bearer Parsing** | Authorization header is parsed via regex `/^Bearer\s+(.+)$/i` (strict, no lenient `.startsWith`). |
+| **User Privacy** | User search no longer exposes email addresses. Only `id`, `user_name`, `image_url`, `is_verified`, `user_tag` are returned. |
+| **Self-Request Block** | Friend requests to self are rejected (400). |
+| **Sender Verification** | Friend accept validates `sender_user_id` from request body matches the DB `AddFriendRequests.sender_id` record. |
 
 ---
 
@@ -920,6 +947,10 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 10. **Clerk appearance overrides** — `LoginForm.tsx` and `SignUpForm.tsx` apply dark-theme appearance overrides to Clerk's `<SignIn>` and `<SignUp>` components via the `appearance` prop. These use transparent backgrounds and the project's indigo accent color (`#7C6EF7`).
 11. **Clerk ID vs DB UUID** — Clerk user IDs (e.g., `user_3Gp...`) are NOT valid UUIDs. The database requires UUID format. A `clerk_id` mapping column has been added to `USERS` and the `authenticate` middleware maps Clerk IDs to DB UUIDs via this column.
 12. **`clerkFetch` must be used for all API calls** — Never use raw `fetch()` for backend requests. Always import `clerkFetch` from `../lib/clerkFetch` which injects the Clerk JWT automatically.
+13. **WebSocket subscribe enforces membership** — The subscribe handler batch-queries `standardChatMembers` + `anonymousChatMembers` before allowing room subscription. Non-member chatIds are silently skipped.
+14. **Anonymous message sender uses `req.user.id`** — `POST /:id/messages/:userId/:isAnonymous` ignores the URL `:userId` param and uses `req.user.id` from auth (prevents impersonation).
+15. **Rate limiter is active on 3 endpoints** — `/verify`, `/resend-verification`, and `/api/friends/send` all call `trackAuthAttempt(req.ip)`. Falls back to in-memory when Redis is unavailable.
+16. **Expired Clerk JWTs return 401, not 500** — The catch block in `authenticate.ts` checks `err.name === 'TokenVerificationError'` before falling back to generic 500.
 
 ---
 
@@ -954,7 +985,7 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 | GET | `/api/anonymousChats/:id` | `authenticate` | Get single room |
 | POST | `/api/anonymousChats/:id/join` | `authenticate` | Join room |
 | GET | `/api/anonymousChats/:id/messages` | `authenticate` | Paginated messages (`?before=` cursor) |
-| POST | `/api/anonymousChats/:id/messages/:userId/:isAnonymous` | `authenticate` | Send message |
+| POST | `/api/anonymousChats/:id/messages/:userId/:isAnonymous` | `authenticate` | Send message (uses `req.user.id`, not URL param) |
 | PATCH | `/api/anonymousChats/:id/messages/:messageId` | `authenticate` | Edit message |
 | DELETE | `/api/anonymousChats/:id/messages/:messageId` | `authenticate` | Delete message |
 | POST | `/api/anonymousChats/:messageId/upvote` | `authenticate` | Upvote message |
@@ -964,15 +995,17 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/users/search?q=...` | `authenticate` | Search users by name/email/tag |
+| GET | `/api/users/search?q=...` | `authenticate` | Search users by name/tag (no email exposed) |
 | PATCH | `/api/users/profile-image` | `authenticate` + multer | Upload profile image |
+| GET | `/api/users/:userId/fetch-chatNames` | `authenticate` | Fetch chat list with participant-derived display names |
+| PATCH | `/api/users/:userId/update-bio` | `authenticate` | Update user bio |
 
 ### Friend Routes (`/api/friends`)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/friends/send` | `authenticate` | Send friend request by userTag |
-| PATCH | `/api/friends/accept` | `authenticate` | Accept friend request |
+| POST | `/api/friends/send` | `authenticate` + rate-limited | Send friend request by userTag (self-requests blocked) |
+| PATCH | `/api/friends/accept` | `authenticate` | Accept friend request (validates senderId against DB) |
 | PATCH | `/api/friends/:id/reject` | `authenticate` | Reject friend request |
 
 ### Notification Routes (`/api/notifications`)

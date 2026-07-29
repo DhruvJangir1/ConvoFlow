@@ -9,6 +9,7 @@ export interface User {
   is_verified: boolean;
   last_login: string | null;
   user_tag: string;
+  bio: string | null;
 }
 
 interface UserAuthState {
@@ -47,8 +48,13 @@ const userAuthSlice = createSlice({
         state.user.image_url = action.payload;
       }
     },
+    updateUserBio(state, action: PayloadAction<string | null>) {
+      if (state.user) {
+        state.user.bio = action.payload;
+      }
+    },
   },
 });
 
-export const { setUser, setConnected, setUnreadNotifCount, incrementUnreadNotif, resetUnreadNotif, updateUserProfileImage } = userAuthSlice.actions;
+export const { setUser, setConnected, setUnreadNotifCount, incrementUnreadNotif, resetUnreadNotif, updateUserProfileImage, updateUserBio } = userAuthSlice.actions;
 export default userAuthSlice.reducer;

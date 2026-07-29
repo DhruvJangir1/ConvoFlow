@@ -41,9 +41,9 @@ export default function ChatHeader() {
               className={`h-2 w-2 rounded-full ${
                 chat.type === 'dm'
                   ? isOtherOnline
-                    ? 'bg-accent-success shadow-[0_0_6px_#4ADE8066]'
+                    ? 'bg-accent-success shadow-[0_0_6px_var(--color-success-muted)]'
                     : 'bg-text-muted'
-                  : 'bg-accent-success shadow-[0_0_6px_#4ADE8066]'
+                  : 'bg-accent-success shadow-[0_0_6px_var(--color-success-muted)]'
               }`}
             />
             {chat.type === 'dm'

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useLocation, useOutletContext } from "react-router-dom";
 import { Loader2, Search, Bell, User, Menu } from "lucide-react";
 import { useSelector } from "react-redux";
@@ -8,8 +8,7 @@ import { useAnonymousRoomsQuery } from "../hooks/useAnonymousRoomsQuery";
 import { formatSmartDate } from "../lib/dateFormat";
 import AddFriendButton from "../components/AddFriendButton";
 import UserAvatar from "../components/UserAvatar";
-import { useWebSocket } from "../context/WebSocketContext";
-import ProfileModal from "../modals/ProfileModal";
+
 
 function getInitials(name: string): string {
   return name
@@ -44,7 +43,6 @@ export default function Home() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
-  const [profileOpen, setProfileOpen] = useState(false);
   const mode: "chats" | "communities" =
     location.pathname.startsWith("/communities") || location.pathname.startsWith("/anonymous") ? "communities" : "chats";
 
@@ -59,13 +57,6 @@ export default function Home() {
   );
 
   const { data: anonRooms = [] } = useAnonymousRoomsQuery();
-  const { subscribeToChats } = useWebSocket();
-
-  useEffect(() => {
-    if (anonRooms.length > 0) {
-      subscribeToChats(anonRooms.map(r => r.id));
-    }
-  }, [anonRooms, subscribeToChats]);
 
   const filteredAnon = useMemo(
     () => anonRooms
@@ -105,7 +96,7 @@ export default function Home() {
             <Bell className="h-4 w-4" />
           </button>
           <button
-            onClick={() => setProfileOpen(true)}
+            onClick={() => navigate("/profile")}
             aria-label="Profile"
             className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary hover:bg-surface-raised hover:text-text-primary transition-colors"
           >
@@ -247,7 +238,6 @@ export default function Home() {
         )}
       </div>
 
-      <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }

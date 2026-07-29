@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
-import { useWebSocket } from "../context/WebSocketContext";
 import { useParams } from "react-router-dom";
 import { clerkFetch } from "../lib/clerkFetch";
 import ChatHeader from "../components/ChatHeader";
@@ -10,204 +9,132 @@ import ChatInput from "../components/ChatInput";
 import ConfirmModal from "../modals/ConfirmModal";
 import ImageModal from "../modals/ImageModal";
 import { useChatMessagesQuery } from "../hooks/useChatMessagesQuery";
-import {
-  useEditMessageMutation,
-  useDeleteMessageMutation,
-} from "../hooks/useChatMutations";
+import { useEditMessageMutation, useDeleteMessageMutation } from "../hooks/useChatMutations";
 import type { ChatMessages } from "../types/chat";
-function buildMessage(raw: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; message_type?: string; USERS?: { user_name: string; image_url: string | null } | null }, isOwn: boolean, chatId: string): ChatMessages {
+
+type RawMessage = {
+  id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  is_edited?: boolean;
+  message_type?: string;
+  USERS?: { user_name: string; image_url: string | null } | null;
+};
+
+function parseMessage(raw: RawMessage, userId: string, chatId: string): ChatMessages {
+  const name = raw.USERS ? raw.USERS.user_name : raw.sender_id.slice(0, 8);
+  const image = raw.USERS ? raw.USERS.image_url : null;
   return {
     id: raw.id,
     chatId,
     senderId: raw.sender_id,
-    senderName: raw.USERS?.user_name ?? raw.sender_id.slice(0, 8),
-    senderImage: raw.USERS?.image_url ?? null,
+    senderName: name,
+    senderImage: image,
     content: raw.content,
     createdAt: raw.created_at,
-    isOwn,
-    isEdited: raw.is_edited ?? false,
-    messageType: raw.message_type as string,
+    isOwn: raw.sender_id === userId,
+    isEdited: raw.is_edited === true,
+    messageType: raw.message_type || "text",
   };
 }
 
 export default function ChatView() {
-  const [messages, setMessages] = useState<ChatMessages[]>([]);
-  const [messagesLoading, setMessagesLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMoreMessages, setHasMoreMessages] = useState(true);
-  const oldestMessageDateRef = useRef<string | null>(null);
-  const [streaming, setStreaming] = useState(false);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editText, setEditText] = useState("");
-  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const user = useSelector((s: RootState) => s.userAuth.user);
   const { chatId } = useParams();
-  const editMessageMutation = useEditMessageMutation();
-  const deleteMessageMutation = useDeleteMessageMutation();
-  const { subscribeToChats, onMessage } = useWebSocket();
-  const prevChatIdRef = useRef<string | null>(null);
 
-  const [deleteModalOpen,setDeleteModalOpen] = useState(false);
-  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const editMutation = useEditMessageMutation();
+  const deleteMutation = useDeleteMessageMutation();
+  const { data: messagesFromServer } = useChatMessagesQuery(chatId);
 
-  const { data: messagesData} = useChatMessagesQuery(chatId);
+  const [messages, setMessages] = useState<ChatMessages[]>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(true);
+  const paginationCursor = useRef<string | null>(null);
 
-  // Subscribe/unsubscribe to chat via WebSocket when chatId changes
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+
   useEffect(() => {
-    if (!chatId || !user) return;
-    prevChatIdRef.current = chatId;
-    subscribeToChats([chatId]);
-  }, [chatId, user, subscribeToChats]);
+    if (!chatId || !messagesFromServer) return;
 
-  // Seed local state from TanStack cache (instant if cached, otherwise after fetch)
-  useEffect(() => {
-    if (!chatId) return;
-
-    if (messagesData) {
-      setMessages(messagesData.messages);
-      setHasMoreMessages(messagesData.hasMore);
-      setMessagesLoading(false);
-      if (messagesData.messages.length > 0) {
-        oldestMessageDateRef.current = messagesData.messages[0].createdAt;
-      }
-    } else {
-      setMessagesLoading(true);
-      setMessages([]);
-      setHasMoreMessages(true);
-      oldestMessageDateRef.current = null;
-      setStreaming(false);
-    }
-  }, [messagesData, chatId]);
-
-  // Listen for real-time messages via WebSocket
-  useEffect(() => {
-    if (!chatId || !user) return;
-
-    const unsubscribe = onMessage((msg) => {
-      if (msg.type === 'message:new' && msg.payload.chatId === chatId) {
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.payload.id)) return prev;
-          return [
-            ...prev,
-            {
-              id: msg.payload.id,
-              chatId: msg.payload.chatId,
-              senderId: msg.payload.senderId,
-              senderName: msg.payload.senderName,
-              senderImage: msg.payload.senderImage ?? null,
-              content: msg.payload.content,
-              createdAt: msg.payload.createdAt,
-              isOwn: msg.payload.senderId === user.id,
-              isEdited: false,
-              messageType: msg.payload.messageType ?? 'text',
-            },
-          ];
-        });
-      } else if (msg.type === 'message:ack' && msg.payload.tempId) {
-        // Update optimistic message with real ID using tempId match
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === msg.payload.tempId ? { ...m, id: msg.payload.id } : m,
-          ),
-        );
-      } else if (msg.type === 'message:delete' && msg.payload.chatId === chatId) {
-        setMessages((prev) => prev.filter((m) => m.id !== msg.payload.messageId));
-      }
+    setMessages((previous) => {
+      const tempMessages = previous.filter((msg) => String(msg.id).startsWith("temp-"));
+      if (tempMessages.length === 0) return messagesFromServer.messages;
+      return messagesFromServer.messages.concat(tempMessages);
     });
-
-    return unsubscribe;
-  }, [chatId, user, onMessage]);
+    setHasOlderMessages(messagesFromServer.hasMore);
+    if (messagesFromServer.messages.length > 0) {
+      paginationCursor.current = messagesFromServer.messages[0].createdAt;
+    }
+  }, [messagesFromServer, chatId]);
 
   async function loadMoreMessages() {
-    if (!chatId || loadingMore || !hasMoreMessages || !oldestMessageDateRef.current || !user) return;
-    setLoadingMore(true);
+    if (!chatId || !user || isLoadingMore || !hasOlderMessages || !paginationCursor.current) return;
+
+    setIsLoadingMore(true);
     try {
-      const res = await clerkFetch(
-        `/api/chats/${chatId}/messages?before=${encodeURIComponent(oldestMessageDateRef.current)}`,
-      );
-      if (!res.ok) throw new Error("Failed to fetch more messages");
-      const data = await res.json();
-      const newMsgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; message_type?: string; USERS?: { user_name: string; image_url: string | null } | null }) =>
-        buildMessage(m, m.sender_id === user.id, chatId),
-      );
-      setMessages((prev) => [...newMsgs, ...prev]);
-      setHasMoreMessages(data.hasMore ?? false);
-      if (newMsgs.length > 0) {
-        oldestMessageDateRef.current = newMsgs[0].createdAt;
+      const url = "/api/chats/" + chatId + "/messages?before=" + encodeURIComponent(paginationCursor.current);
+      const response = await clerkFetch(url);
+      if (!response.ok) return;
+
+      const data = await response.json();
+      const olderMessages = data.messages.map((msg: RawMessage) => parseMessage(msg, user.id, chatId));
+      setMessages((previous) => olderMessages.concat(previous));
+      setHasOlderMessages(data.hasMore === true);
+      if (olderMessages.length > 0) {
+        paginationCursor.current = olderMessages[0].createdAt;
       }
     } catch {
-      // failed to load more messages
+      // silently ignore
     } finally {
-      setLoadingMore(false);
+      setIsLoadingMore(false);
     }
   }
 
-  function startEdit(msgId: string) {
-    const msg = messages.find((m) => m.id === msgId);
-    if (!msg) return;
-    setEditingMessageId(msgId);
-    setEditText(msg.content);
+  function startEdit(messageId: string) {
+    const message = messages.find((msg) => msg.id === messageId);
+    if (!message) return;
+    setEditingMessageId(messageId);
+    setEditingText(message.content);
   }
 
-  function cancelEdit() {
-    setEditingMessageId(null);
-    setEditText("");
-  }
+  function saveEdit() {
+    if (!editingMessageId || !editingText.trim() || !chatId || !user) return;
 
-  async function saveEdit() {
-    if (!editingMessageId || !editText.trim() || !chatId) return;
-
-    const newContent = editText.trim();
-    const prevMessages = [...messages];
-
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === editingMessageId ? { ...m, content: newContent, isEdited: true } : m,
+    setMessages((previous) =>
+      previous.map((msg) =>
+        msg.id === editingMessageId
+          ? { ...msg, content: editingText.trim(), isEdited: true }
+          : msg,
       ),
     );
+    editMutation.mutate({
+      chatId,
+      messageId: editingMessageId,
+      content: editingText.trim(),
+      userId: user.id,
+    });
     setEditingMessageId(null);
-    setEditText("");
-
-    editMessageMutation.mutate(
-      { chatId, messageId: editingMessageId, content: newContent, userId: user!.id },
-      {
-        onSuccess: (data) => {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === editingMessageId ? buildMessage(data.message, true, chatId) : m)),
-          );
-        },
-        onError: () => {
-          setMessages(prevMessages);
-        },
-      },
-    );
+    setEditingText("");
   }
 
-  function cancelDelete() {
-    setDeleteModalOpen(false);
-  }
+  function confirmDelete() {
+    if (!deletingMessageId || !chatId || !user) return;
 
-  async function confirmDelete() {
-    if (!deletingMessageId || !chatId) return;
-
-    const msgId = deletingMessageId;
-    const prevMessages = [...messages];
-
-    setMessages((prev) => prev.filter((m) => m.id !== msgId));
+    setMessages((previous) => previous.filter((msg) => msg.id !== deletingMessageId));
+    deleteMutation.mutate({
+      chatId,
+      messageId: deletingMessageId,
+      userId: user.id,
+    });
     setDeletingMessageId(null);
-
-      setDeleteModalOpen(false);
-    deleteMessageMutation.mutate(
-      { chatId, messageId: msgId, userId: user!.id },
-      {
-        onError: () => {
-          setMessages(prevMessages);
-        },
-      },
-    );
-
+    setShowDeleteModal(false);
   }
-  
+
   if (!user) return null;
 
   if (!chatId) {
@@ -219,9 +146,7 @@ export default function ChatView() {
           </svg>
         </div>
         <h2 className="text-[17px]/[1.4] font-medium text-text-muted">No conversation selected</h2>
-        <p className="text-sm text-border-active">
-          Pick a conversation from the sidebar or start a new one
-        </p>
+        <p className="text-sm text-border-active">Pick a conversation from the sidebar or start a new one</p>
       </div>
     );
   }
@@ -231,42 +156,37 @@ export default function ChatView() {
       <ChatHeader />
       <MessageList
         messages={messages}
-        loading={messagesLoading}
-        loadingMore={loadingMore}
-        hasMore={hasMoreMessages}
+        loading={!messagesFromServer}
+        loadingMore={isLoadingMore}
+        hasMore={hasOlderMessages}
         onLoadMore={loadMoreMessages}
-        streaming={streaming}
+        streaming={false}
         editingMessageId={editingMessageId}
-        editText={editText}
-        onEditTextChange={setEditText}
+        editText={editingText}
+        onEditTextChange={setEditingText}
         onStartEdit={startEdit}
         onSaveEdit={saveEdit}
-        onCancelEdit={cancelEdit}
-        onDeleteClick={(msgId) => {
-          setDeleteModalOpen(prev => !prev);
-          setDeletingMessageId(msgId);
-        } }
+        onCancelEdit={() => { setEditingMessageId(null); setEditingText(""); }}
+        onDeleteClick={(id) => { setShowDeleteModal(true); setDeletingMessageId(id); }}
         showVoting={false}
-        onImageClick={setSelectedImageUrl} />
-        
+        onImageClick={setImagePreviewUrl}
+      />
       <div className="pb-2 sm:pb-4 pt-1 sm:pt-2">
         <ChatInput setMessages={setMessages} />
       </div>
-
       <ConfirmModal
-        isOpen={deleteModalOpen}
-        onClose={cancelDelete}
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
         onConfirm={confirmDelete}
         title="Delete message?"
         message="This action cannot be undone."
         confirmLabel="Delete"
         cancelLabel="Cancel"
       />
-
       <ImageModal
-        isOpen={selectedImageUrl !== null}
-        onClose={() => setSelectedImageUrl(null)}
-        src={selectedImageUrl ?? ""}
+        isOpen={imagePreviewUrl !== null}
+        onClose={() => setImagePreviewUrl(null)}
+        src={imagePreviewUrl || ""}
       />
     </div>
   );

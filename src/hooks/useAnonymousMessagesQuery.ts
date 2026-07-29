@@ -25,6 +25,7 @@ function buildAnonMessage(
   },
   chatId: string,
   userId: string,
+  userName: string,
   userImageUrl: string | null,
   ownIdsRef: MutableRefObject<Set<string>>,
 ): AnonymousChatMessages {
@@ -34,7 +35,7 @@ function buildAnonMessage(
     id: m.id,
     chatId,
     senderId: isOwn ? userId : (isAnon ? 'other' : (m.users?.id ?? 'other')),
-    senderName: isAnon ? 'Anonymous' : (isOwn ? userId : (m.users?.user_name ?? 'Anonymous')),
+    senderName: isAnon ? 'Anonymous' : (isOwn ? userName : (m.users?.user_name ?? 'Anonymous')),
     senderImage: isAnon ? null : (isOwn ? userImageUrl : (m.users?.image_url ?? null)),
     content: m.content ?? '',
     createdAt: m.created_at,
@@ -50,6 +51,7 @@ function buildAnonMessage(
 async function fetchAnonymousMessages(
   roomId: string,
   userId: string,
+  userName: string,
   userImageUrl: string | null,
   ownIdsRef: MutableRefObject<Set<string>>,
   before?: string,
@@ -61,7 +63,7 @@ async function fetchAnonymousMessages(
   if (!res.ok) throw new Error('Failed to fetch anonymous messages');
   const data = await res.json();
   const msgs = (data.messages ?? []).map((m: Parameters<typeof buildAnonMessage>[0]) =>
-    buildAnonMessage(m, roomId, userId, userImageUrl, ownIdsRef),
+    buildAnonMessage(m, roomId, userId, userName, userImageUrl, ownIdsRef),
   );
   return { messages: msgs, hasMore: data.hasMore ?? false };
 }
@@ -77,7 +79,7 @@ export function useAnonymousMessagesQuery(
 
   return useQuery({
     queryKey: anonChatKeys.messages(roomId!),
-    queryFn: () => fetchAnonymousMessages(roomId!, user.id, user.image_url, ownIdsRef),
+    queryFn: () => fetchAnonymousMessages(roomId!, user.id, user.user_name, user.image_url, ownIdsRef),
     enabled: isEnbaled,
     staleTime: 300_000,
     gcTime: 600_000,

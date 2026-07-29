@@ -8,8 +8,8 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { validateOrigin } from './src/middleware/validateOrigin';
-import { setupWebSocket, shutdownWebSocket } from './ws/websocket';
 import { connectRedis, disconnectRedis } from './redis/redisClient'
+import { createWebSocketServer } from './ws/websocket.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -158,6 +158,7 @@ console.log('[server] Notification routes mounted at /api/notifications');
 app.use("/api/anonymousChats", AnonymousChatRouter);
 console.log('[server] AnonymousChat routes mounted at /api/anonymousChats');
 
+
 app.get("/api/health", (req, res) => {
   console.log(`[server] Health check from ${req.ip}`);
   res.json({ message: "Server is running" });
@@ -179,26 +180,27 @@ if (fs.existsSync(distPath)) {
 
 console.log('[server.js] about to start the server');
 
-(async () => {
+async function makeWsServer() {
   try {
     await connectRedis();
   } catch (err) {
     console.warn('[server] Redis unavailable — running without cache:', err.message);
   }
   const server = http.createServer(app);
-  setupWebSocket(server);
+  createWebSocketServer(server);
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`[server] CORS origin: ${corsOrigin}`);
     console.log(`[server] Environment: ${process.env.NODE_ENV || 'development'}`);
   });
-})();
+}
+
+makeWsServer();
 
 // Graceful shutdown
 import { shutdownDb } from './src/lib/connectionPoolClient';
 const shutdown = async () => {
   console.log('Shutting down server...');
-  shutdownWebSocket();
   try {
     await shutdownDb();
     await disconnectRedis();

@@ -29,7 +29,7 @@ function CopyButton({ value }: { value: string }) {
       className="flex h-6 w-6 items-center justify-center rounded text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary"
       title="Copy"
     >
-      {copied ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
+      {copied ? <Check className="h-3 w-3 text-accent-success" /> : <Copy className="h-3 w-3" />}
     </button>
   );
 }
@@ -133,7 +133,7 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
 
           {/* Badges */}
           <div className="mt-2 flex items-center gap-2">
-            <span className="flex items-center gap-1 rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[11px] font-medium text-green-400">
+            <span className="flex items-center gap-1 rounded-full border border-accent-success/20 bg-accent-success/10 px-2 py-0.5 text-[11px] font-medium text-accent-success">
               <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
               Online
             </span>
@@ -176,7 +176,7 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
           </button>
           <button
             onClick={async () => { await signOut(); navigate('/'); }}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/20"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-accent-danger/20 bg-accent-danger/10 py-2 text-sm font-medium text-accent-danger transition-colors hover:bg-accent-danger/20"
           >
             <LogOut className="h-3.5 w-3.5" />
             Sign Out

@@ -5,8 +5,8 @@ import { chatKeys } from '../lib/queryKeys';
 import type { Chat } from '../types/chat';
 import { clerkFetch } from '../lib/clerkFetch';
 
-async function fetchChatListAndExtract(chatId: string): Promise<Chat> {
-  const res = await clerkFetch('/api/chats');
+async function fetchChatListAndExtract(chatId: string, userId: string): Promise<Chat> {
+  const res = await clerkFetch(`/api/users/${userId}/fetch-chatNames`);
   if (!res.ok) throw new Error('Failed to fetch chats');
   const data = await res.json();
   const chats: Chat[] = data.chats ?? [];
@@ -23,7 +23,7 @@ export function useChatDetailQuery(chatId: string | undefined) {
 
   return useQuery({
     queryKey: chatKeys.detail(chatId ?? ''),
-    queryFn: () => fetchChatListAndExtract(chatId!),
+    queryFn: () => fetchChatListAndExtract(chatId!, user!.id),
     enabled: isEnabled,
     staleTime: 300_000,
     gcTime: 600_000,

@@ -16,13 +16,20 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   console.log('[authenticate] ── Incoming request ──');
 
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer')) {
-    console.log('[authenticate] ✗ No/malformed Authorization header');
+  if (!authHeader) {
+    console.log('[authenticate] ✗ No Authorization header');
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
-  const token = authHeader.slice(7);
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    console.log('[authenticate] ✗ Malformed Authorization header');
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  const token = match[1];
   console.log(`[authenticate] Token received (length: ${token.length})`);
 
   try {
@@ -77,16 +84,21 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     console.log('[authenticate] Step 4: Looking up user by email...');
     const byEmail = await prisma.users.findFirst({
       where: { email },
-      select: { id: true, email: true },
+      select: { id: true, email: true, clerk_id: true },
     });
 
     if (byEmail) {
-      console.log(`[authenticate] Found user by email: id=${byEmail.id} — linking clerk_id`);
+      if (byEmail.clerk_id && byEmail.clerk_id !== clerkId) {
+        console.log(`[authenticate] ✗ Email ${email} already linked to another Clerk account (${byEmail.clerk_id})`);
+        res.status(409).json({ error: 'Email already associated with another account' });
+        return;
+      }
+      console.log(`[authenticate] Found user by email: id=${byEmail.id}`);
       await prisma.users.update({
         where: { id: byEmail.id },
         data: { clerk_id: clerkId },
       });
-      console.log(`[authenticate] ✓ Linked clerk_id to user ${byEmail.id}`);
+      console.log(`[authenticate] ✓ Linked clerk_id ${clerkId} to user ${byEmail.id}`);
       req.user = { id: byEmail.id, email: byEmail.email };
       next();
       return;
@@ -159,6 +171,11 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       return;
     }
   } catch (err) {
+    if (err instanceof Error && err.name === 'TokenVerificationError') {
+      console.log('[authenticate] ✗ Token verification failed:', err.message);
+      res.status(401).json({ error: 'Invalid or expired token' });
+      return;
+    }
     console.error('[authenticate] ✗ Unexpected error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
