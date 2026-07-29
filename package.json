@@ -36,6 +36,7 @@
     "dotenv": "^17.4.2",
     "emoji-mart": "^5.6.0",
     "express": "^5.2.1",
+    "@prisma/client": "^7.9.1",
     "jose": "^6.2.3",
     "lucide-react": "^1.17.0",
     "node-parser": "^0.0.1",
@@ -55,7 +56,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@prisma/client": "^7.9.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
