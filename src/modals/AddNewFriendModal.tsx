@@ -25,23 +25,21 @@ export default function AddNewFriendModal({ isOpen, onClose }: AddNewFriendModal
     }
   }, [isOpen]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const tag = userTag.trim();
     if (!tag || status === "sending") return;
 
     setStatus("sending");
     setErrorMessage("");
 
-    sendMutation.mutate(tag, {
-      onSuccess: () => {
-        setStatus("success");
-        setTimeout(() => onClose(), 1500);
-      },
-      onError: (err) => {
-        setStatus("error");
-        setErrorMessage(err instanceof Error ? err.message : "Failed to send request");
-      },
-    });
+    try {
+      await sendMutation.mutateAsync(tag);
+      setStatus("success");
+      setTimeout(() => onClose(), 1500);
+    } catch (err) {
+      setStatus("error");
+      setErrorMessage(err instanceof Error ? err.message : "Failed to send request");
+    }
   };
 
   if (!isOpen) return null;

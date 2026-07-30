@@ -13,23 +13,32 @@ export async function clerkFetch(input: RequestInfo | URL, init?: RequestInit): 
     return headers;
   }
 
-  const firstToken = getTokenFn ? await getTokenFn() : null;
-  let res = await fetch(input, {
-    ...init,
-    headers: buildHeaders(firstToken),
-    credentials: 'include',
-  });
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), 15_000);
 
-  if (res.status === 401 && getTokenFn) {
-    const retryToken = await getTokenFn();
-    if (retryToken && retryToken !== firstToken) {
-      res = await fetch(input, {
-        ...init,
-        headers: buildHeaders(retryToken),
-        credentials: 'include',
-      });
+  try {
+    const firstToken = getTokenFn ? await getTokenFn() : null;
+    let res = await fetch(input, {
+      ...init,
+      headers: buildHeaders(firstToken),
+      credentials: 'include',
+      signal: abortController.signal,
+    });
+
+    if (res.status === 401 && getTokenFn) {
+      const retryToken = await getTokenFn();
+      if (retryToken && retryToken !== firstToken) {
+        res = await fetch(input, {
+          ...init,
+          headers: buildHeaders(retryToken),
+          credentials: 'include',
+          signal: abortController.signal,
+        });
+      }
     }
-  }
 
-  return res;
+    return res;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
