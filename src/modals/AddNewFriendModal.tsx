@@ -7,8 +7,12 @@ type AddNewFriendModalProps = {
   onClose: () => void;
 };
 
+type SendStatus = "idle" | "sending" | "success" | "error";
+
 export default function AddNewFriendModal({ isOpen, onClose }: AddNewFriendModalProps) {
   const [userTag, setUserTag] = useState("");
+  const [status, setStatus] = useState<SendStatus>("idle");
+  const [errorMessage, setErrorMessage] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const sendMutation = useSendFriendRequestMutation();
 
@@ -16,17 +20,26 @@ export default function AddNewFriendModal({ isOpen, onClose }: AddNewFriendModal
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
       setUserTag("");
-      sendMutation.reset();
+      setStatus("idle");
+      setErrorMessage("");
     }
   }, [isOpen]);
 
   const handleSend = () => {
     const tag = userTag.trim();
-    if (!tag || sendMutation.isPending) return;
+    if (!tag || status === "sending") return;
+
+    setStatus("sending");
+    setErrorMessage("");
 
     sendMutation.mutate(tag, {
       onSuccess: () => {
+        setStatus("success");
         setTimeout(() => onClose(), 1500);
+      },
+      onError: (err) => {
+        setStatus("error");
+        setErrorMessage(err instanceof Error ? err.message : "Failed to send request");
       },
     });
   };
@@ -77,39 +90,39 @@ export default function AddNewFriendModal({ isOpen, onClose }: AddNewFriendModal
             Can't find your user tag? Check your profile page. Share your user tag with friends to start connecting!
           </p>
 
-          {sendMutation.isSuccess ? (
+          {status === "success" ? (
             <div className="mt-4 flex items-center gap-2 rounded-lg bg-accent-success/10 px-3 py-2.5 text-sm text-accent-success">
               <CheckCircle className="h-4 w-4 shrink-0" />
               Friend request sent!
             </div>
-          ) : sendMutation.isError ? (
+          ) : status === "error" ? (
             <div className="mt-4 flex items-center gap-2 rounded-lg bg-accent-danger/10 px-3 py-2.5 text-sm text-accent-danger">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              {sendMutation.error instanceof Error ? sendMutation.error.message : "Failed to send request"}
+              {errorMessage}
             </div>
           ) : null}
 
           <div className="mt-4 flex items-center justify-end gap-2">
             <button
               onClick={onClose}
-              disabled={sendMutation.isPending}
+              disabled={status === "sending"}
               className="cursor-pointer rounded-lg px-3.5 py-2 text-[13px] font-medium text-text-secondary transition-colors duration-150 hover:bg-surface-hover hover:text-text-primary disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSend}
-              disabled={!userTag.trim() || sendMutation.isPending}
+              disabled={!userTag.trim() || status === "sending" || status === "success"}
               className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-4 py-2.5 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {sendMutation.isPending ? (
+              {status === "sending" ? (
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              ) : sendMutation.isSuccess ? (
+              ) : status === "success" ? (
                 <CheckCircle className="h-3.5 w-3.5" />
               ) : (
                 <UserPlus className="h-3.5 w-3.5" />
               )}
-              {sendMutation.isPending ? "Sending..." : sendMutation.isSuccess ? "Request Sent" : "Send Request"}
+              {status === "sending" ? "Sending..." : status === "success" ? "Request Sent" : "Send Request"}
             </button>
           </div>
         </div>
