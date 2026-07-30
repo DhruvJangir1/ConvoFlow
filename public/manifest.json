@@ -4,8 +4,8 @@
   "description": "Messaging app for conversations",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#050508",
-  "theme_color": "#1D4ED8",
+  "background_color": "#0F0E17",
+  "theme_color": "#0F0E17",
   "icons": [
     {
       "src": "/icon-192x192.png",
