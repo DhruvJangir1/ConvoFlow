@@ -8,12 +8,12 @@
   "theme_color": "#0F0E17",
   "icons": [
     {
-      "src": "/CONVO_FLOW_LOGO.png",
+      "src": "/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/CONVO_FLOW_LOGO.png",
+      "src": "/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
