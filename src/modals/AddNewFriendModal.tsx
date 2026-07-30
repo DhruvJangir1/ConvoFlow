@@ -1,43 +1,34 @@
 import { useState, useRef, useEffect } from "react";
 import { UserPlus, X, CheckCircle, AlertCircle } from "lucide-react";
+import { useSendFriendRequestMutation } from "../hooks/useNotificationMutations";
 
 type AddNewFriendModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onSend: (userTag: string) => Promise<void>;
-  sending?: boolean;
 };
 
-export default function AddNewFriendModal({ isOpen, onClose, onSend, sending }: AddNewFriendModalProps) {
+export default function AddNewFriendModal({ isOpen, onClose }: AddNewFriendModalProps) {
   const [userTag, setUserTag] = useState("");
-  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
-  const [message, setMessage] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const sendMutation = useSendFriendRequestMutation();
 
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
       setUserTag("");
-      setStatus("idle");
-      setMessage("");
+      sendMutation.reset();
     }
   }, [isOpen]);
 
-  const handleSend = async () => {
+  const handleSend = () => {
     const tag = userTag.trim();
-    if (!tag || sending) return;
-    setStatus("idle");
-    setMessage("");
+    if (!tag || sendMutation.isPending) return;
 
-    try {
-      await onSend(tag);
-      setStatus("success");
-      setMessage("Friend request sent!");
-      setTimeout(() => onClose(), 1500);
-    } catch (err) {
-      setStatus("error");
-      setMessage(err instanceof Error ? err.message : "Failed to send request");
-    }
+    sendMutation.mutate(tag, {
+      onSuccess: () => {
+        setTimeout(() => onClose(), 1500);
+      },
+    });
   };
 
   if (!isOpen) return null;
@@ -86,37 +77,39 @@ export default function AddNewFriendModal({ isOpen, onClose, onSend, sending }: 
             Can't find your user tag? Check your profile page. Share your user tag with friends to start connecting!
           </p>
 
-          {status === "success" ? (
+          {sendMutation.isSuccess ? (
             <div className="mt-4 flex items-center gap-2 rounded-lg bg-accent-success/10 px-3 py-2.5 text-sm text-accent-success">
               <CheckCircle className="h-4 w-4 shrink-0" />
-              {message}
+              Friend request sent!
             </div>
-          ) : status === "error" ? (
+          ) : sendMutation.isError ? (
             <div className="mt-4 flex items-center gap-2 rounded-lg bg-accent-danger/10 px-3 py-2.5 text-sm text-accent-danger">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              {message}
+              {sendMutation.error instanceof Error ? sendMutation.error.message : "Failed to send request"}
             </div>
           ) : null}
 
           <div className="mt-4 flex items-center justify-end gap-2">
             <button
               onClick={onClose}
-              disabled={sending}
+              disabled={sendMutation.isPending}
               className="cursor-pointer rounded-lg px-3.5 py-2 text-[13px] font-medium text-text-secondary transition-colors duration-150 hover:bg-surface-hover hover:text-text-primary disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSend}
-              disabled={!userTag.trim() || sending}
+              disabled={!userTag.trim() || sendMutation.isPending}
               className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-4 py-2.5 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {sending ? (
+              {sendMutation.isPending ? (
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : sendMutation.isSuccess ? (
+                <CheckCircle className="h-3.5 w-3.5" />
               ) : (
                 <UserPlus className="h-3.5 w-3.5" />
               )}
-              {sending ? "Sending..." : "Send Request"}
+              {sendMutation.isPending ? "Sending..." : sendMutation.isSuccess ? "Request Sent" : "Send Request"}
             </button>
           </div>
         </div>

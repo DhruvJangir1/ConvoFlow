@@ -3,6 +3,26 @@ import { notifKeys, chatKeys } from '../lib/queryKeys';
 import type { Chat } from '../types/chat';
 import { clerkFetch } from '../lib/clerkFetch';
 
+/* ───── Send Friend Request ───── */
+async function sendFriendRequest(userTag: string) {
+  const res = await clerkFetch('/api/friends/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userTag }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(err.error);
+  }
+  return res.json();
+}
+
+export function useSendFriendRequestMutation() {
+  return useMutation({
+    mutationFn: sendFriendRequest,
+  });
+}
+
 /* ───── Mark Single Read ───── */
 async function markRead(id: string) {
   const res = await clerkFetch(`/api/notifications/${id}/read`, {

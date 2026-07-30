@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { UserPlus } from "lucide-react";
 import AddNewFriendModal from "../modals/AddNewFriendModal";
-import { clerkFetch } from "../lib/clerkFetch";
 
 type AddFriendButtonProps = {
   compact?: boolean;
@@ -9,26 +8,6 @@ type AddFriendButtonProps = {
 
 export default function AddFriendButton({ compact }: AddFriendButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [sending, setSending] = useState(false);
-
-  async function handleSend(userTag: string): Promise<void> {
-    setSending(true);
-    try {
-      const res = await clerkFetch("/api/friends/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userTag }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        return Promise.reject(new Error(data.error || "Failed to send request"));
-      }
-    } finally {
-      setSending(false);
-    }
-  }
 
   if (compact) {
     return (
@@ -42,8 +21,6 @@ export default function AddFriendButton({ compact }: AddFriendButtonProps) {
         <AddNewFriendModal
           isOpen={isOpen}
           onClose={() => setIsOpen(false)}
-          onSend={handleSend}
-          sending={sending}
         />
       </>
     );
@@ -61,8 +38,6 @@ export default function AddFriendButton({ compact }: AddFriendButtonProps) {
       <AddNewFriendModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        onSend={handleSend}
-        sending={sending}
       />
     </>
   );
