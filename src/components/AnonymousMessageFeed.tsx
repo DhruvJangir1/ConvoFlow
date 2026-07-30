@@ -2,6 +2,7 @@ import { useRef, useEffect, useMemo, useCallback } from "react";
 import { ThumbsUp, ThumbsDown, CheckCheck } from "lucide-react";
 import type { ChatMessages, AnonymousChatMessages } from "../types/chat";
 import UserAvatar from "./UserAvatar";
+import AnonymousUserAvatar from "./AnonymousUserAvatar";
 
 /* ───── Types ───── */
 
@@ -14,9 +15,9 @@ function isAnon(msg: Message): msg is AnonymousChatMessages {
 type AnonymousMessageFeedProps = {
   messages: Message[];
   loading: boolean;
-  loadingMore?: boolean;
-  hasMore?: boolean;
-  onLoadMore?: () => void;
+  loadingMore: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
   streaming: boolean;
   editingMessageId: string | null;
   editText: string;
@@ -26,80 +27,25 @@ type AnonymousMessageFeedProps = {
   onCancelEdit: () => void;
   onDeleteClick: (msgId: string) => void;
   showVoting: boolean;
-  onUpvote?: (messageId: string) => void;
-  onDownvote?: (messageId: string) => void;
+  onUpvote: (messageId: string) => void;
+  onDownvote: (messageId: string) => void;
   onImageClick?: (url: string) => void;
 };
 
-/* ───── Anonymous Identity Helpers ───── */
+/* ───── Helpers ───── */
 
-const ADJECTIVES = [
-  "Silent","Ghost","Shadow","Wild","Frost","Dark","Swift","Lunar","Rusty","Velvet",
-  "Cyber","Neon","Phantom","Storm","Ember","Ash","Sage","Ivory","Jade","Crimson",
-  "Feral","Mythic","Arcane","Dusk","Hollow","Void","Iron","Bone","Fuzz","Grim",
-];
-
-const NOUNS = [
-  "Wolf","Fox","Bear","Hawk","Owl","Lynx","Raven","Tiger","Viper","Elk",
-  "Finch","Hare","Otter","Seal","Lark","Wren","Mole","Fawn","Buck","Dove",
-  "Puma","Crow","Newt","Kite","Moth","Eel","Ibex","Coatl","Loris","Gecko",
-];
-
-function hashId(id: string): number {
+function hashStr(s: string): number {
   let h = 0;
-  for (let i = 0; i < id.length; i++) {
-    h = ((h << 5) - h) + id.charCodeAt(i);
-    h |= 0;
-  }
+  for (let i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; }
   return Math.abs(h);
 }
 
-function generateHandle(senderId: string): string {
-  const h = hashId(senderId);
-  return `${ADJECTIVES[h % ADJECTIVES.length]} ${NOUNS[(h >> 4) % NOUNS.length]}`;
+function getAvatarColors(id: string): [string, string] {
+  const colors = ["#6366f1","#8b5cf6","#a855f7","#06b6d4","#10b981","#f59e0b","#ef4444","#ec4899"];
+  const i = hashStr(id) % colors.length;
+  const j = (i + 3) % colors.length;
+  return [colors[i], colors[j]];
 }
-
-const PALETTES: [string, string][] = [
-  ["#6366f1","#818cf8"], ["#ec4899","#f472b6"], ["#14b8a6","#2dd4bf"],
-  ["#f59e0b","#fbbf24"], ["#ef4444","#f87171"], ["#8b5cf6","#a78bfa"],
-  ["#06b6d4","#22d3ee"], ["#10b981","#34d399"], ["#f97316","#fb923c"],
-  ["#3b82f6","#60a5fa"],
-];
-
-function getAvatarColors(senderId: string) {
-  const h = hashId(senderId);
-  return PALETTES[h % PALETTES.length];
-}
-
-function generatePattern(senderId: string): boolean[] {
-  const h = hashId(senderId);
-  return Array.from({ length: 16 }, (_, i) => ((h >> (i % 12 + 3)) & 1) === 1);
-}
-
-/* ───── Identicon ───── */
-
-function Identicon({ senderId, size = 28 }: { senderId: string; size?: number }) {
-  const [primary, secondary] = getAvatarColors(senderId);
-  const pattern = generatePattern(senderId);
-
-  return (
-    <div
-      className="grid shrink-0 rounded-md overflow-hidden ring-1 ring-white/10"
-      style={{
-        width: size, height: size,
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gridTemplateRows: "repeat(4, 1fr)",
-        background: primary,
-      }}
-    >
-      {pattern.map((filled, i) => (
-        <div key={i} style={{ background: filled ? secondary : "transparent", opacity: filled ? 0.85 : 0.12 }} />
-      ))}
-    </div>
-  );
-}
-
-/* ───── Helpers ───── */
 
 function fmtTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
@@ -179,7 +125,7 @@ export default function AnonymousMessageFeed({
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const { groups } = useMemo(() => groupMessages(messages), [messages]);
 
-  const isVotable = showVoting && onUpvote && onDownvote;
+  const isVotable = showVoting && onDownvote;
 
   useEffect(() => {
     const el = editTextareaRef.current;
@@ -196,8 +142,8 @@ export default function AnonymousMessageFeed({
 
   const prevLenRef = useRef(messages.length);
   useEffect(() => {
-    if (messages.length > prevLenRef.current && !isPrepending.current)
-      sentinelRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (messages.length > prevLenRef.current && !isPrepending.current && sentinelRef.current)
+      sentinelRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     isPrepending.current = false;
     prevLenRef.current = messages.length;
   }, [messages.length]);
@@ -284,7 +230,7 @@ export default function AnonymousMessageFeed({
                     {/* Sender handle — first msg in group */}
                     {mi === 0 && (
                       <span className="block text-[11px] font-semibold tracking-wide select-none mb-1.5" style={{ color: group.isOwn ? "var(--color-text-secondary)" : primary, textAlign: group.isOwn ? "right" : "left" }}>
-                        {group.isOwn ? (anon ? "You" : msg.senderName) : (anon ? generateHandle(group.senderId) : msg.senderName)}
+                        {group.isOwn ? (anon ? "You" : msg.senderName) : (anon ? "Anonymous User" : msg.senderName)}
                       </span>
                     )}
 
@@ -296,7 +242,7 @@ export default function AnonymousMessageFeed({
                       ) : (
                         <div className="shrink-0" style={{ animation: "pop 300ms cubic-bezier(.34,1.56,.64,1)" }}>
                           {anon ? (
-                            <Identicon senderId={group.senderId} size={28} />
+                            <AnonymousUserAvatar size={28} />
                           ) : (
                             <UserAvatar imageUrl={msg.senderImage ?? null} userName={msg.senderName} size="sm" />
                           )}

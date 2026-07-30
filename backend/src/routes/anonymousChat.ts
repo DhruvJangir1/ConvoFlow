@@ -157,12 +157,12 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
   }
 });
 
-AnonymousChatRouter.post('/:id/messages/:userId/:isAnonymous', authenticate, async (req: Request, res: Response): Promise<void> => {
+AnonymousChatRouter.post('/:chatId/messages/:userId/:isAnonymous', authenticate, async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
-  const chatId = req.params.id as string;
+  const chatId = req.params.chatId as string;
   const userId = req.user.id;
   const isAnon = req.params.isAnonymous === 'true';
 
@@ -190,8 +190,12 @@ AnonymousChatRouter.post('/:id/messages/:userId/:isAnonymous', authenticate, asy
         where: { id: userId },
         select: { user_name: true, image_url: true },
       });
-      senderName = userInfo?.user_name ?? null;
-      senderImage = await resolveImageUrl(userInfo?.image_url ?? null);
+      if (!userInfo){
+        res.status(404).json({error:"User Info Not Found"});
+        return;
+      }
+      senderName = userInfo.user_name;
+      senderImage = await resolveImageUrl(userInfo.image_url);
     }
 
     await prisma.anonymousChats.update({

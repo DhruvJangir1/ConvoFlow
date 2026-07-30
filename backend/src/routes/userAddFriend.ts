@@ -272,8 +272,8 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
       payload: {
         chat: {
           id: chatId,
-          name: otherMember.USERS.user_name,
-          avatar_url: signedOtherImage,
+          name: myMember.USERS.user_name ?? 'Unknown',
+          avatar_url: signedMyImage,
           lastMessage: '',
           timestamp: Date.now(),
           unread: 0,
