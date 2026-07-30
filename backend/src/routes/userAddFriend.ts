@@ -117,7 +117,8 @@ FriendRouter.post('/send', authenticate, async (req: Request, res: Response): Pr
   );
   console.log(`[FriendRoute] Friend request created: ${friendRequest.id} (pending) and notification sent`);
 
-  await sendFriendRequestEmail(senderUser.user_name, senderUser.user_tag, targetUser.email);
+  sendFriendRequestEmail(senderUser.user_name, senderUser.user_tag, targetUser.email)
+    .catch(err => console.error('[FriendRoute] Background email send failed:', err));
   console.log(`[FriendRoute] Email sent to ${targetUser.email}`);
 
   res.status(201).json({
