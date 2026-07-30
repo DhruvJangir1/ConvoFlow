@@ -171,8 +171,10 @@ export default function ChatView() {
         showVoting={false}
         onImageClick={setImagePreviewUrl}
       />
-      <div className="pb-2 sm:pb-4 pt-1 sm:pt-2">
-        <ChatInput setMessages={setMessages} />
+      <div className="safe-area-bottom">
+        <div className="pb-2 sm:pb-4 pt-1 sm:pt-2">
+          <ChatInput setMessages={setMessages} />
+        </div>
       </div>
       <ConfirmModal
         isOpen={showDeleteModal}

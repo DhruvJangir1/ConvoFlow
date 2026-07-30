@@ -114,7 +114,7 @@ export default function UserSearchModal({ isOpen, onClose }: Props) {
               onChange={(e) => handleQueryChange(e.target.value)}
               placeholder="Search by username or email..."
               aria-label="Search users"
-              className="flex-1 bg-transparent text-[14px] text-text-primary placeholder-text-muted outline-none"
+              className="flex-1 bg-transparent text-[16px] sm:text-[14px] text-text-primary placeholder-text-muted outline-none"
             />
           </div>
         </div>

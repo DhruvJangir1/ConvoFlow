@@ -80,7 +80,7 @@ export default function AddNewFriendModal({ isOpen, onClose }: AddNewFriendModal
               onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
               placeholder="username#0000"
               aria-label="User tag"
-              className="flex-1 bg-transparent text-[14px] text-text-primary placeholder-text-muted outline-none"
+              className="flex-1 bg-transparent text-[16px] sm:text-[14px] text-text-primary placeholder-text-muted outline-none"
             />
           </div>
 

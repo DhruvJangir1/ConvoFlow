@@ -48,7 +48,7 @@ export default function RootLayout() {
           {showOverlay === "sidebar" && (
             <>
               <div className="fixed inset-0 z-40 bg-black/60" onClick={closeOverlay} />
-              <div className="fixed inset-y-0 left-0 z-50 animate-slide-in-left w-65">
+              <div className="fixed inset-y-0 left-0 z-50 animate-slide-in-left w-65" onClick={closeOverlay}>
                 <Sidebar onAction={handleSidebarAction} />
               </div>
             </>

@@ -331,13 +331,15 @@ export default function AnonymousChat() {
         onUpvote={handleUpvote}
         onDownvote={handleDownvote}
       />
-      <AnonymousChatComposer
-        value={messageText}
-        onChange={setMessageText}
-        onSend={sendMessage}
-        isAnonymous={isAnonymous}
-        onAnonymousToggle={() => setIsAnonymous((p) => !p)}
-      />
+      <div className="safe-area-bottom">
+        <AnonymousChatComposer
+          value={messageText}
+          onChange={setMessageText}
+          onSend={sendMessage}
+          isAnonymous={isAnonymous}
+          onAnonymousToggle={() => setIsAnonymous((p) => !p)}
+        />
+      </div>
       <ConfirmModal
         isOpen={deleteModalOpen}
         onClose={() => { setDeleteModalOpen(false); setDeletingMessageId(null); }}

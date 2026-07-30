@@ -12,27 +12,7 @@ import UserAvatar from "../components/UserAvatar";
 
 type ChatListProps = Record<string, never>;
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-function hashToHue(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return Math.abs(hash) % 360;
-}
-
-function avatarGradient(name: string): string {
-  const hue = hashToHue(name);
-  return `linear-gradient(135deg, hsl(${hue}, 60%, 40%), hsl(${(hue + 60) % 360}, 50%, 30%))`;
-}
+import { getInitials, avatarGradient } from "../lib/avatar";
 
 export default function ChatList(_props: ChatListProps) {
   const chats = useSelector((s: RootState) => s.chat.chats);
@@ -116,7 +96,7 @@ export default function ChatList(_props: ChatListProps) {
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={isAnonMode ? "Search communities..." : "Search conversations..."}
             aria-label={isAnonMode ? "Search communities" : "Search conversations"}
-            className="flex-1 bg-transparent text-[13px] text-text-primary placeholder-text-muted outline-none"
+            className="flex-1 bg-transparent text-[16px] sm:text-[13px] text-text-primary placeholder-text-muted outline-none"
           />
         </div>
       </div>

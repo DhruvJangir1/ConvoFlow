@@ -249,7 +249,7 @@ export default function NotificationsPage() {
           <button
             onClick={() => navigate(-1)}
             aria-label="Go back"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary lg:hidden"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>

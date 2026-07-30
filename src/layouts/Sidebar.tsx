@@ -58,7 +58,7 @@ export default function Sidebar({ onAction }: SidebarProps) {
     <aside className="relative flex w-[4.5rem] shrink-0 flex-col border-r border-border bg-surface-elevated py-3 px-3 items-center">
       {onAction && (
         <button
-          onClick={() => onAction("sidebar-close")}
+          onClick={(e) => { e.stopPropagation(); onAction("sidebar-close"); }}
           className={btnClass(false)}
           aria-label="Close"
         >
@@ -66,7 +66,7 @@ export default function Sidebar({ onAction }: SidebarProps) {
       )}
 
       <button
-        onClick={() => handleNav("chats")}
+        onClick={(e) => { e.stopPropagation(); handleNav("chats"); }}
         className={btnClass(isActive("/home"))}
         aria-label="Chats"
       >
@@ -74,7 +74,7 @@ export default function Sidebar({ onAction }: SidebarProps) {
       </button>
 
       <button
-        onClick={() => handleNav("communities")}
+        onClick={(e) => { e.stopPropagation(); handleNav("communities"); }}
         className={btnClass(isActive("/communities"))}
         aria-label="Communities"
       >
@@ -82,7 +82,7 @@ export default function Sidebar({ onAction }: SidebarProps) {
       </button>
 
       <button
-        onClick={() => navigate("/notification")}
+        onClick={(e) => { e.stopPropagation(); navigate("/notification"); }}
         className={`relative ${btnClass(isActive("/notification"))}`}
         aria-label="Notifications"
       >
@@ -95,9 +95,11 @@ export default function Sidebar({ onAction }: SidebarProps) {
         <NotificationsIcon fontSize="medium" />
       </button>
 
-      <div className="mt-auto">
-        <UserSelfProfilePopUp />
-      </div>
+      {!onAction && (
+        <div className="mt-auto">
+          <UserSelfProfilePopUp />
+        </div>
+      )}
     </aside>
   );
 }

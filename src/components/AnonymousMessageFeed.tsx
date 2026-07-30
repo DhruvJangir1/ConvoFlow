@@ -367,7 +367,7 @@ export default function AnonymousMessageFeed({
 
                     {/* Edit/Delete — own messages */}
                     {group.isOwn && !isEditing && (
-                      <div className="flex gap-0.5 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150" style={{ justifyContent: group.isOwn ? "flex-end" : "flex-start" }}>
+                      <div className="flex gap-0.5 mt-0.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-150" style={{ justifyContent: group.isOwn ? "flex-end" : "flex-start" }}>
                         <button onClick={() => onStartEdit(String(msg.id))} className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-surface-hover hover:text-text-secondary transition-colors" aria-label="Edit">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                         </button>

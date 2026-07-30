@@ -225,7 +225,7 @@ export default function ChatInput({ setMessages }: ChatInputProps) {
           aria-disabled={!canSend}
           disabled={!canSend}
           onClick={canSend ? handleSend : undefined}
-          className="group flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-surface-base transition-all duration-150 hover:brightness-110 active:scale-[0.92]"
+          className="group flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-surface-base transition-all duration-150 hover:brightness-110 active:scale-[0.92]"
           style={{
             background: canSend ? "var(--color-accent)" : "transparent",
             opacity: canSend ? 1 : 0.4,

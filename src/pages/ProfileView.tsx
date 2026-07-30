@@ -6,7 +6,7 @@ import type { RootState, AppDispatch } from "../store/store";
 import UserAvatar from "../components/UserAvatar";
 import ProfileImageModal from "../modals/ProfileImageModal";
 import { updateUserBioAction } from "../lib/updateUserBio";
-import { Copy, Check, LogOut, Pencil, Calendar, Hash, Send } from "lucide-react";
+import { ArrowLeft, Copy, Check, LogOut, Pencil, Calendar, Hash, Send } from "lucide-react";
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
@@ -65,7 +65,14 @@ export default function ProfileView() {
       <div className="w-full">
 
       {/* ── Header ── */}
-      <div className="flex items-center px-[3vw] py-[1.5svh] border-b border-border/50">
+      <div className="flex items-center gap-3 px-[3vw] py-[1.5svh] border-b border-border/50">
+        <button
+          onClick={() => navigate(-1)}
+          aria-label="Go back"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
         <p className="font-semibold text-text-primary" style={{ fontSize: "clamp(1rem, 3.5vw, 1.3rem)" }}>
           Profile
         </p>

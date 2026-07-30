@@ -5,22 +5,10 @@ import { useOutletContext } from "react-router-dom";
 import { useAnonymousRoomsQuery } from "../hooks/useAnonymousRoomsQuery";
 import { formatSmartDate } from "../lib/dateFormat";
 import AddFriendButton from "../components/AddFriendButton";
+import UserSelfProfilePopUp from "../components/UserSelfProfilePopUp";
 
 
-function getInitials(name: string): string {
-  return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-}
-
-function hashToHue(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  return Math.abs(hash) % 360;
-}
-
-function avatarGradient(name: string): string {
-  const hue = hashToHue(name);
-  return `linear-gradient(135deg, hsl(${hue}, 60%, 40%), hsl(${(hue + 60) % 360}, 50%, 30%))`;
-}
+import { getInitials, avatarGradient } from "../lib/avatar";
 
 type RootLayoutCtx = {
   setShowOverlay: (overlay: "sidebar" | null) => void;
@@ -40,15 +28,15 @@ export default function Communities() {
   );
 
   return (
-    <div className="flex h-full w-full flex-col bg-surface lg:hidden">
+    <div className="relative flex h-full w-full flex-col bg-surface lg:hidden">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface-elevated px-4 py-3">
         <button
           onClick={() => setShowOverlay("sidebar")}
           aria-label="Open navigation"
-          className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary hover:bg-surface-raised hover:text-text-primary transition-colors"
+          className="flex h-10 w-10 items-center justify-center rounded-full text-text-secondary hover:bg-surface-raised hover:text-text-primary transition-colors"
         >
-          <Menu className="h-4 w-4" />
+          <Menu className="h-5 w-5" />
         </button>
         <img src="/CONVO_FLOW_LOGO.png" alt="ConvoFlow" className="h-7 mx-2 w-auto" />
         <h1 className="text-[17px] font-semibold text-text-primary">Communities</h1>
@@ -57,16 +45,16 @@ export default function Communities() {
           <button
             onClick={() => navigate("/notification")}
             aria-label="Notifications"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary hover:bg-surface-raised hover:text-text-primary transition-colors"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-text-secondary hover:bg-surface-raised hover:text-text-primary transition-colors"
           >
-            <Bell className="h-4 w-4" />
+            <Bell className="h-5 w-5" />
           </button>
           <button
             onClick={() => navigate("/profile")}
             aria-label="Profile"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary hover:bg-surface-raised hover:text-text-primary transition-colors"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-text-secondary hover:bg-surface-raised hover:text-text-primary transition-colors"
           >
-            <User className="h-4 w-4" />
+            <User className="h-5 w-5" />
           </button>
         </div>
       </div>
@@ -95,7 +83,7 @@ export default function Communities() {
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search communities..."
             aria-label="Search communities"
-            className="flex-1 bg-transparent text-[14px] text-text-primary placeholder-text-muted outline-none"
+            className="flex-1 bg-transparent text-[16px] sm:text-[14px] text-text-primary placeholder-text-muted outline-none"
           />
         </div>
       </div>
@@ -138,6 +126,8 @@ export default function Communities() {
           ))
         )}
       </div>
+
+      <UserSelfProfilePopUp />
     </div>
   );
 }
