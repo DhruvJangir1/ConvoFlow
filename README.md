@@ -2,6 +2,8 @@
 
 Real-time messaging platform with end-to-end authentication, WebSocket-based instant messaging, anonymous chats, and a friend system.
 
+**Explore the live app:** [**<span style="color:#1e90ff">here</span>**](https://convo-flow-4eu6.vercel.app)
+
 ## Tech Stack
 
 | Layer | Technology |
