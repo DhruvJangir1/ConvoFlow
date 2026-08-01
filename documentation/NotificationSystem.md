@@ -219,7 +219,7 @@ Components can register additional handlers via `onMessage(handler)` for behavio
 | `backend/src/services/userNotify.ts` | Notification creation (`createNotification`, `notifyFriendRequest`) and real-time delivery via `sendToUser` |
 | `backend/src/routes/userNotification.ts` | REST API for fetching and managing notifications (uses `authenticate` middleware) |
 | `backend/src/routes/userAddFriend.ts` | Friend request accept/decline with notification creation (uses `authenticate` middleware) |
-| `backend/src/middleware/authenticate.ts` | JWT verification + locked refresh token rotation for all protected routes |
+| `backend/src/middleware/authenticate.ts` | Clerk JWT verification for all protected routes |
 | `src/pages/NotificationsPage.tsx` | Notification feed UI with accept/decline actions |
 | `src/store/userAuthSlice.tsx` | Redux state for `unreadNotifCount` |
 | `src/context/WebSocketContext.tsx` | Real-time notification + chat delivery to the frontend (built-in cache handlers) |

@@ -1,9 +1,9 @@
-import { SignIn } from "@clerk/react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
 import { useAuth } from "../context/AuthContext";
-import "./clerk-theme.css";
+import ContinueWithConvoFlow from "./ContinueWithConvoFlow";
 
 
 export default function LoginForm() {
@@ -27,8 +27,16 @@ export default function LoginForm() {
       <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-accent/10 blur-[128px]" />
       <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-accent-info/10 blur-[128px]" />
 
-      <div className="w-full max-w-md animate-message-in">
-        <div className="relative rounded-2xl border border-border bg-surface-elevated/50 p-5 sm:p-8 shadow-2xl shadow-black/50 backdrop-blur-xl transition-all duration-300 hover:border-accent/30 hover:shadow-[0_0_24px_rgba(29,78,216,0.08)]">
+      <div className="w-full max-w-[29rem] animate-message-in">
+        <div className="relative flex min-h-[30rem] flex-col justify-center rounded-2xl border border-border bg-surface-elevated/50 p-6 sm:p-10 shadow-2xl shadow-black/50 backdrop-blur-xl transition-all duration-300 hover:border-accent/30 hover:shadow-[0_0_24px_rgba(29,78,216,0.08)]">
+          <Link
+            to="/"
+            className="group absolute left-6 top-5 flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-text-secondary transition-all duration-200 hover:-translate-x-0.5 hover:bg-surface-elevated hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />
+            Back to Home
+          </Link>
+
           <div className="mb-6 flex justify-center">
             <img
               src="/CONVO_FLOW_LOGO.png"
@@ -37,22 +45,7 @@ export default function LoginForm() {
             />
           </div>
           
-<SignIn
-  appearance={{
-    elements: {
-      card: "bg-surface-elevated",
-      headerTitle: "text-text-primary",
-      headerSubtitle: "text-text-secondary",
-      socialButtonsBlockButton: "bg-surface-raised text-text-primary border-border",
-      socialButtonsBlockButtonText: "text-text-primary",
-      dividerLine: "bg-border",
-      dividerText: "text-text-secondary",
-      formFieldLabel: "text-text-primary",
-      footer: "bg-surface-elevated border-t border-border",
-      footerActionText: "text-text-secondary",
-    },
-  }}
-/>
+          <ContinueWithConvoFlow />
         </div>
       </div>
     </div>

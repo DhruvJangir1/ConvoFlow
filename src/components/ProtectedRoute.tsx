@@ -11,7 +11,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate('/login', { replace: true });
+      navigate('/auth', { replace: true });
     }
   }, [user, loading, navigate]);
 

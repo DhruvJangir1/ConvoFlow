@@ -129,7 +129,7 @@ For image messages, `content` stores the **S3 key** (e.g., `userId/timestamp-uui
 ```
 POST /api/chats/:chatId/image
 Content-Type: multipart/form-data
-Cookie: <auth cookie>
+Authorization: Bearer <clerk-jwt>
 
  FormData field: image (File)
 ```
@@ -241,7 +241,7 @@ messageType: m.message_type,  // "text" or "image"
 
 ```
 Paste image → stage in memory (no network)
-Click Send  → auth check (cookie) → membership check → S3 upload → store key in DB
+Click Send  → auth check (Clerk JWT) → membership check → S3 upload → store key in DB
 Read messages → auth check → membership check → sign keys → return signed URLs
 ```
 

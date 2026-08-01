@@ -10,8 +10,6 @@ export const PRISMA_SAFE_SELECT = {
   bio: true,
 };
 
-export const VERIFICATION_TTL_MS = 15 * 60 * 1000; // 15 minutes
-
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const FRIEND_MAX_PENDING_OUTGOING = 10;

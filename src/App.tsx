@@ -5,24 +5,20 @@ import ChatView from "./pages/ChatView";
 import ProfileView from "./pages/ProfileView";
 import NotificationsPage from "./pages/NotificationsPage";
 import LandingPage from "./pages/LandingPage";
-import WelcomePage from "./pages/WelcomePage";
 import NotFoundPage from "./pages/NotFoundPage";
 import AnonymousChat from "./pages/AnonymousChats/AnonymousChat";
 import Communities from "./pages/Communities";
 import ProtectedRoute from "./components/ProtectedRoute";
-import VerificationPage from "./auth/VerificationPage";
 import LoginForm from "./auth/LoginForm";
-import SignUpForm from "./auth/SignUpForm";
+import SSOCallbackPage from "./auth/SSOCallbackPage";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/welcome" element={<WelcomePage />} />
-        <Route path="/login" element={<LoginForm />} />
-        <Route path="/signup" element={<SignUpForm />} />
-        <Route path="/verification" element={<VerificationPage />} />
+        <Route path="/auth" element={<LoginForm />} />
+        <Route path="/sso-callback" element={<SSOCallbackPage />} />
         <Route
           element={
             <ProtectedRoute>

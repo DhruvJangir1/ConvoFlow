@@ -86,18 +86,17 @@ src/
 ├── main.tsx                  # React entry point — wraps App in ClerkProvider + providers
 ├── App.tsx                   # React Router route definitions
 ├── index.css                 # Global styles + Tailwind imports
-├── auth/                     # Authentication UI (Clerk-powered login/signup + legacy verification)
-│   ├── LoginForm.tsx         # Wraps Clerk <SignIn> with dark-theme appearance overrides
-│   ├── SignUpForm.tsx        # Wraps Clerk <SignUp> with dark-theme appearance overrides
-│   ├── VerificationPage.tsx  # Email verification (6-digit code) — legacy route, kept for compatibility
-│   └── passwordValidator.ts  # Password strength checker — legacy, not used by Clerk flows
+├── auth/                     # Authentication UI (Clerk OAuth)
+│   ├── LoginForm.tsx         # /auth page — OAuth card, renders <ContinueWithConvoFlow /> (no Clerk <SignIn>)
+│   ├── ContinueWithConvoFlow.tsx  # Google/Microsoft OAuth buttons — imports useSignIn from @clerk/react/legacy
+│   └── SSOCallbackPage.tsx   # /sso-callback — branded loading page while Clerk finalizes the OAuth session
 ├── components/               # Shared reusable UI components
 │   ├── AddFriendButton.tsx
 │   ├── ChatHeader.tsx        # Top bar of a chat (name, avatar, online status)
 │   ├── ChatInput.tsx         # Message composer (text + image paste + anonymous toggle)
 │   ├── GroupInfoModal.tsx    # Group chat member list
 │   ├── MessageList.tsx       # Core message renderer (text, images, voting, edit/delete)
-│   ├── ProtectedRoute.tsx    # Route guard — spinner while loading, redirect to /login if no user
+│   ├── ProtectedRoute.tsx    # Route guard — spinner while loading, redirect to /auth if no user
 │   └── UserAvatar.tsx
 ├── context/                  # React Context providers (global state that lives across route changes)
 │   ├── AuthContext.tsx        # Syncs Clerk user to Redux — reads useUser()/useAuth() from Clerk
@@ -137,7 +136,6 @@ src/
 │   └── AcceptLoadingModal.tsx
 ├── pages/                    # Route-level page components
 │   ├── LandingPage.tsx       # / — marketing page (auto-redirects if logged in)
-│   ├── WelcomePage.tsx       # /welcome
 │   ├── Home.tsx              # /home — chat list / feed
 │   ├── ChatView.tsx          # /chat/:chatId — standard chat
 │   ├── Communities.tsx       # /communities
@@ -179,8 +177,7 @@ backend/
 │   │   ├── authenticate.ts   # Auth middleware — uses lib/auth.ts wrapper (no direct Clerk imports)
 │   │   └── validateOrigin.ts # CSRF protection — checks Origin/Referer on mutating requests
 │   ├── routes/
-│   │   ├── auth.ts           # Router hub — mounts WsTicketRouter + UserVerificationRouter only
-│   │   ├── authUserVerification.ts    # POST /verify, /resend-verification (kept for compatibility)
+│   │   ├── auth.ts           # Router hub — mounts WsTicketRouter only
 │   │   ├── wsTicket.ts               # GET /ws-ticket (generates one-time WS auth ticket)
 │   │   ├── users.ts                  # GET /search, PATCH /profile-image
 │   │   ├── userAddFriend.ts          # POST /send, PATCH /accept, /reject
@@ -188,13 +185,12 @@ backend/
 │   │   ├── anonymousChat.ts          # Full CRUD for anonymous chat rooms + messages
 │   │   └── imageUpload.ts            # Base64 image upload (standalone, not mounted)
 │   ├── services/
-│   │   ├── authVerificaiton.ts    # Email verification via Gmail SMTP (Nodemailer) — sends codes
+│   │   ├── authVerificaiton.ts    # Friend-request emails via Gmail SMTP (Nodemailer)
 │   │   ├── dmChat.ts         # findDmChat / createDmChat helpers
 │   │   ├── imageUpload.ts    # S3 upload via Supabase, presigned URL generation
 │   │   ├── rateLimiter.ts    # Redis-backed rate limiter with in-memory fallback
 │   │   ├── userMessageVote.ts # Upvote/downvote logic for anonymous messages
 │   │   ├── userNotify.ts     # Notification creation + WS push
-│   │   ├── verificationStore.ts  # In-memory verification code store
 │   │   └── wsTicketStore.ts  # In-memory WS ticket store (60s TTL)
 │   ├── supabase/
 │   │   ├── admin.ts          # Supabase admin client (service role — used for S3)
@@ -448,7 +444,7 @@ The backend runs as an ESM Node.js process. `server.js` is a plain `.js` file th
 ### Frontend Provider Tree (`src/main.tsx`)
 
 ```
-<ClerkProvider publishableKey={...}>   ← Clerk auth (manages session, <SignIn>/<SignUp> components)
+<ClerkProvider publishableKey={...}>   ← Clerk auth (manages session, OAuth redirect + callback)
   <QueryClientProvider>                ← TanStack React Query (server state caching)
     <Provider store={store}>           ← Redux Toolkit (client state)
       <AuthProvider>                   ← Syncs Clerk user to Redux via useUser()/useAuth()
@@ -499,14 +495,15 @@ ConvoFlow uses **Clerk** for authentication. Clerk handles user management, sess
    b. AuthContext dispatches setUser(null) — user is now "logged out"
 ```
 
-### Login/Signup Flow (Clerk)
+### Login/Signup Flow (OAuth)
 
 ```
-1. User navigates to /login or /signup
-2. LoginForm renders Clerk <SignIn routing="path" path="/login" appearance={clerkAppearance} />
-3. SignUpForm renders Clerk <SignUp routing="path" path="/signup" appearance={clerkAppearance} />
-4. Clerk handles the entire auth flow internally (email/password, social OAuth, MFA, etc.)
-5. On successful auth, Clerk creates a session
+1. User navigates to /auth (via LandingPage CTA or ProtectedRoute redirect)
+2. LoginForm renders <ContinueWithConvoFlow /> — Google + Microsoft buttons
+3. Clicking a provider calls signIn.authenticateWithRedirect({ strategy, redirectUrl: '/sso-callback', redirectUrlComplete: '/home' })
+   — via useSignIn from @clerk/react/legacy (the default @clerk/react useSignIn is a "future" API without this method)
+4. Clerk redirects the browser to the provider; unknown emails are auto-provisioned as new accounts (no separate signup step)
+5. Provider redirects back to /sso-callback → <AuthenticateWithRedirectCallback /> finalizes the session
 6. useUser() in AuthContext fires with the new user → Redux state updates → UI re-renders
 7. ProtectedRoute sees user in Redux → allows access to protected pages
 ```
@@ -518,7 +515,7 @@ ConvoFlow uses **Clerk** for authentication. Clerk handles user management, sess
 2. Component calls useClerk().signOut()
 3. Clerk destroys the session and clears its internal state
 4. useUser() returns null → AuthContext dispatches setUser(null) + resetChats() → Redux clears user + chat state
-5. ProtectedRoute detects user is null via useEffect → navigates to /login
+5. ProtectedRoute detects user is null via useEffect → navigates to /auth
 ```
 
 ### `clerkFetch` Utility (`src/lib/clerkFetch.ts`)
@@ -896,10 +893,8 @@ The WebSocket handlers in `WebSocketContext.tsx` delegate cache mutations to `ws
 | Route | Component | Protected? | Description |
 |-------|-----------|------------|-------------|
 | `/` | `LandingPage` | No | Marketing page — auto-redirects to /home if logged in |
-| `/welcome` | `WelcomePage` | No | Welcome page |
-| `/login` | `LoginForm` | No | Clerk-powered login (renders `<SignIn>` component) |
-| `/signup` | `SignUpForm` | No | Clerk-powered signup (renders `<SignUp>` component) |
-| `/verification` | `VerificationPage` | No | Email verification (legacy, kept for compatibility) |
+| `/auth` | `LoginForm` | No | OAuth login/signup — custom Google/Microsoft buttons (no Clerk `<SignIn>`) |
+| `/sso-callback` | `SSOCallbackPage` | No | OAuth redirect callback — branded loading page while Clerk finalizes the session |
 | `/home` | `Home` | Yes | Chat list / home feed |
 | `/communities` | `Communities` | Yes | Communities page |
 | `/chat/:chatId` | `ChatView` | Yes | Standard chat view |
@@ -908,7 +903,7 @@ The WebSocket handlers in `WebSocketContext.tsx` delegate cache mutations to `ws
 | `/notification` | `NotificationsPage` | Yes | Notification feed |
 | `*` | `NotFoundPage` | No | 404 page |
 
-Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `AuthContext.loading` is true (Clerk is initializing), then renders the content if a user exists in Redux or redirects to `/login` if not.
+Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `AuthContext.loading` is true (Clerk is initializing), then renders the content if a user exists in Redux or redirects to `/auth` if not.
 
 ---
 
@@ -918,7 +913,7 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 |-------|---------------|
 | **HTTP Headers** | Helmet (CSP, HSTS, frameguard, noSniff, hidePoweredBy, referrerPolicy, etc.) |
 | **CSRF** | `validateOrigin.ts` checks `x-forwarded-host` (production) with `Origin` header fallback, or `Origin`/`Referer` (dev) on mutating requests |
-| **Rate Limiting** | Redis-backed sorted set: 10 attempts/min per IP, 5-min block. Falls back to in-memory Map when Redis is unavailable. Applied to `/verify`, `/resend-verification`, and `/api/friends/send` |
+| **Rate Limiting** | Redis-backed sorted set: 10 attempts/min per IP, 5-min block. Falls back to in-memory Map when Redis is unavailable. Applied to `/api/friends/send` |
 | **Authentication** | Clerk handles session management, token rotation, MFA, and social OAuth. Backend verifies JWTs via `lib/auth.ts` wrapper (abstracts `@clerk/backend`). Expired JWTs return 401 (not 500). |
 | **Chat Membership** | `requireChatMembership()` checks `StandardChatMembers` before allowing message read/write. WS subscribe handler batch-checks `standardChatMembers` + `anonymousChatMembers` before joining a room. |
 | **Image Storage** | S3 bucket is private. All URLs are presigned (1-hour expiry). Never stored in client state. SVG uploads (`image/svg+xml`) are rejected. |
@@ -944,12 +939,12 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 7. **Never push/add/commit/pull code on or from GitHub without asking**
 8. **Do NOT read any env files at all costs**
 9. **Two WebSocket providers** exist in the tree — `main.tsx` wraps the app in one, `RootLayout` wraps protected pages in another. The inner one shadows the outer one.
-10. **Clerk appearance overrides** — `LoginForm.tsx` and `SignUpForm.tsx` apply dark-theme appearance overrides to Clerk's `<SignIn>` and `<SignUp>` components via the `appearance` prop. These use transparent backgrounds and the project's indigo accent color (`#7C6EF7`).
+10. **OAuth-only auth flow** — `/auth` renders custom Google/Microsoft buttons via `ContinueWithConvoFlow.tsx`. It imports `useSignIn` from `@clerk/react/legacy` because the default `@clerk/react` `useSignIn` exposes a "future" API without `authenticateWithRedirect`. No Clerk `<SignIn>`/`<SignUp>` components are rendered.
 11. **Clerk ID vs DB UUID** — Clerk user IDs (e.g., `user_3Gp...`) are NOT valid UUIDs. The database requires UUID format. A `clerk_id` mapping column has been added to `USERS` and the `authenticate` middleware maps Clerk IDs to DB UUIDs via this column.
 12. **`clerkFetch` must be used for all API calls** — Never use raw `fetch()` for backend requests. Always import `clerkFetch` from `../lib/clerkFetch` which injects the Clerk JWT automatically.
 13. **WebSocket subscribe enforces membership** — The subscribe handler batch-queries `standardChatMembers` + `anonymousChatMembers` before allowing room subscription. Non-member chatIds are silently skipped.
 14. **Anonymous message sender uses `req.user.id`** — `POST /:id/messages/:userId/:isAnonymous` ignores the URL `:userId` param and uses `req.user.id` from auth (prevents impersonation).
-15. **Rate limiter is active on 3 endpoints** — `/verify`, `/resend-verification`, and `/api/friends/send` all call `trackAuthAttempt(req.ip)`. Falls back to in-memory when Redis is unavailable.
+15. **Rate limiter is active on `/api/friends/send`** — it calls `trackAuthAttempt(req.ip)`. Falls back to in-memory when Redis is unavailable.
 16. **Expired Clerk JWTs return 401, not 500** — The catch block in `authenticate.ts` checks `err.name === 'TokenVerificationError'` before falling back to generic 500.
 
 ---
@@ -961,8 +956,6 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 | Method | Full Path | Auth | Description |
 |--------|-----------|------|-------------|
 | POST | `/api/auth/setup-user` | `authenticate` (Clerk JWT) | Eager user creation — returns DB user for current Clerk session |
-| POST | `/api/auth/UserVerificaitonRouter/verify` | No | Verify email with 6-digit code |
-| POST | `/api/auth/UserVerificaitonRouter/resend-verification` | No | Resend verification code |
 | GET | `/api/auth/WsTicketRouter/ws-ticket` | `authenticate` (Clerk JWT) | Generate one-time WS auth ticket |
 
 ### Chat Routes (`/api/chats`)

@@ -14,9 +14,10 @@ const AuthContext = createContext<AuthContextValue>({ loading: true });
 export function AuthProvider({ children }: { children: ReactNode }) {
   const dispatch = useDispatch();
   const { isLoaded, user: clerkUser } = useUser();
-  const { getToken } = useClerkAuth();
   const [dbUserFetched, setDbUserFetched] = useState(false);
 
+  const { getToken } = useClerkAuth();
+  
   setGetTokenFn(getToken);
 
   useEffect(() => {

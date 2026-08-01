@@ -41,7 +41,8 @@ interface MockState {
   stopTicketCleanup: ReturnType<typeof vi.fn>;
   prisma: {
     users: { findUnique: ReturnType<typeof vi.fn> };
-    standardChatMembers: { findUnique: ReturnType<typeof vi.fn> };
+    standardChatMembers: { findUnique: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
+    anonymousChatMembers: { findMany: ReturnType<typeof vi.fn> };
     $queryRaw: ReturnType<typeof vi.fn>;
     standardChats: { update: ReturnType<typeof vi.fn> };
   };
@@ -77,7 +78,8 @@ function getMockState(): MockState {
       stopTicketCleanup: vi.fn(),
       prisma: {
         users: { findUnique: vi.fn() },
-        standardChatMembers: { findUnique: vi.fn() },
+        standardChatMembers: { findUnique: vi.fn(), findMany: vi.fn() },
+        anonymousChatMembers: { findMany: vi.fn() },
         $queryRaw: vi.fn(),
         standardChats: { update: vi.fn() },
       },
@@ -200,6 +202,11 @@ beforeEach(() => {
   const ms = getMockState();
   ms.prisma.users.findUnique.mockResolvedValue({ user_name: 'TestUser', image_url: 'https://img.test/a.png' });
   ms.prisma.standardChatMembers.findUnique.mockResolvedValue({ user_id: 'member' });
+  ms.prisma.standardChatMembers.findMany.mockImplementation(async (args: { where?: { chat_id?: { in?: string[] } } }) => {
+    const chatIds = args?.where?.chat_id?.in ?? [];
+    return chatIds.map((chat_id: string) => ({ chat_id }));
+  });
+  ms.prisma.anonymousChatMembers.findMany.mockResolvedValue([]);
   ms.prisma.$queryRaw.mockImplementation(async (strings: TemplateStringsArray, ...values: unknown[]) => {
     const id = values[0] as string;
     return [{ id, createdAt: new Date() }];

@@ -188,15 +188,16 @@ describe('Friend Request Authorization', () => {
 
   it('rejects friend request accept when not the receiver', async () => {
     const userId = uid();
+    const senderId = uid();
     const ms = getMockState();
     ms.prisma.addFriendRequests.findUnique.mockResolvedValue({
       id: 'fr-1',
-      sender_id: uid(),
+      sender_id: senderId,
       receiver_id: uid(),
       status: 'pending',
     });
 
-    const req = { body: { notification: { entity_id: 'fr-1', sender_user_id: uid() } }, user: { id: userId }, params: {}, method: 'PATCH' } as any;
+    const req = { body: { notification: { entity_id: 'fr-1', sender_user_id: senderId } }, user: { id: userId }, params: {}, method: 'PATCH' } as any;
     const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() } as any;
 
     await FriendRouter.stack[1].route.stack.at(-1).handle(req, res, () => {}); await sleep(10);

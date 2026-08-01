@@ -64,6 +64,8 @@ function createReq(body: any, user?: { id: string }, params?: any, method = 'POS
     query: {},
     method,
     headers: {},
+    ip: '127.0.0.1',
+    socket: { remoteAddress: '127.0.0.1' },
   } as any;
 }
 
@@ -107,7 +109,7 @@ describe('Friend Request System', () => {
       expect(res.json).toHaveBeenCalled();
     });
 
-    it('allows friend request to self (no explicit self-check)', async () => {
+    it('rejects friend request to self', async () => {
       const userId = uid();
       const ms = getMockState();
 
@@ -119,7 +121,7 @@ describe('Friend Request System', () => {
 
       await callHandler(FriendRouter, 0, req, res);
 
-      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('rejects duplicate pending friend request', async () => {

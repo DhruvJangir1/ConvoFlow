@@ -150,66 +150,52 @@ const groups = [
 // ============================================================
 const nodes = [
   // ═══════════════════════════════════════════════
-  //  AUTHENTICATION FLOW
+  //  AUTHENTICATION FLOW (Clerk / OAuth)
   // ═══════════════════════════════════════════════
   // Frontend auth (left column)
   {id:'fe-entry',x:80,y:80,w:240,h:60,name:'main.tsx',cat:'ui',group:'g-auth',
-   purpose:'React bootstrap. Mounts QueryClientProvider → Redux → AuthProvider → App.',
+   purpose:'React bootstrap. Mounts ClerkProvider → QueryClientProvider → Redux → AuthProvider → App.',
    funcs:['render()'],incoming:[],outgoing:['fe-app','fe-auth-ctx'],tags:['entry point']},
   {id:'fe-app',x:80,y:160,w:240,h:60,name:'App.tsx',cat:'ui',group:'g-auth',
-   purpose:'Top-level router. Public routes + protected routes wrapped in ProtectedRoute → RootLayout.',
-   funcs:['App()'],incoming:['fe-entry'],outgoing:['fe-protected'],tags:['router']},
+   purpose:'Top-level router. Public routes (/auth, /sso-callback) + protected routes wrapped in ProtectedRoute → RootLayout.',
+   funcs:['App()'],incoming:['fe-entry'],outgoing:['fe-protected','fe-login','fe-sso-callback'],tags:['router']},
   {id:'fe-auth-ctx',x:80,y:240,w:240,h:60,name:'AuthContext.tsx',cat:'green',group:'g-auth',
-   purpose:'Provides login/signup/logout/refreshSession. On mount refreshes session from cookie.',
-   funcs:['AuthProvider','useAuth()','login()','signup()','logout()','refreshSession()'],incoming:['fe-entry'],outgoing:['be-auth-session','be-auth-login','be-auth-signup','be-auth-logout'],tags:['context']},
+   purpose:'Syncs Clerk user to Redux via useUser()/useAuth(). Dispatches setUser / resetChats on session changes.',
+   funcs:['AuthProvider','useAuth()','setGetTokenFn()'],incoming:['fe-entry','fe-sso-callback'],outgoing:['fe-store'],tags:['context']},
   {id:'fe-login',x:80,y:340,w:240,h:56,name:'LoginForm.tsx',cat:'ui',group:'g-auth',
-   purpose:'Login form. Email + password. Client validation, redirects to /home on success.',
-   funcs:['LoginForm()'],incoming:['fe-app'],outgoing:['fe-auth-ctx'],tags:['form']},
-  {id:'fe-signup',x:80,y:420,w:240,h:56,name:'SignUpForm.tsx',cat:'ui',group:'g-auth',
-   purpose:'Registration form. HIBP breach check on blur. Redirects to /verification.',
-   funcs:['SignUpForm()'],incoming:['fe-app'],outgoing:['fe-auth-ctx','be-hibp'],tags:['form']},
-  {id:'fe-verify',x:80,y:500,w:240,h:56,name:'VerificationPage.tsx',cat:'ui',group:'g-auth',
-   purpose:'6-digit OTP input with auto-focus, paste support, 15-minute countdown timer.',
-   funcs:['VerificationPage()'],incoming:['fe-app'],outgoing:['be-auth-verify','be-auth-resend'],tags:['form']},
-  {id:'fe-protected',x:80,y:590,w:240,h:50,name:'ProtectedRoute.tsx',cat:'ui',group:'g-auth',
-   purpose:'Auth guard. Spinner while loading, redirects to /login if unauthenticated.',
+   purpose:'Auth page at /auth. Renders the OAuth card (no Clerk <SignIn> component).',
+   funcs:['LoginForm()'],incoming:['fe-app'],outgoing:['fe-oauth'],tags:['form']},
+  {id:'fe-oauth',x:80,y:420,w:240,h:56,name:'ContinueWithConvoFlow.tsx',cat:'ui',group:'g-auth',
+   purpose:'Google/Microsoft OAuth buttons. Imports useSignIn from @clerk/react/legacy for authenticateWithRedirect.',
+   funcs:['ContinueWithConvoFlow()','authenticateWithRedirect()'],incoming:['fe-login'],outgoing:['be-clerk'],tags:['component']},
+  {id:'fe-sso-callback',x:80,y:500,w:240,h:50,name:'SSOCallbackPage',cat:'ui',group:'g-auth',
+   purpose:'Route at /sso-callback. Branded loading page shown while AuthenticateWithRedirectCallback finalizes the Clerk OAuth session.',
+   funcs:['SSOCallbackPage()','AuthenticateWithRedirectCallback()'],incoming:['fe-app','be-clerk'],outgoing:['fe-auth-ctx'],tags:['component']},
+  {id:'fe-protected',x:80,y:650,w:240,h:50,name:'ProtectedRoute.tsx',cat:'ui',group:'g-auth',
+   purpose:'Auth guard. Spinner while loading, redirects to /auth if unauthenticated.',
    funcs:['ProtectedRoute()'],incoming:['fe-app'],outgoing:['fe-auth-ctx'],tags:['guard']},
 
   // Backend auth routes (middle column)
   {id:'be-auth-router',x:400,y:80,w:260,h:50,name:'auth.ts (Router Hub)',cat:'green',group:'g-auth',
-   purpose:'Aggregates auth sub-routers: EmailVerification, TokenVerification, UserVerification, WsTicket.',
-   funcs:['AuthRouter'],incoming:['be-entry'],outgoing:['be-auth-email','be-auth-token','be-auth-user','be-ws-ticket'],tags:['router']},
-  {id:'be-auth-email',x:400,y:160,w:280,h:60,name:'authEmailVerification.ts',cat:'green',group:'g-auth',
-   purpose:'Signup, login, logout, password breach check. Rate-limited (10/min/IP via Redis). JWT + cookie issuance.',
-   funcs:['POST /check-password','POST /signup','POST /login','POST /logout'],incoming:['be-auth-router','fe-signup','fe-login'],outgoing:['be-service-auth','be-service-verify-store','be-supabase-admin','be-service-email','be-hibp','be-redis'],tags:['route','critical']},
-  {id:'be-auth-token',x:400,y:250,w:280,h:56,name:'authTokenVerification.ts',cat:'green',group:'g-auth',
-   purpose:'Session check + transparent token refresh. Reads cookies, validates JWT or refresh token hash, rotates tokens.',
-   funcs:['GET /session','POST /refresh'],incoming:['be-auth-router','fe-auth-ctx'],outgoing:['be-service-auth'],tags:['route','critical']},
-  {id:'be-auth-user',x:400,y:330,w:280,h:56,name:'authUserVerification.ts',cat:'green',group:'g-auth',
-   purpose:'Email verification. Verify 6-digit code, mark user verified, issue tokens, set cookies.',
-   funcs:['POST /verify','POST /resend-verification'],incoming:['be-auth-router','fe-verify'],outgoing:['be-service-verify-store','be-service-auth','be-service-email'],tags:['route']},
+   purpose:'Auth hub: defines POST /setup-user directly, mounts the WsTicket sub-router.',
+   funcs:['AuthRouter','POST /setup-user'],incoming:['be-entry'],outgoing:['be-ws-ticket'],tags:['router']},
+  {id:'be-middleware-auth',x:400,y:240,w:260,h:56,name:'authenticate.ts',cat:'red',group:'g-auth',
+   purpose:'Clerk JWT middleware. Bearer token → verifyClerkToken → look up clerk_id → auto-provision DB user if missing → req.user.',
+   funcs:['authenticate()','autoProvisionUser()'],incoming:['be-entry'],outgoing:['be-service-clerk','be-supabase-admin'],tags:['middleware','critical']},
 
   // Auth services (right column)
-  {id:'be-service-auth',x:740,y:80,w:200,h:60,name:'auth.ts (Service)',cat:'green',group:'g-auth',
-   purpose:'Core auth: JWT sign/verify (15min), bcrypt (12 rounds), refresh token rotation with replay detection via Redis.',
-   funcs:['hashPassword()','signAccessToken()','verifyAccessToken()','refreshUserAccessToken()','hashToken()'],incoming:['be-auth-email','be-auth-token','be-auth-user','be-middleware-auth'],outgoing:['be-redis','be-hibp'],tags:['service','critical']},
-  {id:'be-service-verify-store',x:740,y:170,w:200,h:50,name:'verificationStore.ts',cat:'green',group:'g-auth',
-   purpose:'In-memory Map for 6-digit verification codes. 15min TTL. Cleanup every 15 minutes.',
-   funcs:['setVerificationCode()','findUserIdByCode()','deleteVerificationCode()'],incoming:['be-auth-email','be-auth-user'],outgoing:[],tags:['service']},
-  {id:'be-service-ratelimit',x:740,y:250,w:200,h:50,name:'rateLimiter.ts',cat:'red',group:'g-auth',
-   purpose:'Redis sorted set rate limiter. 10 attempts/min/IP, 5-minute block on exceed.',
-   funcs:['trackAuthAttempt()'],incoming:['be-auth-email'],outgoing:['be-redis'],tags:['service','critical']},
-  {id:'be-middleware-auth',x:740,y:340,w:200,h:50,name:'authenticate.ts',cat:'red',group:'g-auth',
-   purpose:'JWT auth middleware. Checks access_token → refresh → 401. Augments req.user.',
-   funcs:['authenticate()'],incoming:['be-entry'],outgoing:['be-service-auth'],tags:['middleware','critical']},
-
-  // External auth deps (bottom)
-  {id:'be-hibp',x:400,y:500,w:200,h:50,name:'HIBP API',cat:'purple',group:'g-auth',
-   purpose:'Have I Been Pwned. k-Anonymity breach password check during signup.',
-   funcs:['queryPwnedCount()','checkPassword()'],incoming:['be-service-auth','fe-signup'],outgoing:[],tags:['external','security']},
-  {id:'be-supabase-admin',x:640,y:500,w:200,h:50,name:'Supabase Auth Admin',cat:'purple',group:'g-auth',
-   purpose:'Service role key. Creates/deletes auth.users. Manages auth schema.',
-   funcs:['getAdminClient()','auth.admin.createUser()'],incoming:['be-auth-email'],outgoing:[],tags:['external']},
+  {id:'be-service-clerk',x:740,y:80,w:200,h:50,name:'lib/auth.ts',cat:'green',group:'g-auth',
+   purpose:'Clerk abstraction layer. The only file importing @clerk/backend. JWT verification + user lookup.',
+   funcs:['verifyClerkToken()','fetchClerkUser()'],incoming:['be-middleware-auth'],outgoing:['be-clerk'],tags:['service','critical']},
+  {id:'be-service-ratelimit',x:740,y:240,w:200,h:50,name:'rateLimiter.ts',cat:'red',group:'g-auth',
+   purpose:'Redis sorted set rate limiter. 10 attempts/min/IP, 5-min block. Applied to /api/friends/send.',
+   funcs:['trackAuthAttempt()'],incoming:['be-friends-router'],outgoing:['be-redis'],tags:['service','critical']},
+  {id:'be-clerk',x:740,y:340,w:200,h:50,name:'Clerk API',cat:'purple',group:'g-auth',
+   purpose:'External. OAuth providers (Google/Microsoft), session management, JWT signing, user profile lookup.',
+   funcs:['Google OAuth','Microsoft OAuth','verify JWT','fetchUser()'],incoming:['be-service-clerk','fe-oauth'],outgoing:['fe-sso-callback'],tags:['external','security']},
+  {id:'be-supabase-admin',x:740,y:440,w:200,h:50,name:'Supabase Auth Admin',cat:'purple',group:'g-auth',
+   purpose:'Service role key. auth.admin.createUser() during auto-provisioning of new Clerk users.',
+   funcs:['getAdminClient()','auth.admin.createUser()'],incoming:['be-middleware-auth'],outgoing:[],tags:['external']},
 
   // ═══════════════════════════════════════════════
   //  CHAT & MESSAGING FLOW
@@ -408,15 +394,15 @@ const nodes = [
    funcs:['validateOrigin()'],incoming:['be-entry'],outgoing:[],tags:['middleware']},
   {id:'be-redis',x:680,y:1460,w:220,h:56,name:'Redis',cat:'cyan',group:'g-infra',
    purpose:'Rate limiting (sorted sets), refresh token replay detection (used_token:* keys).',
-   funcs:['connectRedis()','disconnectRedis()','client'],incoming:['be-service-auth','be-service-ratelimit'],outgoing:[],tags:['cache']},
+    funcs:['connectRedis()','disconnectRedis()','client'],incoming:['be-service-ratelimit'],outgoing:[],tags:['cache']},
   {id:'be-prometheus',x:940,y:1460,w:220,h:56,name:'promtheusTime.ts',cat:'cyan',group:'g-infra',
    purpose:'Prometheus metrics: pg_pool_connections, query_duration histogram, Node.js default metrics. Exposed at GET /metrics.',
    funcs:['timedQuery()','collectDefaultMetrics()'],incoming:[],outgoing:[],tags:['monitoring']},
-  {id:'be-service-email',x:1200,y:1460,w:240,h:56,name:'authVerification.ts (Email)',cat:'purple',group:'g-infra',
-    purpose:'Gmail SMTP: verification codes, friend request notifications. Also manages setAuthCookies.',
-    funcs:['sendUserVerificationCode()','sendFriendRequestEmail()','setAuthCookies()'],incoming:['be-auth-email','be-auth-user','be-friends-router'],outgoing:['be-email'],tags:['service']},
+  {id:'be-service-email',x:1200,y:1460,w:240,h:56,name:'authVerificaiton.ts (Email)',cat:'purple',group:'g-infra',
+    purpose:'Gmail SMTP: friend request notifications.',
+    funcs:['sendFriendRequestEmail()'],incoming:['be-friends-router'],outgoing:['be-email'],tags:['service']},
    {id:'be-email',x:1480,y:1460,w:200,h:50,name:'Gmail SMTP',cat:'purple',group:'g-infra',
-    purpose:'Transactional email service. Verification codes, friend request notifications.',
+    purpose:'Transactional email service. Friend request notifications.',
     funcs:['send()'],incoming:['be-service-email'],outgoing:[],tags:['external']},
   {id:'fe-store',x:1720,y:1460,w:240,h:56,name:'Redux Store',cat:'green',group:'g-infra',
    purpose:'userAuth slice (user, isConnected, unreadNotifCount) + chat slice (chats, onlineUsers).',
@@ -435,27 +421,21 @@ const nodes = [
 const connections = [
   // FE entry → auth
   ['fe-entry','fe-app',C.ui],['fe-entry','fe-auth-ctx',C.green],
+  ['fe-app','fe-login',C.ui],['fe-app','fe-sso-callback',C.ui],
   ['fe-app','fe-protected',C.ui],
-  // Auth forms → context
-  ['fe-login','fe-auth-ctx',C.green],['fe-signup','fe-auth-ctx',C.green],
-  ['fe-signup','be-hibp',C.purple],['fe-verify','be-auth-user',C.green],
+  ['fe-auth-ctx','fe-store',C.green],
+  // OAuth flow → Clerk → callback
+  ['fe-login','fe-oauth',C.ui],
+  ['fe-oauth','be-clerk',C.purple],['be-clerk','fe-sso-callback',C.purple],
+  ['fe-sso-callback','fe-auth-ctx',C.green],
   ['fe-protected','fe-auth-ctx',C.green],
-  // Auth context → backend
-  ['fe-auth-ctx','be-auth-session',C.green],['fe-auth-ctx','be-auth-login',C.green],
-  ['fe-auth-ctx','be-auth-signup',C.green],['fe-auth-ctx','be-auth-logout',C.green],
   // Backend auth hub → sub-routers
-  ['be-auth-router','be-auth-email',C.green],['be-auth-router','be-auth-token',C.green],
-  ['be-auth-router','be-auth-user',C.green],['be-auth-router','be-ws-ticket',C.green],
-  // Auth routes → services
-  ['be-auth-email','be-service-auth',C.green],['be-auth-email','be-service-verify-store',C.green],
-  ['be-auth-email','be-service-ratelimit',C.red],['be-auth-email','be-supabase-admin',C.purple],
-  ['be-auth-token','be-service-auth',C.green],['be-auth-user','be-service-auth',C.green],
-  ['be-auth-user','be-service-verify-store',C.green],
-  // Auth service → deps
-  ['be-service-auth','be-redis',C.cyan],['be-service-auth','be-hibp',C.purple],
-  ['be-service-ratelimit','be-redis',C.cyan],
-  // Middleware
-  ['be-middleware-auth','be-service-auth',C.red],
+  ['be-entry','be-auth-router',C.red],['be-entry','be-middleware-auth',C.red],
+  ['be-auth-router','be-ws-ticket',C.green],
+  // Auth middleware → Clerk abstraction + Supabase admin
+  ['be-middleware-auth','be-service-clerk',C.red],
+  ['be-service-clerk','be-clerk',C.purple],
+  ['be-middleware-auth','be-supabase-admin',C.purple],
 
   // ── Chat flow ──
   ['fe-app','fe-pages-chat',C.ui],
@@ -492,7 +472,8 @@ const connections = [
   ['fe-query-notif-mutations','be-friends-accept',C.green],
   ['fe-query-notif-mutations','be-friends-reject',C.green],
   ['be-friends-router','be-service-notify',C.green],['be-friends-router','be-service-dm',C.green],
-  ['be-friends-router','be-service-email',C.purple],
+  ['be-friends-router','be-service-email',C.purple],['be-friends-router','be-service-ratelimit',C.red],
+  ['be-service-ratelimit','be-redis',C.cyan],
   ['be-notif-router','be-prisma',C.orange],
   ['be-users-router','be-service-imageupload',C.green],['be-users-router','be-prisma',C.orange],
   ['be-service-notify','be-prisma',C.orange],['be-service-notify','be-ws',C.red],
@@ -575,7 +556,6 @@ function edgePoint(n,angle){
 }
 
 function renderConnections(){
-  if(!showConnections){svgEl.innerHTML='';return;}
   const bb={x:minX-100,y:minY-100,w:maxX-minX+200,h:maxY-minY+200};
   svgEl.setAttribute('viewBox',`${bb.x} ${bb.y} ${bb.w} ${bb.h}`);
   svgEl.style.width=bb.w+'px';svgEl.style.height=bb.h+'px';
@@ -590,7 +570,12 @@ function renderConnections(){
   let paths='';
   const cToK={};Object.entries(C).forEach(([k,v])=>cToK[v]=k);
 
-  connections.forEach(([from,to,color])=>{
+  const focused=selectedNode?selectedNode.id:null;
+  const visible=showConnections
+    ? connections
+    : (focused?connections.filter(c=>c[0]===focused||c[1]===focused):[]);
+
+  visible.forEach(([from,to,color])=>{
     const fc=nodeCenter(from),tc=nodeCenter(to);
     if(!fc.x&&!fc.y||!tc.x&&!tc.y) return;
     const sn=nodes.find(n=>n.id===from),tn=nodes.find(n=>n.id===to);
@@ -606,6 +591,7 @@ function renderConnections(){
     paths+=`<path class="conn" data-from="${from}" data-to="${to}" d="M${sx},${sy} Q${mx+pd},${my+pd2} ${tx},${ty}" stroke="${color}" marker-end="url(#a-${k})"/>`;
   });
   svgEl.innerHTML=defs+paths;
+  if(focused)svgEl.querySelectorAll('.conn').forEach(c=>c.classList.toggle('highlighted',c.dataset.from===focused||c.dataset.to===focused));
 }
 
 // ============================================================
@@ -649,7 +635,7 @@ function selectNode(n){
   document.querySelectorAll('.node.selected').forEach(el=>el.classList.remove('selected'));
   selectedNode=n;
   const el=document.getElementById(n.id);if(el)el.classList.add('selected');
-  document.querySelectorAll('.conn').forEach(c=>c.classList.toggle('highlighted',c.dataset.from===n.id||c.dataset.to===n.id));
+  renderConnections();
 
   const panel=document.getElementById('detail-panel');
   document.getElementById('panel-title').textContent=n.name;
@@ -665,7 +651,7 @@ function selectNode(n){
   document.getElementById('panel-body').innerHTML=h;panel.classList.add('open');
 }
 
-function closePanel(){document.getElementById('detail-panel').classList.remove('open');document.querySelectorAll('.node.selected').forEach(el=>el.classList.remove('selected'));document.querySelectorAll('.conn.highlighted').forEach(c=>c.classList.remove('highlighted'));selectedNode=null}
+function closePanel(){document.getElementById('detail-panel').classList.remove('open');document.querySelectorAll('.node.selected').forEach(el=>el.classList.remove('selected'));selectedNode=null;renderConnections()}
 
 function navigateTo(id){const n=nodes.find(x=>x.id===id);if(!n)return;const rect=canvasWrap.getBoundingClientRect();panX=rect.width/2-(n.x+n.w/2)*scale;panY=rect.height/2-(n.y+n.h/2)*scale;applyTransform();selectNode(n)}
 

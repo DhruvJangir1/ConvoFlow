@@ -5,7 +5,7 @@ export function setGetTokenFn(fn: () => Promise<string | null>) {
 }
 
 export async function clerkFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  function buildHeaders(token?: string | null): Headers {
+  function buildHeaders(token: string | null): Headers {
     const headers = new Headers(init?.headers);
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
@@ -14,7 +14,7 @@ export async function clerkFetch(input: RequestInfo | URL, init?: RequestInit): 
   }
 
   const abortController = new AbortController();
-  const timeout = setTimeout(() => abortController.abort(), 15_000);
+  const timeout = setTimeout(() => abortController.abort(), 15_000); // can cancel ongoing network requests
 
   try {
     const firstToken = getTokenFn ? await getTokenFn() : null;

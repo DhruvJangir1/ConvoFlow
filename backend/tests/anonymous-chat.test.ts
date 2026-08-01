@@ -145,7 +145,7 @@ describe('Anonymous Chat System', () => {
       });
       ms.prisma.anonymousChats.update.mockResolvedValue({});
 
-      const req = createReq({ content: 'Hello anon' }, { id: userId }, { id: roomId, userId, isAnonymous: 'true' });
+      const req = createReq({ content: 'Hello anon' }, { id: userId }, { chatId: roomId, userId, isAnonymous: 'true' });
       const res = createRes();
 
       await callHandler(AnonymousChatRouter, 4, req, res);
@@ -175,7 +175,7 @@ describe('Anonymous Chat System', () => {
       ms.prisma.users.findUnique.mockResolvedValue({ id: userId, user_name: 'TestUser', image_url: 'img.png' });
       ms.imageUpload.resolveImageUrl.mockResolvedValue('https://signed/img.png');
 
-      const req = createReq({ content: 'Not anon' }, { id: userId }, { id: roomId, userId, isAnonymous: 'false' });
+      const req = createReq({ content: 'Not anon' }, { id: userId }, { chatId: roomId, userId, isAnonymous: 'false' });
       const res = createRes();
 
       await callHandler(AnonymousChatRouter, 4, req, res);

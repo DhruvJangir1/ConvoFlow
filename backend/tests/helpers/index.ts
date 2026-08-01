@@ -94,6 +94,7 @@ export interface MockState {
     };
     anonymousChatMembers: {
       findUnique: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
     };
     anonymousChatMessages: {
@@ -220,6 +221,7 @@ export function createFreshMockState(): MockState {
       },
       anonymousChatMembers: {
         findUnique: vi.fn(),
+        findMany: vi.fn(),
         create: vi.fn(),
       },
       anonymousChatMessages: {
@@ -356,7 +358,14 @@ export function setupDefaultMocks() {
   ms.prisma.users.create.mockResolvedValue({ id: uid(), email: 'test@test.com' });
 
   ms.prisma.standardChatMembers.findUnique.mockResolvedValue({ user_id: 'member' });
-  ms.prisma.standardChatMembers.findMany.mockResolvedValue([]);
+  ms.prisma.standardChatMembers.findMany.mockImplementation(async (args: { where?: { chat_id?: { in?: string[] } } }) => {
+    const chatIds = args?.where?.chat_id?.in ?? [];
+    return chatIds.map((chat_id: string) => ({ chat_id }));
+  });
+  ms.prisma.anonymousChatMembers.findMany.mockImplementation(async (args: { where?: { chat_id?: { in?: string[] } } }) => {
+    const chatIds = args?.where?.chat_id?.in ?? [];
+    return chatIds.map((chat_id: string) => ({ chat_id }));
+  });
 
   ms.prisma.standardChatMessages.findUnique.mockResolvedValue(null);
   ms.prisma.standardChatMessages.findMany.mockResolvedValue([]);

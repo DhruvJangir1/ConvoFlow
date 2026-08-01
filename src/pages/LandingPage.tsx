@@ -260,7 +260,7 @@ export default function LandingPage() {
   }, [user, loading, navigate]);
 
   function handleCTA() {
-    navigate(user ? '/home' : '/welcome');
+    navigate(user ? '/home' : '/auth');
   }
 
   function handleDemoSubmit(event: FormEvent<HTMLFormElement>) {

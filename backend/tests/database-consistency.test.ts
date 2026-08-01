@@ -70,7 +70,7 @@ describe('Database Consistency - Friend Request', () => {
     ms.prisma.addFriendRequests.count.mockResolvedValue(0);
     ms.notifyFriendRequest.mockRejectedValue(new Error('Notification creation failed'));
 
-    const req = { body: { userTag: 't#t' }, user: { id: senderId }, params: {} } as any;
+    const req = { body: { userTag: 't#t' }, user: { id: senderId }, params: {}, ip: '127.0.0.1', socket: { remoteAddress: '127.0.0.1' } } as any;
     const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() } as any;
 
     try {
@@ -91,7 +91,7 @@ describe('Database Consistency - Friend Request', () => {
     ms.prisma.users.findUnique.mockResolvedValue({ id: senderId, user_name: 'Sender', image_url: null });
     ms.prisma.addFriendRequests.update.mockRejectedValue(new Error('DB write failed'));
 
-    const req = { body: { notification: { entity_id: requestId, sender_user_id: senderId } }, user: { id: userId }, params: {} } as any;
+    const req = { body: { notification: { entity_id: requestId, sender_user_id: senderId } }, user: { id: userId }, params: {}, ip: '127.0.0.1', socket: { remoteAddress: '127.0.0.1' } } as any;
     const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() } as any;
 
     await expect(
@@ -111,7 +111,7 @@ describe('Database Consistency - Friend Request', () => {
 
     ms.prisma.addFriendRequests.findFirst.mockResolvedValue({ id: 'existing', status: 'pending' });
 
-    const req = { body: { userTag: 't#t' }, user: { id: senderId }, params: {} } as any;
+    const req = { body: { userTag: 't#t' }, user: { id: senderId }, params: {}, ip: '127.0.0.1', socket: { remoteAddress: '127.0.0.1' } } as any;
     const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() } as any;
 
     await FriendRouter.stack[0].route.stack.at(-1).handle(req, res, () => {}); await sleep(10);

@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import type { Request, Response } from 'express';
-import AuthUserVerificaitonRouter from './authUserVerification.js';
 import WsTicketRouter from './wsTicket.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
@@ -44,7 +43,6 @@ AuthRouter.post('/setup-user', authenticate, async (req: Request, res: Response)
   res.json({ user });
 });
 
-AuthRouter.use("/UserVerificaitonRouter",AuthUserVerificaitonRouter);
 AuthRouter.use("/WsTicketRouter", WsTicketRouter);
 
 export default AuthRouter;

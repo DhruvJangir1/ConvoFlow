@@ -19,8 +19,10 @@ export default defineConfig([
       globals: {
         ...globals.node, 
         ...globals.browser
-      }, 
-        tsconfigRootDir: import.meta.dirname, 
+      },
+      parserOptions: {
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
   },
 ])
