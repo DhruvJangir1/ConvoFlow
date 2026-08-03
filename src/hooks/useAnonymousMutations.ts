@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { anonChatKeys } from '../lib/queryKeys';
 import { clerkFetch } from '../lib/clerkFetch';
+import type { AnonymousRoom } from './useAnonymousRoomsQuery';
 
 /* ───── Send Message ───── */
 interface SendAnonMessageVars {
@@ -31,6 +32,17 @@ export function useAnonymousSendMessageMutation() {
 
   return useMutation({
     mutationFn: sendAnonMessageREST,
+    onSuccess: (_data, vars) => {
+      queryClient.setQueryData<AnonymousRoom[]>(anonChatKeys.lists(), (old) => {
+        if (!old) return old;
+        const updated = old.map((room) =>
+          room.id === vars.roomId
+            ? { ...room, lastMessage: vars.content, timestamp: Date.now() }
+            : room,
+        );
+        return [...updated].sort((a, b) => b.timestamp - a.timestamp);
+      });
+    },
     onSettled: (data, _err, vars) => {
       if (data) {
         queryClient.invalidateQueries({ queryKey: anonChatKeys.messages(vars.roomId) });

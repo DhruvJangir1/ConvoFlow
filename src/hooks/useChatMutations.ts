@@ -62,11 +62,12 @@ export function useSendMessageMutation() {
     onSuccess: (data, vars, context) => {
       queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) => {
         if (!old) return old;
-        return old.map((chat) =>
+        const updated = old.map((chat) =>
           chat.id === vars.chatId
             ? { ...chat, lastMessage: vars.content, timestamp: Date.now() }
             : chat,
         );
+        return [...updated].sort((a, b) => b.timestamp - a.timestamp);
       });
 
       if (!data.message) return;
@@ -82,7 +83,7 @@ export function useSendMessageMutation() {
         };
       });
     },
-    onSettled: (_data, _error, _vars) => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: chatKeys.lists() });
     },
   });

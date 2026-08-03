@@ -42,7 +42,7 @@ interface MockState {
   prisma: {
     users: { findUnique: ReturnType<typeof vi.fn> };
     standardChatMembers: { findUnique: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
-    anonymousChatMembers: { findMany: ReturnType<typeof vi.fn> };
+    anonymousChats: { findMany: ReturnType<typeof vi.fn> };
     $queryRaw: ReturnType<typeof vi.fn>;
     standardChats: { update: ReturnType<typeof vi.fn> };
   };
@@ -79,7 +79,7 @@ function getMockState(): MockState {
       prisma: {
         users: { findUnique: vi.fn() },
         standardChatMembers: { findUnique: vi.fn(), findMany: vi.fn() },
-        anonymousChatMembers: { findMany: vi.fn() },
+        anonymousChats: { findMany: vi.fn() },
         $queryRaw: vi.fn(),
         standardChats: { update: vi.fn() },
       },
@@ -134,7 +134,7 @@ vi.mock('../src/supabase/supabaseS3Client.js', () => ({
 
 // ─── Import after mocks ────────────────────────────────────────────────────────
 
-import { createWebSocketServer as setupWebSocket, shutdownWebSocket, sendToUser, broadcastToRoom, broadcastMessageToRoom } from './websocket';
+import { createWebSocketServer as setupWebSocket, shutdownWebSocket, sendToUser, broadcastToRoom, broadcastImageToRoom } from './websocket';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -206,7 +206,7 @@ beforeEach(() => {
     const chatIds = args?.where?.chat_id?.in ?? [];
     return chatIds.map((chat_id: string) => ({ chat_id }));
   });
-  ms.prisma.anonymousChatMembers.findMany.mockResolvedValue([]);
+  ms.prisma.anonymousChats.findMany.mockResolvedValue([]);
   ms.prisma.$queryRaw.mockImplementation(async (strings: TemplateStringsArray, ...values: unknown[]) => {
     const id = values[0] as string;
     return [{ id, createdAt: new Date() }];
@@ -354,6 +354,28 @@ describe('Subscribe / Unsubscribe', () => {
     expect(subscribed).toBeDefined();
     expect(subscribed!.payload.chatIds).toEqual([c1, c2]);
   });
+
+  it('subscribe to an anonymous room without a membership row', async () => {
+    const userId = uid();
+    const anonRoomId = cid();
+    getMockState().consumeTicket.mockReturnValue(userId);
+
+    const ms = getMockState();
+    ms.prisma.standardChatMembers.findMany.mockResolvedValue([]);
+    ms.prisma.anonymousChats.findMany.mockResolvedValue([{ id: anonRoomId }]);
+
+    const ws = emitConnection('ticket-anon-sub');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [anonRoomId] } }));
+    await sleep();
+
+    const msgs = getAllSent(ws);
+    const subscribed = msgs.find((m) => m.type === 'subscribed');
+    expect(subscribed).toBeDefined();
+    expect(subscribed!.payload.chatIds).toContain(anonRoomId);
+    expect(ws.subscribedRooms.has(anonRoomId)).toBe(true);
+  });
 });
 
 // ── Broadcast to Room ──────────────────────────────────────────────────────────
@@ -391,7 +413,7 @@ describe('Broadcast to room', () => {
     broadcastToRoom('nonexistent', { type: 'test', payload: {} });
   });
 
-  it('broadcastMessageToRoom sends raw buffer', async () => {
+  it('broadcastImageToRoom sends raw buffer', async () => {
     const userId = uid();
     const chatId = cid();
     getMockState().consumeTicket.mockReturnValue(userId);
@@ -404,7 +426,7 @@ describe('Broadcast to room', () => {
     ws.sent = [];
 
     const buf = Buffer.from(JSON.stringify({ type: 'message:new', payload: { id: '1' } }));
-    broadcastMessageToRoom(chatId, buf, false);
+    broadcastImageToRoom(chatId, buf, false);
 
     expect(ws.sent.length).toBe(1);
   });

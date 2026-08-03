@@ -328,7 +328,7 @@ cd backend && npx vitest run
 ```
 
 Test files:
-- `backend/ws/websockets.test.ts` — WebSocket connection, auth, subscribe, broadcast, send, typing, disconnect, error handling (35 tests)
+- `backend/ws/websockets.test.ts` — WebSocket connection, auth, subscribe, broadcast, send, typing, disconnect, error handling (36 tests)
 - `backend/src/middleware/authenticate.test.ts` — Auth middleware: token verification, user lookup, auto-provisioning, error paths (11 tests)
 
 ### Lint & Typecheck
@@ -401,7 +401,7 @@ npx tsc -b              # TypeScript project references build
 | `Notifications` | User notifications | id, receiver_user_id, sender_user_id, type, content, read_at, entity_id |
 | `AddFriendRequests` | Friend requests | id, sender_id, receiver_id, status (pending/accepted/rejected) |
 | `AnonymousChats` | Anonymous chat rooms | id, name, avatar_url, updated_at |
-| `AnonymousChatMembers` | Anonymous room membership | id, chat_id |
+| `AnonymousChatMembers` | Anonymous room membership | id (= user id), chat_id (composite PK) — one row per (user, room) |
 | `AnonymousChatMessages` | Anonymous messages | id, chat_id, sender_id, content, isAnonymous, TotalUpvotes, is_edited |
 | `AnonymousChatMessagesUserVotes` | Vote records | user_id, message_id, type (upvote/downvote) |
 | `DailyPolls` | Poll feature | id, question, option1-4 |
@@ -610,9 +610,9 @@ A "room" is a chat. When a user subscribes to a chat, their socket is added to a
 ```
 Subscribe:
   Client sends: { type: "subscribe", payload: { chatIds: ["id1", "id2"] } }
-  Server: batch query standardChatMembers + anonymousChatMembers → validIds
+  Server: query standardChatMembers (membership) + anonymousChats (existence) → validIds
   Server: for each chatId:
-    - if chatId not in validIds → skip (membership enforcement)
+    - if chatId not in validIds → skip (standard chats require membership; anon rooms just need to exist)
     - chatRooms.get(chatId) ?? new Set() → add ws
     - ws.subscribedRooms.add(chatId)
   Server sends back: { type: "subscribed", payload: { chatIds } }
@@ -685,7 +685,7 @@ The client maintains:
 On mount (when `user` becomes available):
 1. Fetch ticket from `/api/auth/WsTicketRouter/ws-ticket` via **`clerkFetch`** (sends Clerk JWT)
 2. Open WebSocket with ticket
-3. On open: fetch all chat IDs (standard + anonymous) via `clerkFetch`, subscribe to all rooms
+3. On open: fetch all chat IDs via `/api/chats/subscribed-ids` (standard memberships + latest 20 anonymous rooms), subscribe to all rooms
 4. On message: parse JSON, delegate to typed handlers that call `wsCacheHandlers.ts` functions
 5. On close: schedule reconnect after 2 seconds
 
@@ -915,7 +915,7 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 | **CSRF** | `validateOrigin.ts` checks `x-forwarded-host` (production) with `Origin` header fallback, or `Origin`/`Referer` (dev) on mutating requests |
 | **Rate Limiting** | Redis-backed sorted set: 10 attempts/min per IP, 5-min block. Falls back to in-memory Map when Redis is unavailable. Applied to `/api/friends/send` |
 | **Authentication** | Clerk handles session management, token rotation, MFA, and social OAuth. Backend verifies JWTs via `lib/auth.ts` wrapper (abstracts `@clerk/backend`). Expired JWTs return 401 (not 500). |
-| **Chat Membership** | `requireChatMembership()` checks `StandardChatMembers` before allowing message read/write. WS subscribe handler batch-checks `standardChatMembers` + `anonymousChatMembers` before joining a room. |
+| **Chat Membership** | `requireChatMembership()` checks `StandardChatMembers` before allowing message read/write. WS subscribe handler batch-checks `standardChatMembers` (membership) + `anonymousChats` (existence — anon rooms are effectively public) before joining a room. |
 | **Image Storage** | S3 bucket is private. All URLs are presigned (1-hour expiry). Never stored in client state. SVG uploads (`image/svg+xml`) are rejected. |
 | **Origin Validation** | `x-forwarded-host` header checked against `CORS_ORIGIN` in production, falls back to standard `Origin` header. Standard `Origin`/`Referer` in dev. |
 | **Auto-Provision Guard** | When linking existing accounts by email, `clerk_id` is checked — if already set to a different Clerk account, the link is rejected (409). |
@@ -942,7 +942,7 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 10. **OAuth-only auth flow** — `/auth` renders custom Google/Microsoft buttons via `ContinueWithConvoFlow.tsx`. It imports `useSignIn` from `@clerk/react/legacy` because the default `@clerk/react` `useSignIn` exposes a "future" API without `authenticateWithRedirect`. No Clerk `<SignIn>`/`<SignUp>` components are rendered.
 11. **Clerk ID vs DB UUID** — Clerk user IDs (e.g., `user_3Gp...`) are NOT valid UUIDs. The database requires UUID format. A `clerk_id` mapping column has been added to `USERS` and the `authenticate` middleware maps Clerk IDs to DB UUIDs via this column.
 12. **`clerkFetch` must be used for all API calls** — Never use raw `fetch()` for backend requests. Always import `clerkFetch` from `../lib/clerkFetch` which injects the Clerk JWT automatically.
-13. **WebSocket subscribe enforces membership** — The subscribe handler batch-queries `standardChatMembers` + `anonymousChatMembers` before allowing room subscription. Non-member chatIds are silently skipped.
+13. **WebSocket subscribe enforces membership for standard chats** — The subscribe handler batch-queries `standardChatMembers` (membership) before allowing room subscription; non-member chatIds are silently skipped. Anonymous rooms are the exception: they are validated against `anonymousChats` by existence, so any authenticated user can subscribe to any anon room.
 14. **Anonymous message sender uses `req.user.id`** — `POST /:id/messages/:userId/:isAnonymous` ignores the URL `:userId` param and uses `req.user.id` from auth (prevents impersonation).
 15. **Rate limiter is active on `/api/friends/send`** — it calls `trackAuthAttempt(req.ip)`. Falls back to in-memory when Redis is unavailable.
 16. **Expired Clerk JWTs return 401, not 500** — The catch block in `authenticate.ts` checks `err.name === 'TokenVerificationError'` before falling back to generic 500.

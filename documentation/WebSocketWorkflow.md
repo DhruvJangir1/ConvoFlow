@@ -60,10 +60,11 @@
 
 ### Room subscription
 
-- `WebSocketContext.tsx` subscribes to ALL of the user's chat rooms on mount (fetches standard + anonymous chat IDs via `clerkFetch`, sends subscribe message)
+- On connect, `WebSocketContext.tsx` fetches all chat IDs from `GET /api/chats/subscribed-ids` (standard memberships **+ latest 20 anonymous rooms**) and sends a single `subscribe` message for all of them
 - `ChatContext.tsx` no longer handles subscription — it's centralized in WebSocketContext
-- This means every connected user is listening to every chat they belong to
-- No per-chat subscription needed in ChatView
+- The server validates **standard** chat IDs against `StandardChatMembers` (membership enforced) but validates **anonymous** room IDs against `AnonymousChats` (existence only — anon rooms are effectively public)
+- Per-chat lazy subscribe: `ChatView.tsx` / `AnonymousChat.tsx` call `subscribeToChats([chatId])` on mount, so a chat opened directly is subscribed even if it wasn't in the initial batch
+- This means every connected user is listening to every standard chat they belong to and every anonymous room
 
 ---
 
@@ -120,7 +121,7 @@ All messages are JSON. The `type` field determines the action.
 ### What `WebSocketContext.tsx` does
 1. Fetches a ticket from `/api/auth/WsTicketRouter/ws-ticket` via `clerkFetch`
 2. Opens a WebSocket connection with the ticket
-3. On `open`: fetches all chat IDs (standard + anonymous) via `clerkFetch`, subscribes to all rooms
+3. On `open`: fetches all chat IDs (standard memberships + anonymous rooms) via `GET /api/chats/subscribed-ids`, subscribes to all rooms
 4. On `message`: parses JSON, delegates to typed handlers that call `wsCacheHandlers.ts` functions
 5. On `close`: auto-reconnects after 2 seconds
 6. Exposes `socket`, `send(type, payload)`, `subscribeToChats(chatIds)`, `onMessage(handler)` via React Context

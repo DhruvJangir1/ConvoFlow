@@ -25,15 +25,15 @@ model AnonymousChats {
 
 ### AnonymousChatMembers
 
-Tracks which users have joined a room:
+Tracks which users have joined a room. The primary key is composite `(id, chat_id)`, so a user can be a member of **multiple** anonymous rooms (one row per room):
 
 ```prisma
 model AnonymousChatMembers {
-  id             String         @id
+  id             String
   created_at     DateTime
-  is_verified    Boolean?       @default(false)
   chat_id        String
-  // Relations to AnonymousChats and USERS
+  // Relations to AnonymousChats and USERS (id is the user id)
+  @@id([id, chat_id])
 }
 ```
 
@@ -120,8 +120,10 @@ The `updated_at` field on `AnonymousChats` is updated every time a message is se
 
 ### Joining a Room (`POST /:id/join`)
 
-- Creates an `AnonymousChatMembers` record if one doesn't already exist
-- Idempotent: returns success if already a member
+- Looks up membership by the composite key `id_chat_id: { id: userId, chat_id: roomId }`
+- Creates an `AnonymousChatMembers` row for the `(user, room)` pair if one doesn't exist
+- Idempotent: returns success if already a member of that room
+- Note: this membership row is not required for real-time delivery — WS subscriptions validate anon rooms by existence (see Auto-Subscribe below)
 
 ## Frontend (`src/pages/AnonymousChats/AnonymousChat.tsx`)
 
@@ -194,18 +196,24 @@ The client-side `onMessage` handler in `AnonymousChat.tsx` uses the `isAnonymous
 
 ## Auto-Subscribe
 
-Anonymous chat rooms are auto-subscribed on page load via `ChatList.tsx`, which fetches the list of rooms from `GET /api/anonymousChats` and calls `subscribeToChats()` for all room IDs. This ensures real-time message delivery for all rooms the user has joined.
+Anonymous rooms are subscribed for real-time delivery in two ways:
+
+1. **On WS connect**: `WebSocketContext.tsx` fetches room IDs from `GET /api/chats/subscribed-ids` (which returns all standard memberships **plus the latest 20 anonymous rooms** regardless of membership) and sends a `subscribe` message for all of them.
+2. **On room open**: `AnonymousChat.tsx` calls `subscribeToChats([roomId])` on mount, so a room opened from a link or search is subscribed to immediately even if it wasn't in the initial batch.
+
+Because the WS subscribe handler validates anonymous rooms by **existence** (`AnonymousChats`) rather than membership, any authenticated user can receive live `message:new`/`message:delete` events for any anonymous room. Standard chat subscriptions still require a membership row in `StandardChatMembers`.
 
 ## Key Files
 
 | File | Role |
 |------|------|
 | `backend/src/routes/anonymousChat.ts` | All REST endpoints for anonymous chat CRUD, message deletion broadcasts `message:delete` |
-| `backend/ws/websocket.ts` | Shared WebSocket server — `broadcastToRoom()` sends `message:new` and `message:delete` to all room members |
-| `src/pages/AnonymousChats/AnonymousChat.tsx` | Full anonymous chat UI with voting, editing, deleting, `onMessage` handler |
+| `backend/ws/websocket.ts` | Shared WebSocket server — `broadcastToRoom()` sends `message:new` and `message:delete` to all room members; subscribe validates anon rooms by existence |
+| `backend/src/chat/chat.ts` | `GET /api/chats/subscribed-ids` — returns standard memberships + latest 20 anonymous room ids |
+| `src/pages/AnonymousChats/AnonymousChat.tsx` | Full anonymous chat UI with voting, editing, deleting, `onMessage` handler; lazy-subscribes to the opened room |
 | `src/components/ChatInput.tsx` | Input component with anonymous toggle |
 | `src/components/MessageList.tsx` | Shared message list component (voting mode for anonymous) |
 | `src/context/WebSocketContext.tsx` | Built-in `message:new` handler updates `anonChatKeys.lists()` cache for sidebar |
-| `src/layouts/ChatList.tsx` | Auto-subscribes to all anonymous rooms, sorts by `timestamp` descending |
+| `src/layouts/ChatList.tsx` | Lists anonymous rooms, sorts by `timestamp` descending (does not own subscription) |
 | `src/hooks/useAnonymousRoomsQuery.ts` | `AnonymousRoom` type with `id`, `name`, `lastMessage`, `timestamp` |
 | `prisma/schema.prisma` | Database models: `AnonymousChats`, `AnonymousChatMembers`, `AnonymousChatMessages` |

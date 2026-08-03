@@ -28,23 +28,26 @@ export function addMessageToChatCache(
 ): void {
   const { chatId, ...rest } = payload;
 
-  queryClient.setQueryData<MessagesResponse>(chatKeys.messages(chatId), (old) => {
-    const entry: ChatMessages = {
-      id: rest.id,
-      chatId,
-      senderId: rest.senderId,
-      senderName: rest.senderName,
-      senderImage: rest.senderImage ?? null,
-      content: rest.content,
-      createdAt: rest.createdAt,
-      isOwn: rest.senderId === currentUserId,
-      isEdited: rest.isEdited ?? false,
-      messageType: rest.messageType ?? 'text',
-    };
-    if (!old) return { messages: [entry], hasMore: false };
-    if (old.messages.some((m) => m.id === entry.id)) return old;
-    return { ...old, messages: [...old.messages, entry] };
-  });
+  const current = queryClient.getQueryData<MessagesResponse>(chatKeys.messages(chatId));
+  if (current) {
+    queryClient.setQueryData<MessagesResponse>(chatKeys.messages(chatId), (old) => {
+      if (!old) return old;
+      const entry: ChatMessages = {
+        id: rest.id,
+        chatId,
+        senderId: rest.senderId,
+        senderName: rest.senderName,
+        senderImage: rest.senderImage ?? null,
+        content: rest.content,
+        createdAt: rest.createdAt,
+        isOwn: rest.senderId === currentUserId,
+        isEdited: rest.isEdited ?? false,
+        messageType: rest.messageType ?? 'text',
+      };
+      if (old.messages.some((m) => m.id === entry.id)) return old;
+      return { ...old, messages: [...old.messages, entry] };
+    });
+  }
 
   const timestamp = new Date(rest.createdAt).getTime();
   const oldChats = queryClient.getQueryData<Chat[]>(chatKeys.lists());
@@ -52,11 +55,12 @@ export function addMessageToChatCache(
 
   const updatedChats = queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) => {
     if (!old) return old;
-    return old.map((chat) =>
+    const updated = old.map((chat) =>
       chat.id === chatId
         ? { ...chat, lastMessage: rest.content, timestamp }
         : chat,
     );
+    return [...updated].sort((a, b) => b.timestamp - a.timestamp);
   });
   if (updatedChats && !wasFirst) {
     dispatch(setChats(updatedChats));
@@ -108,35 +112,39 @@ export function addMessageToAnonCache(
   const { chatId, ...rest } = payload;
   const isAnon = rest.isAnonymous;
 
-  queryClient.setQueryData<{ messages: AnonymousChatMessages[]; hasMore: boolean }>(anonChatKeys.messages(chatId), (old) => {
-    if (!old) return { messages: [], hasMore: false };
-    if (old.messages.some((m) => m.id === rest.id)) return old;
-    const entry: AnonymousChatMessages = {
-      id: rest.id,
-      chatId,
-      senderId: rest.senderId,
-      senderName: isAnon ? 'Anonymous' : rest.senderName,
-      senderImage: isAnon ? null : rest.senderImage,
-      content: rest.content,
-      createdAt: rest.createdAt,
-      isOwn: rest.senderId === currentUserId,
-      isEdited: false,
-      messageType: rest.messageType ?? 'text',
-      totalUpvotes: 0,
-      userVote: null,
-      isAnonymous: isAnon,
-    };
-    return { ...old, messages: [...old.messages, entry] };
-  });
+  const current = queryClient.getQueryData<{ messages: AnonymousChatMessages[]; hasMore: boolean }>(anonChatKeys.messages(chatId));
+  if (current) {
+    queryClient.setQueryData<{ messages: AnonymousChatMessages[]; hasMore: boolean }>(anonChatKeys.messages(chatId), (old) => {
+      if (!old) return old;
+      if (old.messages.some((m) => m.id === rest.id)) return old;
+      const entry: AnonymousChatMessages = {
+        id: rest.id,
+        chatId,
+        senderId: rest.senderId,
+        senderName: isAnon ? 'Anonymous' : rest.senderName,
+        senderImage: isAnon ? null : rest.senderImage,
+        content: rest.content,
+        createdAt: rest.createdAt,
+        isOwn: rest.senderId === currentUserId,
+        isEdited: false,
+        messageType: rest.messageType ?? 'text',
+        totalUpvotes: 0,
+        userVote: null,
+        isAnonymous: isAnon,
+      };
+      return { ...old, messages: [...old.messages, entry] };
+    });
+  }
 
   const timestamp = new Date(rest.createdAt).getTime();
   queryClient.setQueryData<AnonymousRoom[]>(anonChatKeys.lists(), (old) => {
     if (!old) return old;
-    return old.map((room) =>
+    const updated = old.map((room) =>
       room.id === chatId
         ? { ...room, lastMessage: rest.content, timestamp }
         : room,
     );
+    return [...updated].sort((a, b) => b.timestamp - a.timestamp);
   });
 }
 

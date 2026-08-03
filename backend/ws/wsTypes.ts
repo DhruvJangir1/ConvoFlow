@@ -7,8 +7,8 @@ export type SubscribePayload = {
 export type MessageSendPayload = {
   chatId: string;
   content: string;
-  sentAt?: number;
-  tempId?: string;
+  sentAt: number;
+  tempId: string;
 }
 
 export type TypingPayload = {
@@ -23,8 +23,8 @@ export type WsClientMessage =
   | { type: 'typing:stop'; payload: TypingPayload };
 
   export type WSMessage =
-  | { type: 'message:new'; payload: { id: string; chatId: string; senderId: string; senderName: string; senderImage: string | null; content: string; createdAt: string; messageType: string; isAnonymous: boolean; chatType?: string } }
-  | { type: 'message:ack'; payload: { id: string; tempId?: string } }
+  | { type: 'message:new'; payload: { id: string; chatId: string; senderId: string; senderName: string; senderImage: string | null; content: string; createdAt: string; messageType: string; isAnonymous: boolean; chatType: string,isEdited:boolean } }
+  | { type: 'message:ack'; payload: { id: string; tempId: string } }
   | { type: 'message:delete'; payload: { chatId: string; messageId: string; senderId: string; isAnonymous: boolean } }
   | { type: 'typing:update'; payload: { chatId: string; userId: string; isTyping: boolean } }
   | { type: 'subscribed'; payload: { chatIds: string[] } }

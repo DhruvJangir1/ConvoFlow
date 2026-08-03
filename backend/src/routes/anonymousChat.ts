@@ -66,7 +66,12 @@ AnonymousChatRouter.post('/:id/join', authenticate, async (req: Request, res: Re
 
   try {
     const existing = await prisma.anonymousChatMembers.findUnique({
-      where: { id: userId },
+      where: {
+        id_chat_id: {
+          id: userId,
+          chat_id: chatId,
+        },
+      },
     });
     if (existing) {
       res.json({ success: true, member: existing });

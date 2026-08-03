@@ -178,6 +178,34 @@ ChatRouter.get('/', authenticate, async (req: Request, res: Response): Promise<v
   res.json({ chats: transformed });
 });
 
+ChatRouter.get('/subscribed-ids', authenticate, async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const userId = req.user.id;
+
+  const standardMemberships = await prisma.standardChatMembers.findMany({
+    where: { user_id: userId },
+    select: { chat_id: true },
+  });
+  const anonymousRooms = await prisma.anonymousChats.findMany({
+    orderBy: { updated_at: 'desc' },
+    take: 20,
+    select: { id: true },
+  });
+
+  res.json({
+    chatIds: [
+      ...new Set([
+        ...standardMemberships.map((membership) => membership.chat_id),
+        ...anonymousRooms.map((room) => room.id),
+      ]),
+    ],
+  });
+});
+
 ChatRouter.post('/:chatId/image', authenticate, upload.single('image'), async (req: ChatUploadRequest, res: Response): Promise<void> => {
   if (!req.user) {
     res.status(401).json({ error: 'Unauthorized' });
@@ -259,7 +287,7 @@ ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
 
   const chatId = req.params.chatId as string;
   const userId = req.user.id;
-  const before = req.params.before as string | undefined;
+  const before = req.query.before as string | undefined;
 
   console.log(`[chat:GET /:chatId/messages] fetching messages for chat ${chatId} by user ${userId}${before ? ` before ${before}` : ''}`);
 

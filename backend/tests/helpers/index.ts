@@ -127,7 +127,7 @@ export interface MockState {
   notifyFriendRequest: ReturnType<typeof vi.fn>;
   sendToUser: ReturnType<typeof vi.fn>;
   broadcastToRoom: ReturnType<typeof vi.fn>;
-  broadcastMessageToRoom: ReturnType<typeof vi.fn>;
+  broadcastImageToRoom: ReturnType<typeof vi.fn>;
   createDmChat: ReturnType<typeof vi.fn>;
 }
 
@@ -254,7 +254,7 @@ export function createFreshMockState(): MockState {
     notifyFriendRequest: vi.fn(),
     sendToUser: vi.fn(),
     broadcastToRoom: vi.fn(),
-    broadcastMessageToRoom: vi.fn(),
+    broadcastImageToRoom: vi.fn(),
     createDmChat: vi.fn(),
   };
 }
@@ -430,7 +430,7 @@ export function setupDefaultMocks() {
 
   ms.sendToUser.mockImplementation(() => {});
   ms.broadcastToRoom.mockImplementation(() => {});
-  ms.broadcastMessageToRoom.mockImplementation(() => {});
+  ms.broadcastImageToRoom.mockImplementation(() => {});
 
   ms.createDmChat.mockImplementation(async (userA: string, userB: string) => {
     const chatId = cid();

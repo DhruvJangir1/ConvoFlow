@@ -4,7 +4,7 @@ import type { Server } from 'http';
 import { consumeTicket, startTicketCleanup, stopTicketCleanup } from '../src/services/wsTicketStore.js';
 import { prisma } from '../src/lib/connectionPoolClient.js';
 import { insertStandardChatMessage, requireChatMembership } from '../src/services/chatMessageService.js';
-import type { MessageSendPayload, SubscribePayload, WsClientMessage } from './wsTypes.js';
+import type { MessageSendPayload, WsClientMessage } from './wsTypes.js';
 
 interface AuthenticatedSocket extends WebSocket { // this type helps for sending messages fast and keep up with user's other needed data to not lookup in the DB
   userId: string;
@@ -32,12 +32,11 @@ export function authenticateConnection(url: string): string | null { // this con
   }
 }
 
-export function sendMessageToUser(ws: WebSocket, data: Record<string, unknown>): void {
+function sendToSocket(ws: WebSocket, data: Record<string, unknown>): void {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(data));
   }
 }
-
 
 export function broadcastToRoom(chatId: string, data: Record<string, unknown>): void {
   const room = chatRooms.get(chatId);
@@ -52,19 +51,19 @@ export function broadcastToRoom(chatId: string, data: Record<string, unknown>): 
       sent++;
     }
   }
-  console.log(`[WS] broadcastMessageToRoom: chatId=${chatId} roomSize=${room.size} sent=${sent}`)
+  console.log(`[WS] broadcastToRoom: chatId=${chatId} roomSize=${room.size} sent=${sent}`)
 }
 
 export function sendToUser(userId: string, data: Record<string, unknown>): void {
   const sockets = userSockets.get(userId);
   if (sockets) {
     for (const ws of sockets) {
-      sendMessageToUser(ws, data);
+      sendToSocket(ws, data);
     }
   }
 }
 
-export function broadcastMessageToRoom(chatId: string, buf: Buffer, isBinary: boolean): void {
+export function broadcastImageToRoom(chatId: string, buf: Buffer, isBinary: boolean): void {
   const room = chatRooms.get(chatId);
   if (!room) return;
   for (const member of room) {
@@ -85,7 +84,7 @@ export function removeSocketFromAllRooms(ws: AuthenticatedSocket): void {
   ws.subscribedRooms.clear();
 }
 
-export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chatId: string; content: string; sentAt?: number; tempId?: string }): Promise<void> {
+export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chatId: string; content: string; sentAt: number; tempId?: string }): Promise<void> {
   if (!ws.userId) return;
   const { chatId, content, sentAt, tempId } = payload;
 
@@ -107,7 +106,7 @@ export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chat
     data: { updated_at: new Date() },
   });
 
-  sendMessageToUser(ws, { type: 'message:ack', payload: { id, tempId } });
+  sendToSocket(ws, { type: 'message:ack', payload: { id, tempId } });
 
   broadcastToRoom(chatId, {
     type: 'message:new',
@@ -161,11 +160,11 @@ function unsubscribeFromRoom(chatId: string, ws: AuthenticatedSocket): void {
   if (room.size === 0) chatRooms.delete(chatId);
 }
 
-export function createWebSocketServer(server: Server): void {
+export function createWebSocketServer(server: Server): void { // the server is the http server that we will upgrade to a web socket server
   wss = new WebSocketServer({ server, path: '/ws' });
   startTicketCleanup();
 
-  wss.on('connection', async (ws: AuthenticatedSocket, req) => {
+  wss.on('connection', async (ws: AuthenticatedSocket, req) => { // when a new cliet connects
     const url = req.url ?? '';
     const userId = authenticateConnection(url);
 
@@ -215,19 +214,17 @@ export function createWebSocketServer(server: Server): void {
             const chatIds = msg.payload.chatIds;
             if (!Array.isArray(chatIds)) break;
 
-            const [standardMemberships, anonMemberships] = await Promise.all([
-              prisma.standardChatMembers.findMany({
-                where: { user_id: userId, chat_id: { in: chatIds } },
-                select: { chat_id: true },
-              }),
-              prisma.anonymousChatMembers.findMany({
-                where: { id: userId, chat_id: { in: chatIds } },
-                select: { chat_id: true },
-              }),
-            ]);
+            const standardMemberships = await prisma.standardChatMembers.findMany({
+              where: { user_id: userId, chat_id: { in: chatIds } },
+              select: { chat_id: true },
+            });
+            const anonRooms = await prisma.anonymousChats.findMany({
+              where: { id: { in: chatIds } },
+              select: { id: true },
+            });
             const validIds = new Set([
               ...standardMemberships.map((m) => m.chat_id),
-              ...anonMemberships.map((m) => m.chat_id),
+              ...anonRooms.map((r) => r.id),
             ]);
 
             for (const chatId of chatIds) {
@@ -244,9 +241,9 @@ export function createWebSocketServer(server: Server): void {
                   }
                 }
               }
-              sendMessageToUser(ws, { type: 'chat:online-users', payload: { chatId, userIds } });
+              sendToSocket(ws, { type: 'chat:online-users', payload: { chatId, userIds } });
             }
-            sendMessageToUser(ws, { type: 'subscribed', payload: { chatIds } });
+            sendToSocket(ws, { type: 'subscribed', payload: { chatIds } });
             break;
           }
           case 'unsubscribe': {
@@ -256,7 +253,7 @@ export function createWebSocketServer(server: Server): void {
               unsubscribeFromRoom(chatId, ws);
               broadcastToRoom(chatId, { type: 'user:offline', payload: { chatId, userId } });
             }
-            sendMessageToUser(ws, { type: 'unsubscribed', payload: { chatIds } });
+            sendToSocket(ws, { type: 'unsubscribed', payload: { chatIds } });
             break;
           }
           case 'message:send': {

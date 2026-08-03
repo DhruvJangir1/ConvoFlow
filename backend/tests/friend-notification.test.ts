@@ -23,7 +23,7 @@ vi.mock('../src/services/dmChat.js', () => ({
 const wsMockFns = vi.hoisted(() => ({
   sendToUser: vi.fn(),
   broadcastToRoom: vi.fn(),
-  broadcastMessageToRoom: vi.fn(),
+  broadcastImageToRoom: vi.fn(),
 }));
 vi.mock('../ws/websocket.js', () => wsMockFns);
 

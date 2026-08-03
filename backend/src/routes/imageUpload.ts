@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { uploadImageToStorage, resolveImageUrl } from '../services/imageUpload.js';
-import { broadcastMessageToRoom } from '../../ws/websocket.js';
+import { broadcastImageToRoom } from '../../ws/websocket.js';
 
 const ImageUploadRouter = Router();
 
@@ -74,7 +74,7 @@ ImageUploadRouter.post('/image', authenticate, async (req: Request, res: Respons
         createdAt: message.created_at,
       },
     });
-    broadcastMessageToRoom(chatId, Buffer.from(broadcastPayload, 'utf-8'), false);
+    broadcastImageToRoom(chatId, Buffer.from(broadcastPayload, 'utf-8'), false);
 
     res.status(201).json({
       success: true,

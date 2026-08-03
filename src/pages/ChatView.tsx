@@ -51,6 +51,7 @@ export default function ChatView() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const paginationCursor = useRef<string | null>(null);
+  const activeChatRef = useRef<string | null>(null);
 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
@@ -61,14 +62,24 @@ export default function ChatView() {
   useEffect(() => {
     if (!chatId || !messagesFromServer) return;
 
+    const switched = activeChatRef.current !== chatId;
+    activeChatRef.current = chatId;
+
     setMessages((previous) => {
-      const tempMessages = previous.filter((msg) => String(msg.id).startsWith("temp-"));
-      if (tempMessages.length === 0) return messagesFromServer.messages;
-      return messagesFromServer.messages.concat(tempMessages);
+      if (switched) return messagesFromServer.messages;
+      const serverIds = new Set(messagesFromServer.messages.map((m) => m.id));
+      const oldest = messagesFromServer.messages[0];
+      const extras = previous.filter((m) =>
+        serverIds.has(m.id) ? false
+          : String(m.id).startsWith("temp-") ? true
+          : oldest !== undefined && new Date(m.createdAt) < new Date(oldest.createdAt),
+      );
+      return [...messagesFromServer.messages, ...extras];
     });
-    setHasOlderMessages(messagesFromServer.hasMore);
-    if (messagesFromServer.messages.length > 0) {
-      paginationCursor.current = messagesFromServer.messages[0].createdAt;
+
+    if (switched) {
+      setHasOlderMessages(messagesFromServer.hasMore);
+      paginationCursor.current = messagesFromServer.messages[0]?.createdAt ?? null;
     }
   }, [messagesFromServer, chatId]);
 
@@ -82,8 +93,12 @@ export default function ChatView() {
       if (!response.ok) return;
 
       const data = await response.json();
-      const olderMessages = data.messages.map((msg: RawMessage) => parseMessage(msg, user.id, chatId));
-      setMessages((previous) => olderMessages.concat(previous));
+      const olderMessages: ChatMessages[] = data.messages.map((msg: RawMessage) => parseMessage(msg, user.id, chatId));
+      setMessages((previous) => {
+        const existingIds = new Set(previous.map((m) => m.id));
+        const fresh = olderMessages.filter((m) => !existingIds.has(m.id));
+        return fresh.concat(previous);
+      });
       setHasOlderMessages(data.hasMore === true);
       if (olderMessages.length > 0) {
         paginationCursor.current = olderMessages[0].createdAt;

@@ -18,7 +18,7 @@ function buildAnonMessage(
     created_at: string;
     is_edited: boolean;
     TotalUpvotes: number;
-    userVote?: string | null;
+    userVote: string | null;
     isAnonymous: boolean;
     sender_id: string;
     users: { id: string; user_name: string; image_url: string | null } | null;
@@ -30,7 +30,7 @@ function buildAnonMessage(
   ownIdsRef: MutableRefObject<Set<string>>,
 ): AnonymousChatMessages {
   const isOwn = ownIdsRef.current.has(m.id) || m.sender_id === userId;
-  const isAnon = m.isAnonymous ?? true;
+  const isAnon = m.isAnonymous;
   return {
     id: m.id,
     chatId,
@@ -40,10 +40,10 @@ function buildAnonMessage(
     content: m.content ?? '',
     createdAt: m.created_at,
     isOwn,
-    isEdited: m.is_edited ?? false,
+    isEdited: m.is_edited,
     messageType: 'text',
-    totalUpvotes: m.TotalUpvotes ?? 0,
-    userVote: (m.userVote as 'upvote' | 'downvote' | null) ?? null,
+    totalUpvotes: m.TotalUpvotes,
+    userVote: m.userVote as 'upvote' | 'downvote' | null,
     isAnonymous: isAnon,
   };
 }
