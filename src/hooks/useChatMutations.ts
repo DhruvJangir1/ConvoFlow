@@ -127,7 +127,7 @@ export function useEditMessageMutation() {
       return { prev };
     },
     onError: (_err, vars, context) => {
-      const previousMessages = context?.prev;
+      const previousMessages = context ? context.prev : undefined;
       if (previousMessages) {
         queryClient.setQueryData(chatKeys.messages(vars.chatId), previousMessages);
       }
@@ -170,7 +170,7 @@ export function useDeleteMessageMutation() {
       return { prev };
     },
     onError: (_err, vars, context) => {
-      if (context?.prev) {
+      if (context && context.prev) {
         queryClient.setQueryData(chatKeys.messages(vars.chatId), context.prev);
       }
     },
@@ -229,14 +229,16 @@ export function useUpdateChatsCache() {
       });
     },
     updateChatInCache: (chatId: string, updates: Partial<Chat>) => {
-      queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) =>
-        old?.map((c) => (c.id === chatId ? { ...c, ...updates } : c)),
-      );
+      queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) => {
+        if (!old) return old;
+        return old.map((c) => (c.id === chatId ? { ...c, ...updates } : c));
+      });
     },
     removeChatFromCache: (chatId: string) => {
-      queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) =>
-        old?.filter((c) => c.id !== chatId),
-      );
+      queryClient.setQueryData<Chat[]>(chatKeys.lists(), (old) => {
+        if (!old) return old;
+        return old.filter((c) => c.id !== chatId);
+      });
     },
   };
 }

@@ -14,7 +14,8 @@ import { createWebSocketServer } from './ws/websocket.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function normalizeEnvVar(value) {
-  return value?.replace(/^['"]|['"]$/g, '');
+  if (!value) return value;
+  return value.replace(/^['"]|['"]$/g, '');
 }
 
 const supabaseStorageOrigin = (() => {

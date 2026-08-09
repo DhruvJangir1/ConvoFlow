@@ -4,7 +4,8 @@ import { randomUUID } from 'crypto';
 import { s3Client } from '../supabase/supabaseS3Client.js';
 
 function normalizeEnvVar(value?: string): string | undefined {
-  return value?.replace(/^['"]|['"]$/g, '');
+  if (!value) return value;
+  return value.replace(/^['"]|['"]$/g, '');
 }
 
 export interface ImageUploadInput {
@@ -42,7 +43,7 @@ export function normalizeUploadBuffer(input: ImageUploadInput) {
 
   const match = input.base64Data.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
   const cleanedBase64 = match ? match[2] : input.base64Data;
-  const contentType = match?.[1] ?? input.contentType ?? 'image/png';
+  const contentType = match ? (match[1] || input.contentType || 'image/png') : (input.contentType || 'image/png');
 
   if (!SUPPORTED_IMAGE_TYPES.includes(contentType.toLowerCase())) {
     throw new Error(`Unsupported image type: ${contentType}`);
@@ -57,12 +58,13 @@ export function normalizeUploadBuffer(input: ImageUploadInput) {
 }
 
 export function buildStorageObjectPath(userId: string, fileName: string, contentType: string): string {
-  const safeFileName = fileName
+  const popped = fileName
     .replace(/\\/g, '/')
     .split('/')
     .filter(Boolean)
-    .pop()
-    ?.replace(/[^a-zA-Z0-9._-]/g, '-') || `image-${Date.now()}`;
+    .pop();
+  const cleaned = popped ? popped.replace(/[^a-zA-Z0-9._-]/g, '-') : '';
+  const safeFileName = cleaned || `image-${Date.now()}`;
 
   const extension = safeFileName.includes('.')
     ? safeFileName.slice(safeFileName.lastIndexOf('.'))

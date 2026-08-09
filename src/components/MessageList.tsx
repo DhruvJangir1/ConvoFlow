@@ -181,7 +181,7 @@ export default function MessageList({
   const prevLengthRef = useRef(messages.length);
   useEffect(() => {
     if (messages.length > prevLengthRef.current && !isPrependingRef.current) {
-      sentinelRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      if (sentinelRef.current) sentinelRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     }
     isPrependingRef.current = false;
     prevLengthRef.current = messages.length;
@@ -189,7 +189,7 @@ export default function MessageList({
 
   useEffect(() => {
     if (!loading) {
-      sentinelRef.current?.scrollIntoView({ behavior: "instant", block: "end" });
+      if (sentinelRef.current) sentinelRef.current.scrollIntoView({ behavior: "instant", block: "end" });
     }
   }, [loading]);
 
@@ -389,7 +389,7 @@ export default function MessageList({
                               <img
                                 src={msg.content}
                                 alt="Uploaded image"
-                                onClick={() => onImageClick?.(msg.content)}
+                                onClick={() => { if (onImageClick) onImageClick(msg.content); }}
                                 className="max-h-75 w-full rounded-2xl object-contain border border-border bg-surface-base cursor-pointer hover:opacity-90 transition-opacity"
                               />
                             ) : (

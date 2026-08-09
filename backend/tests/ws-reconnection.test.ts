@@ -43,6 +43,13 @@ import {
   uid, cid,
 } from './helpers/index';
 
+type WsMessage = { type: string; payload: Record<string, unknown> };
+
+function requirePayload(m: WsMessage | undefined): Record<string, unknown> {
+  if (!m) throw new Error('Expected a message but none was received');
+  return m.payload;
+}
+
 let server: { on: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
@@ -129,8 +136,8 @@ describe('WebSocket Reconnection', () => {
 
     const ws2Msgs = getAllSent(ws2);
     const recovered = ws2Msgs.find(m => m.type === 'message:new');
-    expect(recovered).toBeDefined();
-    expect((recovered!.payload as any).content).toBe('Missed message recovered');
+    const recoveredPayload = requirePayload(recovered);
+    expect(recoveredPayload.content).toBe('Missed message recovered');
   });
 
   it('does not leak duplicate socket entries on reconnect', async () => {

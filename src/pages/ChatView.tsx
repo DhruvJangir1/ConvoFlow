@@ -79,7 +79,8 @@ export default function ChatView() {
 
     if (switched) {
       setHasOlderMessages(messagesFromServer.hasMore);
-      paginationCursor.current = messagesFromServer.messages[0]?.createdAt ?? null;
+      const firstMsg = messagesFromServer.messages[0];
+      paginationCursor.current = firstMsg ? firstMsg.createdAt : null;
     }
   }, [messagesFromServer, chatId]);
 

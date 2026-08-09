@@ -69,7 +69,7 @@ export default function ProfileImageModal({ onClose, imageUrl, userName }: Props
   }
 
   function handleOpenPicker() {
-    fileInputRef.current?.click();
+    if (fileInputRef.current) fileInputRef.current.click();
   }
 
   function handleClose() {

@@ -45,7 +45,8 @@ export default function FriendRequestModal({
         return;
       }
       const data = await res.json();
-      onAccepted(data.chat?.id);
+      const chatId = data.chat ? data.chat.id : null;
+      if (chatId) onAccepted(chatId);
     } catch (err) {
       setError('Network error — is the server running?');
     } finally {

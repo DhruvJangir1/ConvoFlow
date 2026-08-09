@@ -26,7 +26,18 @@ export async function fetchClerkUser(clerkId: string): Promise<ClerkUserInfo> {
   const primaryEmail = clerkUser.emailAddresses.find(
     (ea) => ea.id === clerkUser.primaryEmailAddressId,
   );
-  console.log('[auth] Primary email:', primaryEmail?.emailAddress ?? 'NONE');
 
-  return { emailAddress: primaryEmail?.emailAddress ?? '' };
+  if (!primaryEmail){
+    console.log('no primary email found from user!')
+    return { emailAddress : '' };
+  }
+
+  if (!primaryEmail.emailAddress){
+    console.log('no user email address found!');
+    return { emailAddress:''};
+  }
+
+  console.log('[auth] Primary email:', primaryEmail.emailAddress);
+
+  return { emailAddress: primaryEmail.emailAddress };
 }

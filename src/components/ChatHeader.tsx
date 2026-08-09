@@ -17,7 +17,11 @@ export default function ChatHeader() {
 
   if (!chat) return null;
 
-  const otherUserId = user ? chat.members.find((m) => m.id !== user.id)?.id : null;
+  let otherUserId: string | null = null;
+  if (user) {
+    const otherMember = chat.members.find((m) => m.id !== user.id);
+    otherUserId = otherMember ? otherMember.id : null;
+  }
   const onlineUserIds = chatId ? onlineUsers[chatId] || [] : [];
   const isOtherOnline = otherUserId ? onlineUserIds.includes(otherUserId) : false;
 

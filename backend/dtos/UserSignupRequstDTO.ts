@@ -11,8 +11,8 @@ export class UserSignUpRequest {
 
 
     constructor(data:UserSignupDataType){
-        this.name = data.name?.trim() || '';
-        this.email = data.email?.trim().toLowerCase() || '';
+        this.name = data.name ? data.name.trim() : '';
+        this.email = data.email ? data.email.trim().toLowerCase() : '';
         this.password = data.password || '';
     }
    

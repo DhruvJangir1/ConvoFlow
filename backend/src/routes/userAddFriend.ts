@@ -247,7 +247,7 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
         receiver_user_id: senderId,
         sender_user_id: userId,
         type: 'friend_request_accepted',
-        content: `${myMember?.USERS.user_name ?? 'Someone'} accepted your friend request`,
+        content: `${myMember ? myMember.USERS.user_name : 'Someone'} accepted your friend request`,
         entity_id: chatId
       },
     });
@@ -279,7 +279,7 @@ FriendRouter.patch('/accept', authenticate, async (req: Request, res: Response):
           unread: 0,
           type: 'dm',
           messageCount: 0,
-          members: [{ id: userId, user_name: myMember?.USERS.user_name ?? 'Unknown', image_url: signedMyImage }],
+          members: [{ id: userId, user_name: myMember ? myMember.USERS.user_name : 'Unknown', image_url: signedMyImage }],
         },
       },
     });

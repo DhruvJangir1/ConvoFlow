@@ -359,11 +359,17 @@ export function setupDefaultMocks() {
 
   ms.prisma.standardChatMembers.findUnique.mockResolvedValue({ user_id: 'member' });
   ms.prisma.standardChatMembers.findMany.mockImplementation(async (args: { where?: { chat_id?: { in?: string[] } } }) => {
-    const chatIds = args?.where?.chat_id?.in ?? [];
+    let chatIds: string[] = [];
+    if (args && args.where && args.where.chat_id && args.where.chat_id.in) {
+      chatIds = args.where.chat_id.in;
+    }
     return chatIds.map((chat_id: string) => ({ chat_id }));
   });
   ms.prisma.anonymousChatMembers.findMany.mockImplementation(async (args: { where?: { chat_id?: { in?: string[] } } }) => {
-    const chatIds = args?.where?.chat_id?.in ?? [];
+    let chatIds: string[] = [];
+    if (args && args.where && args.where.chat_id && args.where.chat_id.in) {
+      chatIds = args.where.chat_id.in;
+    }
     return chatIds.map((chat_id: string) => ({ chat_id }));
   });
 

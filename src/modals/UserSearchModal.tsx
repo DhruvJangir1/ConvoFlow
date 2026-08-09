@@ -32,7 +32,7 @@ export default function UserSearchModal({ isOpen, onClose }: Props) {
 
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+      setTimeout(() => { if (inputRef.current) inputRef.current.focus(); }, 100);
     } else {
       setQuery("");
       setResults([]);

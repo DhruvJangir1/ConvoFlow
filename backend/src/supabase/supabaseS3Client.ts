@@ -1,7 +1,8 @@
 import { S3Client } from '@aws-sdk/client-s3';
 
 function normalizeEnvVar(value?: string): string | undefined {
-  return value?.replace(/^['"]|['"]$/g, '');
+  if (!value) return value;
+  return value.replace(/^['"]|['"]$/g, '');
 }
 
 const region = normalizeEnvVar(process.env.SUPABASE_PROJECT_REGION);

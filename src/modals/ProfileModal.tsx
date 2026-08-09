@@ -60,7 +60,7 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
   const { signOut } = useClerk();
   const navigate = useNavigate();
   const user = useSelector((s: RootState) => s.userAuth.user);
-  const conversations = useSelector((s: RootState) => s.chat?.chats ?? []);
+  const conversations = useSelector((s: RootState) => s.chat.chats);
   const [imageModalOpen, setImageModalOpen] = useState(false);
 
   if (!isOpen || !user) return null;

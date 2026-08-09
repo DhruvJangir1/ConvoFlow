@@ -57,7 +57,7 @@ export default function GroupInfoModal({ open, onClose, members }: GroupInfoModa
       <DialogContent sx={{ px: { xs: 2, sm: 3 }, pb: 2 }}>
         <div className="flex flex-col gap-2">
           {members.map((member) => {
-            const isCurrentUser = user?.id === member.id;
+            const isCurrentUser = user ? user.id === member.id : false;
             return (
               <div key={member.id} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/5">
                 <UserAvatar imageUrl={member.image_url ?? null} userName={member.user_name} size="md" />

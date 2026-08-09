@@ -1,4 +1,6 @@
 import { useSignIn } from "@clerk/react/legacy";
+import { useUser } from "@clerk/react";
+import { useNavigate } from "react-router-dom";
 import type { ReactElement } from "react";
 
 const OAUTH_PROVIDERS = [
@@ -49,14 +51,25 @@ const PROVIDER_ICONS: Record<OAuthStrategy, () => ReactElement> = {
 
 export default function ContinueWithConvoFlow() {
   const { signIn } = useSignIn();
+  const { user } = useUser();
+  const navigate = useNavigate();
 
   async function handleOAuth(strategy: OAuthStrategy) {
     if (!signIn) return;
-    await signIn.authenticateWithRedirect({
-      strategy,
-      redirectUrl: "/sso-callback",
-      redirectUrlComplete: "/home",
-    });
+    if (user) {
+      navigate('/home');
+      return;
+    }
+    try {
+      await signIn.authenticateWithRedirect({
+        strategy,
+        redirectUrl: "/sso-callback",
+        redirectUrlComplete: "/home",
+      });
+    } catch (err) {
+      console.error(err);
+      navigate('/home');
+    }
   }
 
   return (

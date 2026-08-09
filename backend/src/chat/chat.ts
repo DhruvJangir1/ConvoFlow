@@ -88,7 +88,8 @@ ChatRouter.post('/', authenticate, async (req: Request, res: Response): Promise<
 
     const otherMembers = chat.StandardChatMembers.filter((member) => member.user_id !== userId);
     const displayName = chat.name || otherMembers.map((member) => member.USERS.user_name).join(', ') || 'Unknown';
-    const avatarUrl = await signChatAvatar(chat.avatar_url, otherMembers[0]?.USERS?.image_url ?? null);
+    const firstOther = otherMembers[0];
+    const avatarUrl = await signChatAvatar(chat.avatar_url, firstOther ? firstOther.USERS.image_url : null);
     const signedMembers = await signMemberImages(
       chat.StandardChatMembers.map((m) => ({
         id: m.USERS.id,
@@ -153,7 +154,8 @@ ChatRouter.get('/', authenticate, async (req: Request, res: Response): Promise<v
     const otherMembers = chat.StandardChatMembers;
     const lastMsg = chat.StandardChatMessages[0];
 
-    const avatarUrl = await signChatAvatar(chat.avatar_url, otherMembers[0]?.USERS?.image_url ?? null);
+    const firstOther = otherMembers[0];
+    const avatarUrl = await signChatAvatar(chat.avatar_url, firstOther ? firstOther.USERS.image_url : null);
     const signedMembers = await signMemberImages(
       otherMembers.map((cm) => ({
         id: cm.USERS.id,
@@ -166,8 +168,8 @@ ChatRouter.get('/', authenticate, async (req: Request, res: Response): Promise<v
       id: chat.id,
       name: chat.name || otherMembers.map((o) => o.USERS.user_name).join(', ') || 'Unknown',
       avatar_url: avatarUrl,
-      lastMessage: lastMsg?.content || '',
-      timestamp: (lastMsg?.created_at ?? chat.updated_at).getTime(),
+      lastMessage: lastMsg ? lastMsg.content : '',
+      timestamp: (lastMsg ? lastMsg.created_at : chat.updated_at).getTime(),
       unread: 0,
       type: chat.type,
       messageCount: 0,

@@ -51,15 +51,15 @@ async function getOrCreateAuthUserId(user) {
     user_metadata: { user_name: user.user_name },
   });
 
-  if (data?.user) return data.user.id;
+  if (data && data.user) return data.user.id;
 
   // If already exists, look it up
-  if (error?.message?.includes('already exists')) {
+  if (error && error.message && error.message.includes('already exists')) {
     const { data: existing } = await supabase.auth.admin.getUserByEmail(user.email);
-    if (existing?.user) return existing.user.id;
+    if (existing && existing.user) return existing.user.id;
   }
 
-  throw new Error(`Failed to create/lookup auth user ${user.email}: ${error?.message}`);
+  throw new Error(`Failed to create/lookup auth user ${user.email}: ${error && error.message ? error.message : 'unknown error'}`);
 }
 
 async function runSeed() {

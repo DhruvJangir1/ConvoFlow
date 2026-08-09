@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useDispatch } from 'react-redux';
 import { useUser, useAuth as useClerkAuth } from '@clerk/react';
@@ -23,48 +24,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoaded) return;
 
-    if (clerkUser) {
-      const fetchDbUser = async () => {
-        try {
-          const res = await clerkFetch('/api/auth/setup-user', { method: 'POST' });
-
-          if (!res.ok) {
-            dispatch(setUser(null));
-            setDbUserFetched(true);
-            return;
-          }
-
-          const data = await res.json();
-          if (!data.user) return;
-
-          const dbUser: User = {
-            id: data.user.id,
-            user_name: data.user.user_name,
-            email: data.user.email,
-            created_at: data.user.created_at,
-            image_url: data.user.image_url,
-            is_verified: data.user.is_verified,
-            last_login: data.user.last_login,
-            user_tag: data.user.user_tag,
-            bio: data.user.bio,
-          };
-          
-          dispatch(setUser(dbUser));
-        } catch {
-          dispatch(setUser(null));
-        } finally {
-          setDbUserFetched(true);
-        }
-      };
-      fetchDbUser();
-    } else {
+    if (!clerkUser) {
       dispatch(setUser(null));
       dispatch(resetChats());
-      setDbUserFetched(true);
+      return;
     }
+
+    const fetchDbUser = async () => {
+      try {
+        const res = await clerkFetch('/api/auth/setup-user', { method: 'POST' });
+
+        if (!res.ok) {
+          setDbUserFetched(true);
+          return;
+        }
+
+        const data = await res.json();
+        if (!data.user) {
+          setDbUserFetched(true);
+          return;
+        }
+
+        const dbUser: User = {
+          id: data.user.id,
+          user_name: data.user.user_name,
+          email: data.user.email,
+          created_at: data.user.created_at,
+          image_url: data.user.image_url,
+          is_verified: data.user.is_verified,
+          last_login: data.user.last_login,
+          user_tag: data.user.user_tag,
+          bio: data.user.bio,
+        };
+
+        dispatch(setUser(dbUser));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setDbUserFetched(true);
+      }
+    };
+    fetchDbUser();
   }, [isLoaded, clerkUser, dispatch]);
 
-  const loading = !isLoaded || !dbUserFetched;
+  const noSession = !clerkUser;
+  const loading = !isLoaded || (!noSession && !dbUserFetched);
 
   return (
     <AuthContext.Provider value={{ loading }}>

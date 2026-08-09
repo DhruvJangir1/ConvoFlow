@@ -34,9 +34,9 @@ function buildAnonMessage(
   return {
     id: m.id,
     chatId,
-    senderId: isOwn ? userId : (isAnon ? 'other' : (m.users?.id ?? 'other')),
-    senderName: isAnon ? 'Anonymous' : (isOwn ? userName : (m.users?.user_name ?? 'Anonymous')),
-    senderImage: isAnon ? null : (isOwn ? userImageUrl : (m.users?.image_url ?? null)),
+    senderId: isOwn ? userId : (isAnon ? 'other' : (m.users ? m.users.id : 'other')),
+    senderName: isAnon ? 'Anonymous' : (isOwn ? userName : (m.users ? m.users.user_name : 'Anonymous')),
+    senderImage: isAnon ? null : (isOwn ? userImageUrl : (m.users ? m.users.image_url : null)),
     content: m.content ?? '',
     createdAt: m.created_at,
     isOwn,
@@ -78,8 +78,11 @@ export function useAnonymousMessagesQuery(
   const isEnbaled = roomId !== null && user !== null;
 
   return useQuery({
-    queryKey: anonChatKeys.messages(roomId!),
-    queryFn: () => fetchAnonymousMessages(roomId!, user.id, user.user_name, user.image_url, ownIdsRef),
+    queryKey: anonChatKeys.messages(roomId ?? ''),
+    queryFn: () => {
+      if (!roomId) throw new Error('Anonymous room ID is required');
+      return fetchAnonymousMessages(roomId, user.id, user.user_name, user.image_url, ownIdsRef);
+    },
     enabled: isEnbaled,
     staleTime: 300_000,
     gcTime: 600_000,

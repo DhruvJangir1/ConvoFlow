@@ -28,7 +28,7 @@ AnonymousChatRouter.get('/', authenticate, async (req: Request, res: Response): 
       return {
         id: room.id,
         name: room.name,
-        lastMessage: latest?.content ?? null,
+        lastMessage: latest ? latest.content : null,
         timestamp: latest ? new Date(latest.created_at).getTime() : new Date(room.created_at).getTime(),
       };
     });
@@ -236,6 +236,11 @@ AnonymousChatRouter.patch('/:id/messages/:messageId', authenticate, async (req: 
   const messageId = req.params.messageId as string;
   const { content } = req.body as { content?: string };
 
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
   if (!content || typeof content !== 'string' || !content.trim()) {
     res.status(400).json({ error: 'content is required and must be a non-empty string' });
     return;
@@ -256,7 +261,7 @@ AnonymousChatRouter.patch('/:id/messages/:messageId', authenticate, async (req: 
       return;
     }
 
-    if (existing.sender_id !== req.user!.id) {
+    if (existing.sender_id !== req.user.id) {
       res.status(403).json({ error: 'Not authorized to edit this message' });
       return;
     }
@@ -280,6 +285,11 @@ AnonymousChatRouter.delete('/:id/messages/:messageId', authenticate, async (req:
   const chatId = req.params.id as string;
   const messageId = req.params.messageId as string;
 
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
   try {
     const existing = await prisma.anonymousChatMessages.findUnique({
       where: { id: messageId },
@@ -295,7 +305,7 @@ AnonymousChatRouter.delete('/:id/messages/:messageId', authenticate, async (req:
       return;
     }
 
-    if (existing.sender_id !== req.user!.id) {
+    if (existing.sender_id !== req.user.id) {
       res.status(403).json({ error: 'Not authorized to delete this message' });
       return;
     }
@@ -306,7 +316,7 @@ AnonymousChatRouter.delete('/:id/messages/:messageId', authenticate, async (req:
 
     broadcastToRoom(chatId, {
       type: 'message:delete',
-      payload: { chatId, messageId, senderId: req.user!.id, isAnonymous: existing.isAnonymous ?? false },
+      payload: { chatId, messageId, senderId: req.user.id, isAnonymous: existing.isAnonymous ?? false },
     });
 
     res.json({ success: true });
@@ -337,7 +347,11 @@ AnonymousChatRouter.post('/:messageId/upvote', authenticate, async (req: Request
 });
 
 AnonymousChatRouter.post('/:messageId/downvote', authenticate, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user!.id;
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const userId = req.user.id;
   const messageId = req.params.messageId as string;
 
   try {
