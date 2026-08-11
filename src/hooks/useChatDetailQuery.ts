@@ -23,14 +23,18 @@ export function useChatDetailQuery(chatId: string | undefined) {
 
   return useQuery({
     queryKey: chatKeys.detail(chatId ?? ''),
-    queryFn: () => fetchChatListAndExtract(chatId!, user!.id),
+    queryFn: () => {
+      if (!chatId || !user) throw new Error('chatId or user is required');
+      return fetchChatListAndExtract(chatId, user.id);
+    },
     enabled: isEnabled,
     staleTime: 300_000,
     gcTime: 600_000,
     placeholderData: () => {
       if (!chatId) return undefined;
       const lists = queryClient.getQueryData<Chat[]>(chatKeys.lists());
-      return lists?.find((c) => c.id === chatId) ?? undefined;
+      if (!lists) return undefined;
+      return lists.find((c) => c.id === chatId);
     },
   });
 }

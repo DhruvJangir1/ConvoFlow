@@ -74,7 +74,7 @@ export default function AnonymousChatInput({
       } else if (value.length > 0) {
         onChange("");
       } else {
-        textareaRef.current?.blur();
+        if (textareaRef.current) textareaRef.current.blur();
       }
     }
   }

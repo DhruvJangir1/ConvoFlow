@@ -10,6 +10,8 @@ export default function Navbar() {
   const { signOut } = useClerk();
   const navigate = useNavigate();
 
+  if (!user) return null;
+
   async function handleLogout() {
     await signOut();
     navigate("/auth");
@@ -17,7 +19,7 @@ export default function Navbar() {
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-end gap-3 border-b border-border/60 bg-navbar px-4">
-      <span className="text-sm text-text-muted">{user?.user_name}</span>
+      <span className="text-sm text-text-muted">{user.user_name}</span>
 
       <button
         onClick={handleLogout}
@@ -32,7 +34,7 @@ export default function Navbar() {
         className="group flex items-center justify-center rounded-full transition-all duration-200 ease-out hover:opacity-80"
         title="Profile"
       >
-        <UserAvatar imageUrl={user?.image_url ?? null} userName={user?.user_name ?? "User"} size="sm" />
+        <UserAvatar imageUrl={user.image_url} userName={user.user_name} size="sm" />
       </button>
     </header>
   );

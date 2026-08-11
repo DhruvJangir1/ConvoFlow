@@ -102,14 +102,14 @@ export default function NotificationsPage() {
   }, [rejectMutation]);
 
   const handleAccept = useCallback(async (notification: Notification) => {
-    const senderName = notification.content?.replace(' sent you a friend request', '') ?? 'Friend';
+    const senderName = notification.content ? notification.content.replace(' sent you a friend request', '') : 'Friend';
     setAcceptSenderName(senderName);
     setAcceptLoading(true);
     acceptMutation.mutate(notification, {
       onSuccess: (data) => {
         try {
           removeNotification(notification.id);
-          const chatId = data.chat?.id;
+          const chatId = data.chat.id;
           if (!chatId) {
             setAcceptLoading(false);
             setActionLoading(null);
@@ -154,15 +154,17 @@ export default function NotificationsPage() {
     if (!targetId) return;
     if (notification.type === 'friend_request_accepted') {
       const chats = queryClient.getQueryData<Chat[]>(chatKeys.lists());
-      const match = chats?.find(
-        (c) => c.type === 'dm' && c.members?.some((m) => m.id === notification.sender_user_id),
-      );
-      if (match) {
-        navigate(`/chat/${match.id}`);
-        return;
+      if (chats) {
+        const match = chats.find(
+          (c) => c.type === 'dm' && c.members.some((m) => m.id === notification.sender_user_id),
+        );
+        if (match) {
+          navigate(`/chat/${match.id}`);
+          return;
+        }
       }
+      navigate(`/chat/${targetId}`);
     }
-    navigate(`/chat/${targetId}`);
   }, [navigate, markAsRead, queryClient]);
 
   const unread = notifications.filter(n => !n.read_at);

@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { EventEmitter } from 'events';
 
+type WsMessage = { type: string; payload: Record<string, unknown> };
+
+function requirePayload(m: WsMessage | undefined): Record<string, unknown> {
+  if (!m) throw new Error('Expected a message but none was received');
+  return m.payload;
+}
+
 // ─── Mock state on globalThis ──────────────────────────────────────────────────
 
 interface MockWsInstance {
@@ -203,7 +210,10 @@ beforeEach(() => {
   ms.prisma.users.findUnique.mockResolvedValue({ user_name: 'TestUser', image_url: 'https://img.test/a.png' });
   ms.prisma.standardChatMembers.findUnique.mockResolvedValue({ user_id: 'member' });
   ms.prisma.standardChatMembers.findMany.mockImplementation(async (args: { where?: { chat_id?: { in?: string[] } } }) => {
-    const chatIds = args?.where?.chat_id?.in ?? [];
+    let chatIds: string[] = [];
+    if (args && args.where && args.where.chat_id && args.where.chat_id.in) {
+      chatIds = args.where.chat_id.in;
+    }
     return chatIds.map((chat_id: string) => ({ chat_id }));
   });
   ms.prisma.anonymousChats.findMany.mockResolvedValue([]);
@@ -279,13 +289,13 @@ describe('Subscribe / Unsubscribe', () => {
 
     const msgs = getAllSent(ws);
     const subscribed = msgs.find((m) => m.type === 'subscribed');
-    expect(subscribed).toBeDefined();
-    expect(subscribed!.payload.chatIds).toContain(chatId);
+    const subscribedPayload = requirePayload(subscribed);
+    expect(subscribedPayload.chatIds).toContain(chatId);
 
     const onlineUsers = msgs.find((m) => m.type === 'chat:online-users');
-    expect(onlineUsers).toBeDefined();
-    expect(onlineUsers!.payload.chatId).toBe(chatId);
-    expect(onlineUsers!.payload.userIds as string[]).toContain(userId);
+    const onlineUsersPayload = requirePayload(onlineUsers);
+    expect(onlineUsersPayload.chatId).toBe(chatId);
+    expect(onlineUsersPayload.userIds as string[]).toContain(userId);
   });
 
   it('subscribe broadcasts user:online to other room members', async () => {
@@ -311,9 +321,9 @@ describe('Subscribe / Unsubscribe', () => {
 
     const ws1Msgs = getAllSent(ws1);
     const online = ws1Msgs.find((m) => m.type === 'user:online');
-    expect(online).toBeDefined();
-    expect(online!.payload.userId).toBe(userId2);
-    expect(online!.payload.chatId).toBe(chatId);
+    const onlinePayload = requirePayload(online);
+    expect(onlinePayload.userId).toBe(userId2);
+    expect(onlinePayload.chatId).toBe(chatId);
   });
 
   it('unsubscribe sends unsubscribed ack', async () => {
@@ -333,8 +343,8 @@ describe('Subscribe / Unsubscribe', () => {
 
     const msgs = getAllSent(ws);
     const unsub = msgs.find((m) => m.type === 'unsubscribed');
-    expect(unsub).toBeDefined();
-    expect(unsub!.payload.chatIds).toContain(chatId);
+    const unsubPayload = requirePayload(unsub);
+    expect(unsubPayload.chatIds).toContain(chatId);
   });
 
   it('subscribe to multiple rooms', async () => {
@@ -351,8 +361,8 @@ describe('Subscribe / Unsubscribe', () => {
 
     const msgs = getAllSent(ws);
     const subscribed = msgs.find((m) => m.type === 'subscribed');
-    expect(subscribed).toBeDefined();
-    expect(subscribed!.payload.chatIds).toEqual([c1, c2]);
+    const subscribedPayload = requirePayload(subscribed);
+    expect(subscribedPayload.chatIds).toEqual([c1, c2]);
   });
 
   it('subscribe to an anonymous room without a membership row', async () => {
@@ -372,8 +382,8 @@ describe('Subscribe / Unsubscribe', () => {
 
     const msgs = getAllSent(ws);
     const subscribed = msgs.find((m) => m.type === 'subscribed');
-    expect(subscribed).toBeDefined();
-    expect(subscribed!.payload.chatIds).toContain(anonRoomId);
+    const subscribedPayload = requirePayload(subscribed);
+    expect(subscribedPayload.chatIds).toContain(anonRoomId);
     expect(ws.subscribedRooms.has(anonRoomId)).toBe(true);
   });
 });
@@ -456,9 +466,9 @@ describe('Send message via WS', () => {
 
     const msgs = getAllSent(ws);
     const newMsg = msgs.find((m) => m.type === 'message:new');
-    expect(newMsg).toBeDefined();
-    expect(newMsg!.payload.content).toBe('Hello world');
-    expect(newMsg!.payload.chatId).toBe(chatId);
+    const newMsgPayload = requirePayload(newMsg);
+    expect(newMsgPayload.content).toBe('Hello world');
+    expect(newMsgPayload.chatId).toBe(chatId);
   });
 
   it('sends message:ack with message id', async () => {
@@ -478,8 +488,8 @@ describe('Send message via WS', () => {
 
     const msgs = getAllSent(ws);
     const ack = msgs.find((m) => m.type === 'message:ack');
-    expect(ack).toBeDefined();
-    expect(ack!.payload.id).toBeDefined();
+    const ackPayload = requirePayload(ack);
+    expect(ackPayload.id).toBeDefined();
   });
 
   it('ignores empty content', async () => {
@@ -524,8 +534,8 @@ describe('Send message via WS', () => {
 
     const ws2Msgs = getAllSent(ws2);
     const newMsg = ws2Msgs.find((m) => m.type === 'message:new');
-    expect(newMsg).toBeDefined();
-    expect(newMsg!.payload.content).toBe('hi');
+    const newMsgPayload = requirePayload(newMsg);
+    expect(newMsgPayload.content).toBe('hi');
   });
 });
 
@@ -586,8 +596,8 @@ describe('sendToUser', () => {
 
     const msgs = getAllSent(ws);
     const notif = msgs.find((m) => m.type === 'notification:new');
-    expect(notif).toBeDefined();
-    expect(notif!.payload.id).toBe('n1');
+    const notifPayload = requirePayload(notif);
+    expect(notifPayload.id).toBe('n1');
   });
 
   it('does nothing for unknown user', () => {

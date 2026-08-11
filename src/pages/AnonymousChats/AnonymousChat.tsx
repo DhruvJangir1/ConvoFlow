@@ -37,7 +37,7 @@ export default function AnonymousChat() {
   const ownMessageIds = useRef<Set<string>>(new Set());
 
   const { data: roomDetail } = useAnonymousRoomQuery(roomId);
-  const roomName = roomDetail?.name ?? "Anonymous Chat";
+  const roomName = roomDetail ? roomDetail.name : "Anonymous Chat";
   const { data: messagesData } = useAnonymousMessagesQuery(roomId, ownMessageIds);
   const sendMessageMutation = useAnonymousSendMessageMutation();
   const editMessageMutation = useAnonymousEditMessageMutation();
@@ -100,7 +100,8 @@ export default function AnonymousChat() {
       setLoading((prev) => prev ? false : prev);
       if (switched) {
         setHasMore(messagesData.hasMore);
-        oldestDateRef.current = messagesData.messages[0]?.createdAt ?? null;
+        const oldestMsg = messagesData.messages[0];
+        oldestDateRef.current = oldestMsg ? oldestMsg.createdAt : null;
       }
     });
   }, [messagesData, roomId]);
@@ -119,9 +120,9 @@ export default function AnonymousChat() {
         return {
           id: m.id,
           chatId: roomId,
-          senderId: isOwn ? user.id : (m.isAnonymous ? "other" : (m.users?.id ?? "other")),
-          senderName: m.isAnonymous ? "Anonymous" : (isOwn ? user.user_name : (m.users?.user_name ?? "Anonymous")),
-          senderImage: m.isAnonymous ? null : (isOwn ? (user.image_url ?? null) : (m.users?.image_url ?? null)),
+          senderId: isOwn ? user.id : (m.isAnonymous ? "other" : (m.users ? m.users.id : "other")),
+          senderName: m.isAnonymous ? "Anonymous" : (isOwn ? user.user_name : (m.users ? m.users.user_name : "Anonymous")),
+          senderImage: m.isAnonymous ? null : (isOwn ? (user.image_url ?? null) : (m.users ? m.users.image_url : null)),
           content: m.content ?? "",
           createdAt: m.created_at,
           isOwn,

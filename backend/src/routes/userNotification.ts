@@ -57,7 +57,11 @@ NotificationRouter.patch('/:id/read', authenticate, async (req: Request, res: Re
 });
 
 NotificationRouter.patch('/read-all', authenticate, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user!.id;
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const userId = req.user.id;
 
   await prisma.notifications.updateMany({
     where: { receiver_user_id: userId, read_at: null },

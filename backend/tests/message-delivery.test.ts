@@ -51,6 +51,13 @@ import {
   uid, cid, mid,
 } from './helpers/index';
 
+type WsMessage = { type: string; payload: Record<string, unknown> };
+
+function requirePayload(m: WsMessage | undefined): Record<string, unknown> {
+  if (!m) throw new Error('Expected a message but none was received');
+  return m.payload;
+}
+
 let server: { on: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
@@ -90,13 +97,13 @@ describe('Message Sending via WS', () => {
 
     const msgs = getAllSent(ws);
     const newMsg = msgs.find(m => m.type === 'message:new');
-    expect(newMsg).toBeDefined();
-    expect((newMsg!.payload as any).content).toBe('Hello, World!');
-    expect((newMsg!.payload as any).chatId).toBe(chatId);
+    const newMsgPayload = requirePayload(newMsg);
+    expect(newMsgPayload.content).toBe('Hello, World!');
+    expect(newMsgPayload.chatId).toBe(chatId);
 
     const ack = msgs.find(m => m.type === 'message:ack');
-    expect(ack).toBeDefined();
-    expect((ack!.payload as any).id).toBeDefined();
+    const ackPayload = requirePayload(ack);
+    expect(ackPayload.id).toBeDefined();
   });
 
   it('sends ack BEFORE broadcast for optimistic UI', async () => {
@@ -172,8 +179,8 @@ describe('Message Sending via WS', () => {
 
     const msgs = getAllSent(ws);
     const newMsg = msgs.find(m => m.type === 'message:new');
-    expect(newMsg).toBeDefined();
-    expect((newMsg!.payload as any).sentAt).toBe(beforeSend);
+    const newMsgPayload = requirePayload(newMsg);
+    expect(newMsgPayload.sentAt).toBe(beforeSend);
   });
 
   it('does not broadcast to sender unsubscribed from room', async () => {

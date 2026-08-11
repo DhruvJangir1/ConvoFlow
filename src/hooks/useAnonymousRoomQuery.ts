@@ -28,7 +28,8 @@ export function useAnonymousRoomQuery(roomId: string | undefined) {
     placeholderData: () => {
       if (!roomId) return undefined;
       const list = queryClient.getQueryData<AnonymousRoom[]>(anonChatKeys.lists());
-      return list?.find((r) => r.id === roomId) ?? undefined;
+      if (!list) return undefined;
+      return list.find((r) => r.id === roomId);
     },
   });
 }

@@ -6,7 +6,7 @@ export function setGetTokenFn(fn: () => Promise<string | null>) {
 
 export async function clerkFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   function buildHeaders(token: string | null): Headers {
-    const headers = new Headers(init?.headers);
+    const headers = new Headers(init ? init.headers : undefined);
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }

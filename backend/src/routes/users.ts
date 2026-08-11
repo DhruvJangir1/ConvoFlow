@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import multer, { type FileFilterCallback } from 'multer';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
-import { uploadImageToStorage, resolveImageUrl } from '../services/imageUpload.js';
+import { uploadImageToStorage } from '../services/imageUpload.js';
 import { signChatAvatar, signMemberImages } from '../chat/chatImageHelpers.js';
 
 const UserRouter = Router();
@@ -193,8 +193,8 @@ UserRouter.get('/:userId/fetch-chatNames', authenticate, async (req: Request, re
       id: chat.id,
       name: displayName,
       avatar_url: avatarUrl,
-      lastMessage: lastMsg?.content || '',
-      timestamp: (lastMsg?.created_at ?? chat.updated_at).getTime(),
+      lastMessage: lastMsg ? lastMsg.content : '',
+      timestamp: (lastMsg ? lastMsg.created_at : chat.updated_at).getTime(),
       unread: 0,
       type: chat.type,
       messageCount: 0,

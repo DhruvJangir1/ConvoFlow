@@ -18,7 +18,7 @@ export default function AddNewFriendModal({ isOpen, onClose }: AddNewFriendModal
 
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+      setTimeout(() => { if (inputRef.current) inputRef.current.focus(); }, 100);
       setUserTag("");
       setStatus("idle");
       setErrorMessage("");

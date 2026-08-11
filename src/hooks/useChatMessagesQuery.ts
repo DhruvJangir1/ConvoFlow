@@ -20,8 +20,8 @@ async function fetchMessages(chatId: string, userId: string, before?: string): P
   const msgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; message_type?: string; USERS?: { user_name: string; image_url: string | null } | null }) => ({
     id: m.id,
     senderId: m.sender_id,
-    senderName: m.USERS?.user_name ?? m.sender_id.slice(0, 8),
-    senderImage: m.USERS?.image_url ?? null,
+    senderName: m.USERS ? m.USERS.user_name : m.sender_id.slice(0, 8),
+    senderImage: m.USERS ? m.USERS.image_url : null,
     content: m.content,
     createdAt: m.created_at,
     isOwn: m.sender_id === userId,
@@ -38,7 +38,10 @@ export function useChatMessagesQuery(chatId: string | undefined) {
 
   return useQuery({
     queryKey: chatKeys.messages(chatId ?? ''),
-    queryFn: () => fetchMessages(chatId!, user!.id),
+    queryFn: () => {
+      if (!chatId || !user) throw new Error('chatId or user is required');
+      return fetchMessages(chatId, user.id);
+    },
     enabled: isEnabled,
     staleTime: 300_000,
     gcTime: 600_000,
