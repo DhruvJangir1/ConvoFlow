@@ -37,6 +37,8 @@ export function createWsHandlers(
     },
 
     'message:new': (payload) => {
+      console.log('[wsReduxHandlers] message:new WS payload senderImage:', payload.senderImage, 'Type:', typeof payload.senderImage);
+      console.log('[wsReduxHandlers] WS senderImage is URL?', payload.senderImage?.startsWith?.('http'));
       if (payload.chatType === 'anonymous') {
         addMessageToAnonCache(queryClient, payload, currentUserId);
       } else {

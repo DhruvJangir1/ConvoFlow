@@ -77,6 +77,7 @@ export default function ChatInput({ setMessages }: ChatInputProps) {
     if (!chatId || !messageText.trim() || !user) return;
     const trimmed = messageText.trim();
     const tempId = "temp-" + Date.now();
+    console.log('[ChatInput] Sending message - Redux user.image_url:', user.image_url, 'Type:', typeof user.image_url);
     const optimistic: ChatMessages = {
       id: tempId,
       chatId,
@@ -89,6 +90,7 @@ export default function ChatInput({ setMessages }: ChatInputProps) {
       isEdited: false,
       messageType: "text",
     };
+    console.log('[ChatInput] Optimistic message senderImage:', optimistic.senderImage);
     setMessages((prev) => [...prev, optimistic]);
     setMessageText("");
 

@@ -17,9 +17,9 @@ function isAnonMsg(msg: Message): msg is AnonymousChatMessages {
 type MessageListProps = {
   messages: Message[];
   loading: boolean;
-  loadingMore?: boolean;
-  hasMore?: boolean;
-  onLoadMore?: () => void;
+  loadingMore: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
   streaming: boolean;
   editingMessageId: string | null;
   editText: string;
@@ -28,10 +28,10 @@ type MessageListProps = {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onDeleteClick: (msgId: string) => void;
-  showVoting: boolean;
+  showVoting?: boolean;
   onUpvote?: (messageId: string) => void;
   onDownvote?: (messageId: string) => void;
-  onImageClick?: (url: string) => void;
+  onImageClick: (url: string) => void;
 };
 
 type Group = {
@@ -156,7 +156,8 @@ export default function MessageList({
 
   const { groups } = useMemo(() => groupMessages(messages), [messages]);
 
-  const isVotable = showVoting && onUpvote && onDownvote;
+  const upvote = onUpvote;
+  const downvote = onDownvote;
   
   useEffect(() => {
     const el = editTextareaRef.current;
@@ -419,11 +420,11 @@ export default function MessageList({
                         </div>
                       )}
 
-                      { isVotable && isAnonMsg(msg) && (
+                      {showVoting && upvote && downvote && isAnonMsg(msg) && (
                         <div className={`flex mt-0.5 ${group.isOwn ? "justify-end" : "justify-start"}`}>
                           <div className="flex items-center gap-0.5">
                             <button
-                              onClick={() => onUpvote(msg.id)}
+                              onClick={() => upvote(msg.id)}
                               className={`flex h-6 items-center gap-1 rounded px-1.5 transition-colors ${
                                 msg.userVote === 'upvote'
                                   ? 'text-accent-success bg-accent-success/20'
@@ -437,7 +438,7 @@ export default function MessageList({
                               )}
                             </button>
                             <button
-                              onClick={() => onDownvote(msg.id)}
+                              onClick={() => downvote(msg.id)}
                               className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
                                 msg.userVote === 'downvote'
                                   ? 'text-accent-danger bg-accent-danger/20'
