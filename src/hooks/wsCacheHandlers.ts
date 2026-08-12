@@ -27,7 +27,6 @@ export function addMessageToChatCache(
   currentUserId: string,
 ): void {
   const { chatId, ...rest } = payload;
-
   const current = queryClient.getQueryData<MessagesResponse>(chatKeys.messages(chatId));
   if (current) {
     queryClient.setQueryData<MessagesResponse>(chatKeys.messages(chatId), (old) => {

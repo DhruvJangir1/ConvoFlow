@@ -39,6 +39,14 @@ function parseMessage(raw: RawMessage, userId: string, chatId: string): ChatMess
   };
 }
 
+function mergeMessages(previous: ChatMessages[], server: ChatMessages[]): ChatMessages[] {
+  const byId = new Map<string, ChatMessages>();
+  for (const m of [...previous, ...server]) byId.set(m.id, m);
+  return [...byId.values()].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+}
+
 export default function ChatView() {
   const user = useSelector((s: RootState) => s.userAuth.user);
   const { chatId } = useParams();
@@ -67,14 +75,7 @@ export default function ChatView() {
 
     setMessages((previous) => {
       if (switched) return messagesFromServer.messages;
-      const serverIds = new Set(messagesFromServer.messages.map((m) => m.id));
-      const oldest = messagesFromServer.messages[0];
-      const extras = previous.filter((m) =>
-        serverIds.has(m.id) ? false
-          : String(m.id).startsWith("temp-") ? true
-          : oldest !== undefined && new Date(m.createdAt) < new Date(oldest.createdAt),
-      );
-      return [...messagesFromServer.messages, ...extras];
+      return mergeMessages(previous, messagesFromServer.messages);
     });
 
     if (switched) {
@@ -184,7 +185,6 @@ export default function ChatView() {
         onSaveEdit={saveEdit}
         onCancelEdit={() => { setEditingMessageId(null); setEditingText(""); }}
         onDeleteClick={(id) => { setShowDeleteModal(true); setDeletingMessageId(id); }}
-        showVoting={false}
         onImageClick={setImagePreviewUrl}
       />
       <div className="safe-area-bottom">

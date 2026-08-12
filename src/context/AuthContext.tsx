@@ -56,7 +56,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           user_tag: data.user.user_tag,
           bio: data.user.bio,
         };
-
         dispatch(setUser(dbUser));
       } catch (err) {
         console.error(err);
