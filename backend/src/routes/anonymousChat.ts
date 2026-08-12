@@ -9,6 +9,10 @@ import { broadcastToRoom } from '../../ws/websocket.js';
 
 const AnonymousChatRouter = Router();
 
+function formatCursorTimestamp(date: Date): string {
+  return `${date.toISOString().slice(0, -1).replace('T', ' ')}000+00`;
+}
+
 AnonymousChatRouter.get('/', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const rooms = await prisma.anonymousChats.findMany({
@@ -98,20 +102,35 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
     return
   }
   const chatId = req.params.id as string;
-  const before = req.query.before as string | undefined;
+  const beforeCreatedAt = req.query.beforeCreatedAt as string | undefined;
+  const beforeId = req.query.beforeId as string | undefined;
   const limit = 20;
   const userId = req.user.id;
 
-  try {
-    const where: Record<string, unknown> = { chat_id: chatId };
-    if (before) {
-      where.created_at = { lt: new Date(before) };
-    }
+  if ((beforeCreatedAt && !beforeId) || (!beforeCreatedAt && beforeId)) {
+    res.status(400).json({ error: 'beforeCreatedAt and beforeId must be provided together' });
+    return;
+  }
 
-    // ge the anonymous chat messages
+  const parsedBeforeDate = beforeCreatedAt ? new Date(beforeCreatedAt) : null;
+  if (parsedBeforeDate && Number.isNaN(parsedBeforeDate.getTime())) {
+    res.status(400).json({ error: 'beforeCreatedAt must be a valid date' });
+    return;
+  }
+
+  try {
+    const cursorFilter = parsedBeforeDate && beforeId
+      ? {
+          OR: [
+            { created_at: { lt: parsedBeforeDate } },
+            { created_at: parsedBeforeDate, id: { lt: beforeId } },
+          ],
+        }
+      : {};
+
     const messages = await prisma.anonymousChatMessages.findMany({
-      where,
-      orderBy: { created_at: 'desc' },
+      where: { chat_id: chatId, ...cursorFilter },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit,
       select: {
         id: true,
@@ -146,16 +165,23 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
 
     const voteMap = new Map(userVotes.map(v => [v.message_id as string, v.type]));
 
-    const messagesWithMeta = messages.map(m => ({
-      ...m,
-      userVote: voteMap.get(m.id) ?? null,
-      users: m.isAnonymous ? null : (userMap.get(m.sender_id as string) ?? null),
-    }));
+    const messagesWithMeta = messages.map((m) => {
+      return {
+        ...m,
+        userVote: voteMap.get(m.id) ?? null,
+        users: m.isAnonymous ? null : (userMap.get(m.sender_id as string) ?? null),
+      };
+    });
 
     messagesWithMeta.reverse();
     const hasMore = messages.length === limit;
 
-    res.json({ messages: messagesWithMeta, hasMore });
+    const oldestMessage = messagesWithMeta[0];
+    const nextCursor = oldestMessage
+      ? { beforeCreatedAt: formatCursorTimestamp(oldestMessage.created_at), beforeId: oldestMessage.id }
+      : null;
+
+    res.json({ messages: messagesWithMeta, hasMore, nextCursor });
   } catch (error) {
     console.error('[anonymousChat:GET /:id/messages] error:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });

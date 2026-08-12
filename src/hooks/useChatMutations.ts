@@ -13,6 +13,18 @@ interface SendMessageVars {
   userId: string;
 }
 
+function insertMessageChronologically(messages: ChatMessages[], entry: ChatMessages): ChatMessages[] {
+  const withoutEntry = messages.filter((message) => message.id !== entry.id);
+  const entryTime = new Date(entry.createdAt).getTime();
+  const insertionIndex = withoutEntry.findIndex((message) => {
+    const messageTime = new Date(message.createdAt).getTime();
+    return entryTime < messageTime || (entryTime === messageTime && entry.id.localeCompare(message.id) < 0);
+  });
+
+  if (insertionIndex === -1) return [...withoutEntry, entry];
+  return [...withoutEntry.slice(0, insertionIndex), entry, ...withoutEntry.slice(insertionIndex)];
+}
+
 async function sendMessageREST({ chatId, content, userId }: SendMessageVars) {
   const res = await clerkFetch(`/api/chats/${chatId}/${userId}/appendMessage`, {
     method: 'POST',
@@ -48,7 +60,7 @@ export function useSendMessageMutation() {
           isEdited: false,
           messageType: 'text',
         };
-        if (!old) return { messages: [entry], hasMore: false };
+        if (!old) return { messages: [entry], hasMore: false, nextCursor: null };
         if (old.messages.some((m) => m.content === vars.content && m.isOwn)) return old;
         return { ...old, messages: [...old.messages, entry] };
       });
@@ -75,10 +87,19 @@ export function useSendMessageMutation() {
       const realId = msg.id;
       queryClient.setQueryData<MessagesResponse>(chatKeys.messages(vars.chatId), (old) => {
         if (!old) return old;
+        const optimistic = old.messages.find((message) => message.id === (context ? context.tempId : ''));
+        if (!optimistic) return old;
         return {
           ...old,
-          messages: old.messages.map((m) =>
-            m.id === (context ? context.tempId : '') ? { ...m, id: realId, senderName: msg.USERS ? msg.USERS.user_name : '', senderImage: msg.USERS ? msg.USERS.image_url : null } : m,
+          messages: insertMessageChronologically(
+            old.messages.filter((message) => message.id !== (context ? context.tempId : '')),
+            {
+              ...optimistic,
+              id: realId,
+              createdAt: msg.created_at,
+              senderName: msg.USERS ? msg.USERS.user_name : '',
+              senderImage: msg.USERS ? msg.USERS.image_url : null,
+            },
           ),
         };
       });

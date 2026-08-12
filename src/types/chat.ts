@@ -38,6 +38,11 @@ export type ChatMessages = {
   reactions?: Reaction[];
 };
 
+export type MessageCursor = {
+  beforeCreatedAt: string;
+  beforeId: string;
+};
+
 export type AnonymousChatMessages = ChatMessages & {
   totalUpvotes: number;
   userVote: 'upvote' | 'downvote' | null;

@@ -7,6 +7,23 @@ import type { Chat, ChatMessages, AnonymousChatMessages, Notification } from '..
 import type { MessagesResponse } from './useChatMessagesQuery';
 import type { AnonymousRoom } from './useAnonymousRoomsQuery';
 
+type OrderedMessage = {
+  id: string;
+  createdAt: string;
+};
+
+function insertMessageChronologically<T extends OrderedMessage>(messages: T[], entry: T): T[] {
+  const withoutEntry = messages.filter((message) => message.id !== entry.id);
+  const entryTime = new Date(entry.createdAt).getTime();
+  const insertionIndex = withoutEntry.findIndex((message) => {
+    const messageTime = new Date(message.createdAt).getTime();
+    return entryTime < messageTime || (entryTime === messageTime && entry.id.localeCompare(message.id) < 0);
+  });
+
+  if (insertionIndex === -1) return [...withoutEntry, entry];
+  return [...withoutEntry.slice(0, insertionIndex), entry, ...withoutEntry.slice(insertionIndex)];
+}
+
 /* ───── Standard Chat: message:new ───── */
 interface AddMessageToChatPayload {
   chatId: string;
@@ -44,7 +61,7 @@ export function addMessageToChatCache(
         messageType: rest.messageType ?? 'text',
       };
       if (old.messages.some((m) => m.id === entry.id)) return old;
-      return { ...old, messages: [...old.messages, entry] };
+      return { ...old, messages: insertMessageChronologically(old.messages, entry) };
     });
   }
 
@@ -131,7 +148,7 @@ export function addMessageToAnonCache(
         userVote: null,
         isAnonymous: isAnon,
       };
-      return { ...old, messages: [...old.messages, entry] };
+      return { ...old, messages: insertMessageChronologically(old.messages, entry) };
     });
   }
 

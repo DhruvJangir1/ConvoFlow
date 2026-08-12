@@ -471,7 +471,7 @@ describe('Send message via WS', () => {
     expect(newMsgPayload.chatId).toBe(chatId);
   });
 
-  it('sends message:ack with message id', async () => {
+  it('sends message:ack with the persisted message timestamp', async () => {
     const userId = uid();
     const chatId = cid();
     getMockState().consumeTicket.mockReturnValue(userId);
@@ -490,6 +490,7 @@ describe('Send message via WS', () => {
     const ack = msgs.find((m) => m.type === 'message:ack');
     const ackPayload = requirePayload(ack);
     expect(ackPayload.id).toBeDefined();
+    expect(ackPayload.createdAt).toBeDefined();
   });
 
   it('ignores empty content', async () => {

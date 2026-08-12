@@ -11,6 +11,18 @@ type ChatInputProps = {
   setMessages: Dispatch<SetStateAction<ChatMessages[]>>;
 };
 
+function insertMessageChronologically(messages: ChatMessages[], entry: ChatMessages): ChatMessages[] {
+  const withoutEntry = messages.filter((message) => message.id !== entry.id);
+  const entryTime = new Date(entry.createdAt).getTime();
+  const insertionIndex = withoutEntry.findIndex((message) => {
+    const messageTime = new Date(message.createdAt).getTime();
+    return entryTime < messageTime || (entryTime === messageTime && entry.id.localeCompare(message.id) < 0);
+  });
+
+  if (insertionIndex === -1) return [...withoutEntry, entry];
+  return [...withoutEntry.slice(0, insertionIndex), entry, ...withoutEntry.slice(insertionIndex)];
+}
+
 export default function ChatInput({ setMessages }: ChatInputProps) {
   const user = useSelector((s: RootState) => s.userAuth.user);
   const { chatId } = useParams();
@@ -25,9 +37,14 @@ export default function ChatInput({ setMessages }: ChatInputProps) {
   useEffect(() => {
     const unsub = onMessage((msg) => {
       if (msg.type === "message:ack" && msg.payload.tempId) {
-        setMessages((prev) =>
-          prev.map((m) => m.id === msg.payload.tempId ? { ...m, id: msg.payload.id } : m),
-        );
+        setMessages((prev) => {
+          const optimistic = prev.find((message) => message.id === msg.payload.tempId);
+          if (!optimistic) return prev;
+          return insertMessageChronologically(
+            prev.filter((message) => message.id !== msg.payload.tempId),
+            { ...optimistic, id: msg.payload.id, createdAt: msg.payload.createdAt },
+          );
+        });
       }
     });
     return unsub;
@@ -104,9 +121,14 @@ export default function ChatInput({ setMessages }: ChatInputProps) {
       if (res.ok) {
         const data = await res.json();
         if (data.message && data.message.id) {
-          setMessages((prev) =>
-            prev.map((m) => m.id === tempId ? { ...m, id: data.message.id } : m),
-          );
+          setMessages((prev) => {
+            const optimistic = prev.find((message) => message.id === tempId);
+            if (!optimistic) return prev;
+            return insertMessageChronologically(
+              prev.filter((message) => message.id !== tempId),
+              { ...optimistic, id: data.message.id, createdAt: data.message.created_at },
+            );
+          });
         }
       }
     } catch {
