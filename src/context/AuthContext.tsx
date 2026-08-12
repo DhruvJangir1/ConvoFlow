@@ -56,8 +56,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           user_tag: data.user.user_tag,
           bio: data.user.bio,
         };
-        console.log('[AuthContext] setup-user response image_url:', data.user.image_url, 'Type:', typeof data.user.image_url);
-        console.log('[AuthContext] Full user object:', dbUser);
         dispatch(setUser(dbUser));
       } catch (err) {
         console.error(err);

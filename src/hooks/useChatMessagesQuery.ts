@@ -17,10 +17,8 @@ async function fetchMessages(chatId: string, userId: string, before?: string): P
   const res = await clerkFetch(url);
   if (!res.ok) throw new Error('Failed to fetch messages');
   const data = await res.json();
-  console.log('[useChatMessagesQuery] Fetched', data.messages.length, 'messages from API');
   const msgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited: boolean; message_type: string; USERS: { user_name: string; image_url: string | null } | null }) => {
     const senderImg = m.USERS ? m.USERS.image_url : null;
-    if (senderImg) console.log('[useChatMessagesQuery] Message senderImage:', senderImg);
     return {
       id: m.id,
       senderId: m.sender_id,

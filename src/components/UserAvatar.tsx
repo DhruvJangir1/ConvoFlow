@@ -21,12 +21,7 @@ export default function UserAvatar({ imageUrl, userName, size = "md" }: UserAvat
   const reduxUser = useSelector((s: RootState) => s.userAuth.user);
   const dim = sizeClasses[size];
   if (!reduxUser){
-    console.log('no redux user');
     return;
-  }
-  console.log('[UserAvatar] Props: imageUrl:', imageUrl, '| Redux user.image_url:', reduxUser.image_url, '| userName:', userName, '| imgError:', imgError);
-  if (imageUrl && reduxUser?.image_url) {
-    console.log('[UserAvatar] Comparison - Props imageUrl equals Redux?', imageUrl === reduxUser.image_url);
   }
 
   if (imageUrl && !imgError) {
@@ -34,10 +29,7 @@ export default function UserAvatar({ imageUrl, userName, size = "md" }: UserAvat
       <img
         src={imageUrl}
         alt={userName}
-        onError={() => {
-          console.log('[UserAvatar] Image failed to load, falling back to initials. imageUrl was:', imageUrl);
-          setImgError(true);
-        }}
+        onError={() => setImgError(true)}
         className={`${dim} rounded-full object-cover ring-1 ring-border-light`}
       />
     );
