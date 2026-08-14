@@ -308,20 +308,18 @@ export default function NotificationsPage() {
               Mark all as read
             </button>
           )}
-          {notifications.length > 0 && (
-            <button
-              onClick={() => setDeleteAllOpen(true)}
-              disabled={deleteAllMutation.isPending}
-              className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md bg-accent-danger/10 px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-accent-danger transition-colors hover:bg-accent-danger/20 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {deleteAllMutation.isPending ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Trash2 className="h-3 w-3" />
-              )}
-              Delete all
-            </button>
-          )}
+          <button
+            onClick={() => setDeleteAllOpen(true)}
+            disabled={notifications.length === 0 || deleteAllMutation.isPending}
+            className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md bg-accent-danger/10 px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-accent-danger transition-colors hover:bg-accent-danger/20 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {deleteAllMutation.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Trash2 className="h-3 w-3" />
+            )}
+            Delete all
+          </button>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto">
