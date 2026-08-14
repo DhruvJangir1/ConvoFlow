@@ -144,8 +144,6 @@ export function addMessageToAnonCache(
         isOwn: rest.senderId === currentUserId,
         isEdited: false,
         messageType: rest.messageType ?? 'text',
-        totalUpvotes: 0,
-        userVote: null,
         isAnonymous: isAnon,
       };
       return { ...old, messages: insertMessageChronologically(old.messages, entry) };

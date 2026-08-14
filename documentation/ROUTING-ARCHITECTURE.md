@@ -277,8 +277,6 @@ All auth endpoints are mounted under `/api/auth`.
 | POST | `/api/anonymousChats/:id/messages/:userId/:isAnonymous` | AnonymousChatRouter | `routes/anonymousChat.ts` |
 | PATCH | `/api/anonymousChats/:id/messages/:messageId` | AnonymousChatRouter | `routes/anonymousChat.ts` |
 | DELETE | `/api/anonymousChats/:id/messages/:messageId` | AnonymousChatRouter | `routes/anonymousChat.ts` |
-| POST | `/api/anonymousChats/:messageId/upvote` | AnonymousChatRouter | `routes/anonymousChat.ts` |
-| POST | `/api/anonymousChats/:messageId/downvote` | AnonymousChatRouter | `routes/anonymousChat.ts` |
 
 ---
 

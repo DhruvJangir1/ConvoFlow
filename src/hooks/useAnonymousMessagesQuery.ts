@@ -18,8 +18,6 @@ function buildAnonMessage(
     content: string | null;
     created_at: string;
     is_edited: boolean;
-    TotalUpvotes: number;
-    userVote: string | null;
     isAnonymous: boolean;
     sender_id: string;
     users: { id: string; user_name: string; image_url: string | null } | null;
@@ -43,8 +41,6 @@ function buildAnonMessage(
     isOwn,
     isEdited: m.is_edited,
     messageType: 'text',
-    totalUpvotes: m.TotalUpvotes,
-    userVote: m.userVote as 'upvote' | 'downvote' | null,
     isAnonymous: isAnon,
   };
 }

@@ -3,7 +3,6 @@ import type { Request, Response } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { resolveImageUrl } from '../services/imageUpload.js';
-import { upvote, downvote } from '../services/userMessageVote.js';
 import { broadcastToRoom } from '../../ws/websocket.js';
 
 
@@ -105,7 +104,6 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
   const beforeCreatedAt = req.query.beforeCreatedAt as string | undefined;
   const beforeId = req.query.beforeId as string | undefined;
   const limit = 20;
-  const userId = req.user.id;
 
   if ((beforeCreatedAt && !beforeId) || (!beforeCreatedAt && beforeId)) {
     res.status(400).json({ error: 'beforeCreatedAt and beforeId must be provided together' });
@@ -137,7 +135,6 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
         content: true,
         created_at: true,
         is_edited: true,
-        TotalUpvotes: true,
         isAnonymous: true,
         sender_id: true,
       },
@@ -155,23 +152,10 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
       for (const u of users) userMap.set(u.id, { ...u, image_url: await resolveImageUrl(u.image_url) });
     }
 
-    const messageIds = messages.map(m => m.id);
-
-    // get user votes
-    const userVotes = await prisma.anonymousChatMessagesUserVotes.findMany({
-      where: { user_id: userId, message_id: { in: messageIds } },
-      select: { message_id: true, type: true },
-    });
-
-    const voteMap = new Map(userVotes.map(v => [v.message_id as string, v.type]));
-
-    const messagesWithMeta = messages.map((m) => {
-      return {
-        ...m,
-        userVote: voteMap.get(m.id) ?? null,
-        users: m.isAnonymous ? null : (userMap.get(m.sender_id as string) ?? null),
-      };
-    });
+    const messagesWithMeta = messages.map(m => ({
+      ...m,
+      users: m.isAnonymous ? null : (userMap.get(m.sender_id as string) ?? null),
+    }));
 
     messagesWithMeta.reverse();
     const hasMore = messages.length === limit;
@@ -349,43 +333,6 @@ AnonymousChatRouter.delete('/:id/messages/:messageId', authenticate, async (req:
   } catch (error) {
     console.error('[anonymousChat:DELETE /:id/messages/:messageId] error:', error);
     res.status(500).json({ error: 'Failed to delete message' });
-  }
-});
-
-AnonymousChatRouter.post('/:messageId/upvote', authenticate, async (req: Request, res: Response): Promise<void> => {
-  if (!req.user){
-    console.log('[anonymous/:messageId/upvote] no user found')
-    return;
-  }
-
-  const userId = req.user.id;
-  const messageId = req.params.messageId as string;
-
-  try {
-    console.log('[anonymous/:messageId/upvote] about to upvote')
-    const result = await upvote(userId, messageId);
-    console.log('[anonymous/id/messages/:messageId/upvote] successfully upvoted')
-    res.json(result);
-  } catch (error) {
-    console.error('[anonymous/:messageId/upvote] error:', error);
-    res.status(500).json({ error: 'Failed to upvote' });
-  }
-});
-
-AnonymousChatRouter.post('/:messageId/downvote', authenticate, async (req: Request, res: Response): Promise<void> => {
-  if (!req.user) {
-    res.status(401).json({ error: 'Unauthorized' });
-    return;
-  }
-  const userId = req.user.id;
-  const messageId = req.params.messageId as string;
-
-  try {
-    const result = await downvote(userId, messageId);
-    res.json(result);
-  } catch (error) {
-    console.error('[anonymous POST/:messageId/upvote] error:', error);
-    res.status(500).json({ error: 'Failed to downvote' });
   }
 });
 

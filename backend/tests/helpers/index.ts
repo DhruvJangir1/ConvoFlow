@@ -104,12 +104,6 @@ export interface MockState {
       update: ReturnType<typeof vi.fn>;
       delete: ReturnType<typeof vi.fn>;
     };
-    anonymousChatMessagesUserVotes: {
-      findFirst: ReturnType<typeof vi.fn>;
-      findMany: ReturnType<typeof vi.fn>;
-      create: ReturnType<typeof vi.fn>;
-      delete: ReturnType<typeof vi.fn>;
-    };
     $queryRaw: ReturnType<typeof vi.fn>;
     $transaction: ReturnType<typeof vi.fn>;
     clerkUsers: {
@@ -229,12 +223,6 @@ export function createFreshMockState(): MockState {
         findMany: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
-        delete: vi.fn(),
-      },
-      anonymousChatMessagesUserVotes: {
-        findFirst: vi.fn(),
-        findMany: vi.fn(),
-        create: vi.fn(),
         delete: vi.fn(),
       },
       $queryRaw: vi.fn(),
@@ -406,11 +394,6 @@ export function setupDefaultMocks() {
   ms.prisma.anonymousChatMessages.findMany.mockResolvedValue([]);
   ms.prisma.anonymousChatMessages.create.mockResolvedValue({});
   ms.prisma.anonymousChatMessages.update.mockResolvedValue({});
-
-  ms.prisma.anonymousChatMessagesUserVotes.findFirst.mockResolvedValue(null);
-  ms.prisma.anonymousChatMessagesUserVotes.findMany.mockResolvedValue([]);
-  ms.prisma.anonymousChatMessagesUserVotes.create.mockResolvedValue({});
-  ms.prisma.anonymousChatMessagesUserVotes.delete.mockResolvedValue({});
 
   ms.prisma.$queryRaw.mockImplementation(async (strings: TemplateStringsArray, ...values: unknown[]) => {
     const id = values[0] as string;
