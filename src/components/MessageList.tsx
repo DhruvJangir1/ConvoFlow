@@ -4,7 +4,6 @@ import Edit from "@mui/icons-material/Edit";
 import Delete from "@mui/icons-material/Delete";
 import Check from "@mui/icons-material/Check";
 import Close from "@mui/icons-material/Close";
-import { ThumbsUp, ThumbsDown } from "lucide-react";
 import type { ChatMessages, AnonymousChatMessages } from "../types/chat";
 import UserAvatar from "./UserAvatar";
 
@@ -28,10 +27,10 @@ type MessageListProps = {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onDeleteClick: (msgId: string) => void;
-  showVoting?: boolean;
+  showVoting: boolean;
   onUpvote?: (messageId: string) => void;
   onDownvote?: (messageId: string) => void;
-  onImageClick: (url: string) => void;
+  onImageClick?: (url: string) => void;
 };
 
 type Group = {
@@ -142,9 +141,6 @@ export default function MessageList({
   onSaveEdit,
   onCancelEdit,
   onDeleteClick,
-  showVoting,
-  onUpvote,
-  onDownvote,
   onImageClick,
 }: MessageListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -156,8 +152,7 @@ export default function MessageList({
 
   const { groups } = useMemo(() => groupMessages(messages), [messages]);
 
-  const upvote = onUpvote;
-  const downvote = onDownvote;
+  const isVotable = showVoting && onUpvote && onDownvote;
   
   useEffect(() => {
     const el = editTextareaRef.current;
@@ -420,11 +415,11 @@ export default function MessageList({
                         </div>
                       )}
 
-                      {showVoting && upvote && downvote && isAnonMsg(msg) && (
+                      { isVotable && isAnonMsg(msg) && (
                         <div className={`flex mt-0.5 ${group.isOwn ? "justify-end" : "justify-start"}`}>
                           <div className="flex items-center gap-0.5">
                             <button
-                              onClick={() => upvote(msg.id)}
+                              onClick={() => onUpvote(msg.id)}
                               className={`flex h-6 items-center gap-1 rounded px-1.5 transition-colors ${
                                 msg.userVote === 'upvote'
                                   ? 'text-accent-success bg-accent-success/20'
@@ -438,7 +433,7 @@ export default function MessageList({
                               )}
                             </button>
                             <button
-                              onClick={() => downvote(msg.id)}
+                              onClick={() => onDownvote(msg.id)}
                               className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
                                 msg.userVote === 'downvote'
                                   ? 'text-accent-danger bg-accent-danger/20'

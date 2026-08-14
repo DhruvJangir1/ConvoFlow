@@ -183,7 +183,7 @@ const FEATURE_GROUPS = [
 ];
 
 const DEMO_MESSAGES = [
-  { author: "Nia", text: "Morning check-in is live. Vote on today's study room.", side: "left" },
+  { author: "Nia", text: "Morning check-in is live in the study room.", side: "left" },
   { author: "Kai", text: "Dropping the event flyer and the clips from yesterday.", side: "right" },
   { author: "Mod", text: "Announcement channel is locked until 4 PM.", side: "left" },
   { author: "Anonymous", text: "Can we do a quiet vent room after finals?", side: "left" },

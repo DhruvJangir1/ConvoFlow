@@ -108,34 +108,3 @@ export function useAnonymousDeleteMessageMutation() {
     },
   });
 }
-
-/* ───── Vote Message ───── */
-interface VoteAnonMessageVars {
-  roomId: string;
-  messageId: string;
-  type: 'upvote' | 'downvote';
-}
-
-async function voteAnonMessageREST({ messageId, type }: VoteAnonMessageVars) {
-  const res = await clerkFetch(
-    `/api/anonymousChats/${messageId}/${type}`,
-    { method: 'POST' },
-  );
-  
-  if (!res.ok) throw new Error('Failed to vote');
-
-  return res.json();
-}
-
-export function useAnonymousVoteMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: voteAnonMessageREST,
-    onSettled: (data, _err, vars) => {
-      if (data) {
-        queryClient.invalidateQueries({ queryKey: anonChatKeys.messages(vars.roomId) });
-      }
-    },
-  });
-}

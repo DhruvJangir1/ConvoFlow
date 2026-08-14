@@ -189,7 +189,6 @@ backend/
 │   │   ├── dmChat.ts         # findDmChat / createDmChat helpers
 │   │   ├── imageUpload.ts    # S3 upload via Supabase, presigned URL generation
 │   │   ├── rateLimiter.ts    # Redis-backed rate limiter with in-memory fallback
-│   │   ├── userMessageVote.ts # Upvote/downvote logic for anonymous messages
 │   │   ├── userNotify.ts     # Notification creation + WS push
 │   │   └── wsTicketStore.ts  # In-memory WS ticket store (60s TTL)
 │   ├── supabase/
@@ -402,10 +401,7 @@ npx tsc -b              # TypeScript project references build
 | `AddFriendRequests` | Friend requests | id, sender_id, receiver_id, status (pending/accepted/rejected) |
 | `AnonymousChats` | Anonymous chat rooms | id, name, avatar_url, updated_at |
 | `AnonymousChatMembers` | Anonymous room membership | id (= user id), chat_id (composite PK) — one row per (user, room) |
-| `AnonymousChatMessages` | Anonymous messages | id, chat_id, sender_id, content, isAnonymous, TotalUpvotes, is_edited |
-| `AnonymousChatMessagesUserVotes` | Vote records | user_id, message_id, type (upvote/downvote) |
-| `DailyPolls` | Poll feature | id, question, option1-4 |
-| `UserPollVotes` | Poll votes | poll_id, voter_id, optionSelected |
+| `AnonymousChatMessages` | Anonymous messages | id, chat_id, sender_id, content, isAnonymous, is_edited |
 
 > **Note**: The `USERS` table previously stored `password`, `refresh_token_hash`, `refresh_token_expiry` for the custom auth system. These fields are no longer used after the Clerk migration. A `clerk_id` column has been added to map Clerk user IDs to internal UUIDs.
 
@@ -733,7 +729,6 @@ Anonymous chats use separate Prisma models (`AnonymousChats`, `AnonymousChatMemb
 
 **Features:**
 - Messages can be sent anonymously or with identity (`isAnonymous` flag)
-- Voting system (upvote/downvote) with toggle logic
 - `lastMessage` + `timestamp` in sidebar for real-time ordering
 
 ### Image Messages
@@ -981,8 +976,6 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 | POST | `/api/anonymousChats/:id/messages/:userId/:isAnonymous` | `authenticate` | Send message (uses `req.user.id`, not URL param) |
 | PATCH | `/api/anonymousChats/:id/messages/:messageId` | `authenticate` | Edit message |
 | DELETE | `/api/anonymousChats/:id/messages/:messageId` | `authenticate` | Delete message |
-| POST | `/api/anonymousChats/:messageId/upvote` | `authenticate` | Upvote message |
-| POST | `/api/anonymousChats/:messageId/downvote` | `authenticate` | Downvote message |
 
 ### User Routes (`/api/users`)
 

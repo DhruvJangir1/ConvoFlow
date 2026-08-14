@@ -44,8 +44,6 @@ export type MessageCursor = {
 };
 
 export type AnonymousChatMessages = ChatMessages & {
-  totalUpvotes: number;
-  userVote: 'upvote' | 'downvote' | null;
   isAnonymous: boolean;
 };
 

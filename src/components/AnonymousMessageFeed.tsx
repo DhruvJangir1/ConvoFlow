@@ -1,5 +1,5 @@
 import { useRef, useEffect, useMemo, useCallback } from "react";
-import { ThumbsUp, ThumbsDown, CheckCheck } from "lucide-react";
+import { CheckCheck } from "lucide-react";
 import type { ChatMessages, AnonymousChatMessages } from "../types/chat";
 import UserAvatar from "./UserAvatar";
 import AnonymousUserAvatar from "./AnonymousUserAvatar";
@@ -26,9 +26,6 @@ type AnonymousMessageFeedProps = {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onDeleteClick: (msgId: string) => void;
-  showVoting: boolean;
-  onUpvote: (messageId: string) => void;
-  onDownvote: (messageId: string) => void;
   onImageClick?: (url: string) => void;
 };
 
@@ -114,7 +111,7 @@ function TypingDots() {
 export default function AnonymousMessageFeed({
   messages, loading, loadingMore, hasMore, onLoadMore, streaming,
   editingMessageId, editText, onEditTextChange, onStartEdit, onSaveEdit, onCancelEdit,
-  onDeleteClick, showVoting, onUpvote, onDownvote, onImageClick,
+  onDeleteClick, onImageClick,
 }: AnonymousMessageFeedProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -124,8 +121,6 @@ export default function AnonymousMessageFeed({
 
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const { groups } = useMemo(() => groupMessages(messages), [messages]);
-
-  const isVotable = showVoting && onDownvote;
 
   useEffect(() => {
     const el = editTextareaRef.current;
@@ -297,19 +292,6 @@ export default function AnonymousMessageFeed({
                         )}
                       </div>
                     </div>
-
-                    {/* Voting — incoming messages only */}
-                    {isVotable && !group.isOwn && !isEditing && (
-                      <div className="flex items-center gap-0.5 mt-0.5 ml-[36px]">
-                        <button onClick={() => onUpvote(msg.id)} className={`flex h-5 items-center gap-1 rounded px-1 transition-colors ${isAnon(msg) && msg.userVote === "upvote" ? "text-accent-success" : "text-text-muted hover:text-accent-success hover:bg-surface-hover/50"}`} aria-label="Upvote">
-                          <ThumbsUp className={`h-3 w-3 ${isAnon(msg) && msg.userVote === "upvote" ? "fill-accent-success" : ""}`} />
-                          {isAnon(msg) && (msg.totalUpvotes ?? 0) > 0 && <span className="text-[10px] font-medium leading-none">{msg.totalUpvotes}</span>}
-                        </button>
-                        <button onClick={() => onDownvote(msg.id)} className={`flex h-5 w-5 items-center justify-center rounded transition-colors ${isAnon(msg) && msg.userVote === "downvote" ? "text-accent-danger" : "text-text-muted hover:text-accent-danger hover:bg-surface-hover/50"}`} aria-label="Downvote">
-                          <ThumbsDown className={`h-3 w-3 ${isAnon(msg) && msg.userVote === "downvote" ? "fill-accent-danger" : ""}`} />
-                        </button>
-                      </div>
-                    )}
 
                     {/* Edit/Delete — own messages */}
                     {group.isOwn && !isEditing && (

@@ -249,7 +249,6 @@ Anonymous chat rooms use a separate cache namespace (`anonChatKeys`) with the sa
 | `useAnonymousSendMessageMutation` | `POST /api/anonymousChats/:id/messages/:userId/:isAnonymous` | `onSettled` → invalidate messages cache |
 | `useAnonymousEditMessageMutation` | `PATCH /api/anonymousChats/:id/messages/:messageId` | `onSettled` → invalidate messages cache |
 | `useAnonymousDeleteMessageMutation` | `DELETE /api/anonymousChats/:id/messages/:messageId` | `onSettled` → invalidate messages cache |
-| `useAnonymousVoteMutation` | `POST /api/anonymousChats/:messageId/upvote` or `/downvote` | `onSettled` → invalidate messages cache |
 
 ### Cache Update Flow
 
@@ -261,7 +260,6 @@ Open anonymous room           useAnonymousRoomQuery → detail cache (fallback: 
 View room messages            useAnonymousMessagesQuery → messages cache
 Send message                  mutation → invalidate messages cache
 Edit/delete message           mutation → invalidate messages cache
-Upvote/downvote               mutation → invalidate messages cache
 ```
 
 ---

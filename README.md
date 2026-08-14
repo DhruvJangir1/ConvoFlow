@@ -21,7 +21,7 @@ Real-time messaging platform with end-to-end authentication, WebSocket-based ins
 
 - **Auth** — OAuth login/signup (Google/Microsoft via Clerk), session management, logout
 - **Messaging** — Real-time 1-on-1 and group chats via WebSockets, message edit/delete with real-time broadcast, paginated history, typing indicators
-- **Anonymous Chats** — Anonymous messaging rooms with identity toggle, upvote/downvote system, real-time updates
+- **Anonymous Chats** — Anonymous messaging rooms with identity toggle, real-time updates
 - **Friends** — Send/accept/decline friend requests by user tag, friend list
 - **Notifications** — Real-time notifications for friend requests via WebSocket, unread badge
 - **Profile** — Avatar with initials fallback, account details, stats (chats, messages)
@@ -169,8 +169,6 @@ Frontend runs on `http://localhost:5173`, backend on `http://localhost:3000`. Th
 | POST | `/api/anonymousChats/:id/messages/:userId/:isAnonymous` | Send message (anonymous or identified) |
 | PATCH | `/api/anonymousChats/:id/messages/:messageId` | Edit message |
 | DELETE | `/api/anonymousChats/:id/messages/:messageId` | Delete message (broadcasts `message:delete`) |
-| POST | `/api/anonymousChats/:messageId/upvote` | Upvote message |
-| POST | `/api/anonymousChats/:messageId/downvote` | Downvote message |
 
 ### Friends
 

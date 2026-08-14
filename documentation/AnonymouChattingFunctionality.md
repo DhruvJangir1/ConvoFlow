@@ -19,7 +19,6 @@ model AnonymousChats {
   updated_at           DateTime?
   AnonymousChatMembers  AnonymousChatMembers[]
   AnonymousChatMessages AnonymousChatMessages[]
-  DailyPolls            DailyPolls?
 }
 ```
 
@@ -51,8 +50,6 @@ model AnonymousChatMessages {
   is_edited    Boolean        @default(false)
   status       String         @default("sent")
   sender_id    String?
-  TotalUpvotes Int            @default(0)
-  lastVoted    DateTime?
   isAnonymous  Boolean        @default(false)
   // Relation to AnonymousChats
 }
@@ -61,7 +58,6 @@ model AnonymousChatMessages {
 Key columns:
 - `isAnonymous` — controls whether the sender's identity is hidden (`true`) or revealed (`false`)
 - `sender_id` — always stores the real user ID (for ownership checks), even when anonymous
-- `TotalUpvotes` — denormalized vote count for performance
 
 ## Backend API (`backend/src/routes/anonymousChat.ts`)
 
@@ -76,8 +72,6 @@ Key columns:
 | `POST` | `/api/anonymousChats/:id/messages/:userId/:isAnonymous` | Send a message |
 | `PATCH` | `/api/anonymousChats/:id/messages/:messageId` | Edit a message |
 | `DELETE` | `/api/anonymousChats/:id/messages/:messageId` | Delete a message |
-| `POST` | `/api/anonymousChats/:messageId/upvote` | Upvote a message |
-| `POST` | `/api/anonymousChats/:messageId/downvote` | Downvote a message |
 
 ### Listing Rooms (`GET /`)
 
@@ -115,8 +109,7 @@ The `updated_at` field on `AnonymousChats` is updated every time a message is se
 
 1. Queries `AnonymousChatMessages` ordered by `created_at` desc, limit 20
 2. For non-anonymous messages, fetches the corresponding `users` data (with signed `image_url`)
-3. Fetches the current user's votes on those messages
-4. Returns messages with user vote state (`userVote: 'upvote' | 'downvote' | null`)
+3. Returns messages, each with a `users` field (`null` when anonymous) for sender name/avatar display
 
 ### Joining a Room (`POST /:id/join`)
 
@@ -133,7 +126,6 @@ The `updated_at` field on `AnonymousChats` is updated every time a message is se
 - **Identity Hiding**: Anonymous messages show `senderName: "Anonymous"` and `senderImage: null`; non-anonymous show the real user info
 - **Deterministic Avatars**: Users without profile images get a gradient avatar generated from the room name hash (`hashToHue` function)
 - **Ownership Tracking**: Uses `ownMessageIds` Set to track messages sent by the current user (for edit/delete permissions)
-- **Message Voting**: Upvote/downvote buttons with optimistic UI updates
 
 ### Data Flow
 
@@ -157,11 +149,6 @@ Anonymous chats receive real-time updates through two mechanisms:
 - **Send**: Message appears immediately with `temp-` prefixed ID
 - **Edit**: Content updates immediately, reverts on API failure
 - **Delete**: Message removed immediately, restored on API failure
-- **Vote**: Count and state update immediately, revert on API failure
-
-### Voting UI
-
-The `MessageList` component receives `showVoting={true}` and `showReactions={false}` props for anonymous chats. Upvote/downvote handlers perform optimistic updates and then POST to the API.
 
 ## WebSocket Integration
 
@@ -210,9 +197,9 @@ Because the WS subscribe handler validates anonymous rooms by **existence** (`An
 | `backend/src/routes/anonymousChat.ts` | All REST endpoints for anonymous chat CRUD, message deletion broadcasts `message:delete` |
 | `backend/ws/websocket.ts` | Shared WebSocket server — `broadcastToRoom()` sends `message:new` and `message:delete` to all room members; subscribe validates anon rooms by existence |
 | `backend/src/chat/chat.ts` | `GET /api/chats/subscribed-ids` — returns standard memberships + latest 20 anonymous room ids |
-| `src/pages/AnonymousChats/AnonymousChat.tsx` | Full anonymous chat UI with voting, editing, deleting, `onMessage` handler; lazy-subscribes to the opened room |
+| `src/pages/AnonymousChats/AnonymousChat.tsx` | Full anonymous chat UI with editing, deleting, `onMessage` handler; lazy-subscribes to the opened room |
 | `src/components/ChatInput.tsx` | Input component with anonymous toggle |
-| `src/components/MessageList.tsx` | Shared message list component (voting mode for anonymous) |
+| `src/components/MessageList.tsx` | Shared message list component |
 | `src/context/WebSocketContext.tsx` | Built-in `message:new` handler updates `anonChatKeys.lists()` cache for sidebar |
 | `src/layouts/ChatList.tsx` | Lists anonymous rooms, sorts by `timestamp` descending (does not own subscription) |
 | `src/hooks/useAnonymousRoomsQuery.ts` | `AnonymousRoom` type with `id`, `name`, `lastMessage`, `timestamp` |

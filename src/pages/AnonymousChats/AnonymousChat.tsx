@@ -9,7 +9,6 @@ import {
   useAnonymousSendMessageMutation,
   useAnonymousEditMessageMutation,
   useAnonymousDeleteMessageMutation,
-  useAnonymousVoteMutation,
 } from "../../hooks/useAnonymousMutations";
 import AnonymousMessageFeed from "../../components/AnonymousMessageFeed";
 import ConfirmModal from "../../modals/ConfirmModal";
@@ -64,7 +63,6 @@ export default function AnonymousChat() {
   const sendMessageMutation = useAnonymousSendMessageMutation();
   const editMessageMutation = useAnonymousEditMessageMutation();
   const deleteMessageMutation = useAnonymousDeleteMessageMutation();
-  const voteMutation = useAnonymousVoteMutation();
 
   // Join room on mount and subscribe to it for real-time updates
   useEffect(() => {
@@ -130,8 +128,13 @@ export default function AnonymousChat() {
         `/api/anonymousChats/${roomId}/messages?beforeCreatedAt=${encodeURIComponent(cursor.beforeCreatedAt)}&beforeId=${encodeURIComponent(cursor.beforeId)}`,
       );
       if (!res.ok) throw new Error("Failed to load more messages");
+<<<<<<< HEAD
       const data = await res.json() as { messages: { id: string; content: string | null; created_at: string; is_edited: boolean; TotalUpvotes: number; userVote: string | null; isAnonymous: boolean; sender_id: string; users: { id: string; user_name: string; image_url: string | null } | null }[]; hasMore: boolean; nextCursor: MessageCursor | null };
       const newMsgs: AnonymousChatMessages[] = data.messages.map((m: { id: string; content: string | null; created_at: string; is_edited: boolean; TotalUpvotes: number; userVote: string | null; isAnonymous: boolean; sender_id: string; users: { id: string; user_name: string; image_url: string | null } | null }) => {
+=======
+      const data = await res.json();
+      const newMsgs: AnonymousChatMessages[] = data.messages.map((m: { id: string; content: string | null; created_at: string; is_edited: boolean; isAnonymous: boolean; sender_id: string; users: { id: string; user_name: string; image_url: string | null } | null }) => {
+>>>>>>> 87a9552 (Removed user voting and polls)
         const isOwn = ownMessageIds.current.has(m.id) || m.sender_id === user.id;
         return {
           id: m.id,
@@ -144,8 +147,6 @@ export default function AnonymousChat() {
           isOwn,
           isEdited: m.is_edited,
           messageType: 'text',
-          totalUpvotes: m.TotalUpvotes,
-          userVote: m.userVote as 'upvote' | 'downvote' | null,
           isAnonymous: m.isAnonymous,
         };
       });
@@ -182,8 +183,6 @@ export default function AnonymousChat() {
       isEdited: false,
       messageType: 'text',
       isAnonymous,
-      totalUpvotes: 0,
-      userVote: null,
     };
     setMessages((prev) => [...prev, optimistic]);
     setMessageText("");
@@ -194,6 +193,7 @@ export default function AnonymousChat() {
         onSuccess: (data) => {
           ownMessageIds.current.delete(tempId);
           ownMessageIds.current.add(data.message.id);
+<<<<<<< HEAD
           setMessages((prev) => {
             const optimisticMessage = prev.find((message) => message.id === tempId);
             if (!optimisticMessage) return prev;
@@ -217,6 +217,17 @@ export default function AnonymousChat() {
               confirmedMessage,
             );
           });
+=======
+          setMessages((prev) =>
+            prev
+              .filter((m) => m.id !== data.message.id)
+              .map((m) =>
+                m.id === tempId
+                  ? { id: data.message.id, chatId: roomId, senderId: user.id, senderName: isAnonymous ? "Anonymous" : user.user_name, senderImage: isAnonymous ? null : (user.image_url ?? null), content: data.message.content ?? '', createdAt: data.message.created_at, isOwn: true, isEdited: data.message.is_edited, messageType: 'text', isAnonymous }
+                  : m,
+              ),
+          );
+>>>>>>> 87a9552 (Removed user voting and polls)
         },
         onError: () => {
           ownMessageIds.current.delete(tempId);
@@ -276,67 +287,6 @@ export default function AnonymousChat() {
     );
   }
 
-  async function handleUpvote(messageId: string) {
-    const prevMessages = [...messages];
-
-    setMessages((prev) =>
-      prev.map((m) => {
-        if (m.id !== messageId) return m;
-        const t = m.totalUpvotes ?? 0;
-
-        // if a user is upvoting a message they already upvoted, remove the upvote
-        if (m.userVote === "upvote" && t > 0) {
-          return { ...m, totalUpvotes: t - 1, userVote: null };
-        }
-        // if a message is already downvoted, then upvoting it remove the downvote from that and increases by 1
-        if (m.userVote === "downvote") {
-          return { ...m, totalUpvotes: t + 1, userVote: "upvote" };
-        }
-        // if nothing was previously done to it
-        return { ...m, totalUpvotes: t + 1, userVote: "upvote" };
-      }),
-    );
-
-    if (!roomId) return;
-
-    if (!user) return;
-
-    voteMutation.mutate(
-      { roomId, messageId, type: 'upvote' },
-      {
-        onError: () => setMessages(prevMessages),
-      },
-    );
-  }
-
-  async function handleDownvote(messageId: string) {
-    const prevMessages = [...messages];
-
-    setMessages((prev) =>
-      prev.map((m) => {
-        if (m.id !== messageId) return m;
-        const t = m.totalUpvotes ?? 0;
-        if (m.userVote === "downvote") {
-          return { ...m, totalUpvotes: t + 1, userVote: null };
-        }
-        if (m.userVote === "upvote") {
-          const next = t - 2;
-          return { ...m, totalUpvotes: next < 0 ? 0 : next, userVote: "downvote" };
-        }
-        const next = t - 1;
-        return { ...m, totalUpvotes: next < 0 ? 0 : next, userVote: "downvote" };
-      }),
-    );
-
-    if (!roomId) return;
-    voteMutation.mutate(
-      { roomId, messageId, type: 'downvote' },
-      {
-        onError: () => setMessages(prevMessages),
-      },
-    );
-  }
-
   if (!user) return null;
 
   return (
@@ -359,9 +309,6 @@ export default function AnonymousChat() {
           setDeletingMessageId(msgId);
           setDeleteModalOpen(true);
         }}
-        showVoting
-        onUpvote={handleUpvote}
-        onDownvote={handleDownvote}
       />
       <div className="safe-area-bottom">
         <AnonymousChatComposer

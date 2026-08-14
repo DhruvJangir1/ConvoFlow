@@ -3,7 +3,6 @@ import type { Request, Response } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { resolveImageUrl } from '../services/imageUpload.js';
-import { upvote, downvote } from '../services/userMessageVote.js';
 import { broadcastToRoom } from '../../ws/websocket.js';
 
 
@@ -105,7 +104,6 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
   const beforeCreatedAt = req.query.beforeCreatedAt as string | undefined;
   const beforeId = req.query.beforeId as string | undefined;
   const limit = 20;
-  const userId = req.user.id;
 
   if ((beforeCreatedAt && !beforeId) || (!beforeCreatedAt && beforeId)) {
     res.status(400).json({ error: 'beforeCreatedAt and beforeId must be provided together' });
@@ -128,6 +126,10 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
         }
       : {};
 
+<<<<<<< HEAD
+=======
+    // get the anonymous chat messages
+>>>>>>> 87a9552 (Removed user voting and polls)
     const messages = await prisma.anonymousChatMessages.findMany({
       where: { chat_id: chatId, ...cursorFilter },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
@@ -137,7 +139,6 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
         content: true,
         created_at: true,
         is_edited: true,
-        TotalUpvotes: true,
         isAnonymous: true,
         sender_id: true,
       },
@@ -155,6 +156,7 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
       for (const u of users) userMap.set(u.id, { ...u, image_url: await resolveImageUrl(u.image_url) });
     }
 
+<<<<<<< HEAD
     const messageIds = messages.map(m => m.id);
 
     // get user votes
@@ -172,6 +174,12 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
         users: m.isAnonymous ? null : (userMap.get(m.sender_id as string) ?? null),
       };
     });
+=======
+    const messagesWithMeta = messages.map(m => ({
+      ...m,
+      users: m.isAnonymous ? null : (userMap.get(m.sender_id as string) ?? null),
+    }));
+>>>>>>> 87a9552 (Removed user voting and polls)
 
     messagesWithMeta.reverse();
     const hasMore = messages.length === limit;
@@ -349,43 +357,6 @@ AnonymousChatRouter.delete('/:id/messages/:messageId', authenticate, async (req:
   } catch (error) {
     console.error('[anonymousChat:DELETE /:id/messages/:messageId] error:', error);
     res.status(500).json({ error: 'Failed to delete message' });
-  }
-});
-
-AnonymousChatRouter.post('/:messageId/upvote', authenticate, async (req: Request, res: Response): Promise<void> => {
-  if (!req.user){
-    console.log('[anonymous/:messageId/upvote] no user found')
-    return;
-  }
-
-  const userId = req.user.id;
-  const messageId = req.params.messageId as string;
-
-  try {
-    console.log('[anonymous/:messageId/upvote] about to upvote')
-    const result = await upvote(userId, messageId);
-    console.log('[anonymous/id/messages/:messageId/upvote] successfully upvoted')
-    res.json(result);
-  } catch (error) {
-    console.error('[anonymous/:messageId/upvote] error:', error);
-    res.status(500).json({ error: 'Failed to upvote' });
-  }
-});
-
-AnonymousChatRouter.post('/:messageId/downvote', authenticate, async (req: Request, res: Response): Promise<void> => {
-  if (!req.user) {
-    res.status(401).json({ error: 'Unauthorized' });
-    return;
-  }
-  const userId = req.user.id;
-  const messageId = req.params.messageId as string;
-
-  try {
-    const result = await downvote(userId, messageId);
-    res.json(result);
-  } catch (error) {
-    console.error('[anonymous POST/:messageId/upvote] error:', error);
-    res.status(500).json({ error: 'Failed to downvote' });
   }
 });
 
