@@ -142,10 +142,19 @@ export default function MessageList({
 }: MessageListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const prevScrollInfo = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const isPrependingRef = useRef(false);
+  const stickToBottomRef = useRef(true);
+
+  const handleScroll = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    stickToBottomRef.current = nearBottom;
+  }, []);
 
   const { groups } = useMemo(() => groupMessages(messages), [messages]);
 
@@ -171,7 +180,7 @@ export default function MessageList({
 
   const prevLengthRef = useRef(messages.length);
   useEffect(() => {
-    if (messages.length > prevLengthRef.current && !isPrependingRef.current) {
+    if (messages.length > prevLengthRef.current && !isPrependingRef.current && stickToBottomRef.current) {
       if (sentinelRef.current) sentinelRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     }
     isPrependingRef.current = false;
@@ -180,12 +189,14 @@ export default function MessageList({
 
   useEffect(() => {
     if (!loading) {
+      stickToBottomRef.current = true;
       if (sentinelRef.current) sentinelRef.current.scrollIntoView({ behavior: "instant", block: "end" });
     }
   }, [loading]);
 
   const handleLoadMore = useCallback(() => {
     if (!onLoadMore || !hasMore || loadingMore) return;
+    if (stickToBottomRef.current) return;
     isPrependingRef.current = true;
     if (listRef.current) {
       prevScrollInfo.current = {
@@ -204,6 +215,19 @@ export default function MessageList({
       prevScrollInfo.current = null;
     }
   }, [loadingMore]);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    const listEl = listRef.current;
+    if (!el || !listEl) return;
+    const observer = new ResizeObserver(() => {
+      if (stickToBottomRef.current && sentinelRef.current) {
+        sentinelRef.current.scrollIntoView({ behavior: "instant", block: "end" });
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const el = topSentinelRef.current;
@@ -250,12 +274,13 @@ export default function MessageList({
   return (
     <div
       ref={listRef}
+      onScroll={handleScroll}
       role="log"
       aria-live="polite"
       aria-relevant="additions"
       className="chat-scrollbar flex min-h-0 flex-1 flex-col overflow-y-scroll overflow-x-hidden bg-surface w-full"
     >
-      <div className="flex flex-col px-2 sm:px-4">
+      <div ref={contentRef} className="flex flex-col px-2 sm:px-4">
         <div ref={topSentinelRef} className="flex items-center justify-center py-2">
           {loadingMore && (
             <div className="flex items-center gap-2 text-text-muted">
