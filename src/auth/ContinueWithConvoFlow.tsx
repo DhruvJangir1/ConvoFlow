@@ -4,11 +4,12 @@ import { useNavigate } from "react-router-dom";
 import type { ReactElement } from "react";
 
 const OAUTH_PROVIDERS = [
-  { strategy: "oauth_google", label: "Continue with Google" },
-  { strategy: "oauth_microsoft", label: "Continue with Microsoft" },
+  { strategy: "oauth_google", label: "Continue with Google", name: "google" },
+  { strategy: "oauth_microsoft", label: "Continue with Microsoft", name: "microsoft" },
 ] as const;
 
 type OAuthStrategy = (typeof OAUTH_PROVIDERS)[number]["strategy"];
+export type OAuthProviderName = (typeof OAUTH_PROVIDERS)[number]["name"];
 
 function GoogleIcon(): ReactElement {
   return (
@@ -49,7 +50,11 @@ const PROVIDER_ICONS: Record<OAuthStrategy, () => ReactElement> = {
   oauth_microsoft: MicrosoftIcon,
 };
 
-export default function ContinueWithConvoFlow() {
+interface ContinueWithConvoFlowProps {
+  onProviderClick: (provider: OAuthProviderName) => void;
+}
+
+export default function ContinueWithConvoFlow({ onProviderClick }: ContinueWithConvoFlowProps) {
   const { signIn } = useSignIn();
   const { user } = useUser();
   const navigate = useNavigate();
@@ -59,6 +64,10 @@ export default function ContinueWithConvoFlow() {
     if (user) {
       navigate('/home');
       return;
+    }
+    const provider = OAUTH_PROVIDERS.find((p) => p.strategy === strategy);
+    if (provider) {
+      onProviderClick(provider.name);
     }
     try {
       await signIn.authenticateWithRedirect({
