@@ -4,9 +4,6 @@ export function setGetTokenFn(fn: () => Promise<string | null>) {
   getTokenFn = fn;
 }
 
-<<<<<<< HEAD
-export async function clerkFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-=======
 const REQUEST_TIMEOUT_MS = 60_000;
 const RETRY_DELAY_MS = 2_000;
 
@@ -78,39 +75,16 @@ export async function clerkFetch(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
->>>>>>> 848521e (debugged Render cold start issue by retrying and adding timeout)
   function buildHeaders(token: string | null): Headers {
     const headers = new Headers(init ? init.headers : undefined);
 
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
+
     return headers;
   }
 
-<<<<<<< HEAD
-  const abortController = new AbortController();
-  const timeout = setTimeout(() => abortController.abort(), 15_000); // can cancel ongoing network requests
-
-  try {
-    const firstToken = getTokenFn ? await getTokenFn() : null;
-    let res = await fetch(input, {
-      ...init,
-      headers: buildHeaders(firstToken),
-      credentials: 'include',
-      signal: abortController.signal,
-    });
-
-    if (res.status === 401 && getTokenFn) {
-      const retryToken = await getTokenFn();
-      if (retryToken && retryToken !== firstToken) {
-        res = await fetch(input, {
-          ...init,
-          headers: buildHeaders(retryToken),
-          credentials: 'include',
-          signal: abortController.signal,
-        });
-      }
   const firstToken = getTokenFn ? await getTokenFn() : null;
 
   let res = await fetchWithRetry(input, {
@@ -139,11 +113,8 @@ export async function clerkFetch(
           ? 'No retry token'
           : 'Retry token is identical to first token',
       });
->>>>>>> 848521e (debugged Render cold start issue by retrying and adding timeout)
     }
-
-    return res;
-  } finally {
-    clearTimeout(timeout);
   }
+
+  return res;
 }
