@@ -115,9 +115,18 @@ export default function AnonymousMessageFeed({
 }: AnonymousMessageFeedProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const prevScrollInfo = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const isPrepending = useRef(false);
+  const stickToBottomRef = useRef(true);
+
+  const handleScroll = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    stickToBottomRef.current = nearBottom;
+  }, []);
 
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const { groups } = useMemo(() => groupMessages(messages), [messages]);
@@ -137,18 +146,22 @@ export default function AnonymousMessageFeed({
 
   const prevLenRef = useRef(messages.length);
   useEffect(() => {
-    if (messages.length > prevLenRef.current && !isPrepending.current && sentinelRef.current)
+    if (messages.length > prevLenRef.current && !isPrepending.current && stickToBottomRef.current && sentinelRef.current)
       sentinelRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     isPrepending.current = false;
     prevLenRef.current = messages.length;
   }, [messages.length]);
 
   useEffect(() => {
-    if (!loading && sentinelRef.current) sentinelRef.current.scrollIntoView({ behavior: "instant", block: "end" });
+    if (!loading && sentinelRef.current) {
+      stickToBottomRef.current = true;
+      sentinelRef.current.scrollIntoView({ behavior: "instant", block: "end" });
+    }
   }, [loading]);
 
   const handleLoadMore = useCallback(() => {
     if (!onLoadMore || !hasMore || loadingMore) return;
+    if (stickToBottomRef.current) return;
     isPrepending.current = true;
     if (listRef.current) prevScrollInfo.current = { scrollHeight: listRef.current.scrollHeight, scrollTop: listRef.current.scrollTop };
     onLoadMore();
@@ -161,6 +174,19 @@ export default function AnonymousMessageFeed({
       prevScrollInfo.current = null;
     }
   }, [loadingMore]);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    const listEl = listRef.current;
+    if (!el || !listEl) return;
+    const obs = new ResizeObserver(() => {
+      if (stickToBottomRef.current && sentinelRef.current) {
+        sentinelRef.current.scrollIntoView({ behavior: "instant", block: "end" });
+      }
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     const el = topSentinelRef.current;
@@ -185,10 +211,10 @@ export default function AnonymousMessageFeed({
   );
 
   return (
-    <div ref={listRef} role="log" aria-live="polite" aria-relevant="additions" className="chat-scrollbar flex min-h-0 flex-1 flex-col overflow-y-scroll overflow-x-hidden bg-surface w-full">
+    <div ref={listRef} onScroll={handleScroll} role="log" aria-live="polite" aria-relevant="additions" className="chat-scrollbar flex min-h-0 flex-1 flex-col overflow-y-scroll overflow-x-hidden bg-surface w-full">
       <style>{`@keyframes dot-b{0%,100%{transform:translateY(0);opacity:.4}50%{transform:translateY(-5px);opacity:1}}@keyframes f-in{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes pop{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}`}</style>
 
-      <div className="flex flex-col px-2 sm:px-4">
+      <div ref={contentRef} className="flex flex-col px-2 sm:px-4">
         {/* Load-more sentinel */}
         <div ref={topSentinelRef} className="flex items-center justify-center py-2">
           {loadingMore && (
@@ -231,18 +257,21 @@ export default function AnonymousMessageFeed({
 
                     {/* Message row: avatar + bubble anchored at flex-end */}
                     <div className="flex" style={{ flexDirection: group.isOwn ? "row-reverse" : "row", alignItems: "flex-end", gap: 8 }}>
-                      {/* Avatar: hide identicon on own anon messages */}
-                      {group.isOwn && anon ? (
-                        <div className="shrink-0" style={{ width: 28 }} />
-                      ) : (
-                        <div className="shrink-0" style={{ animation: "pop 300ms cubic-bezier(.34,1.56,.64,1)" }}>
-                          {anon ? (
-                            <AnonymousUserAvatar size={28} />
-                          ) : (
-                            <UserAvatar imageUrl={msg.senderImage ?? null} userName={msg.senderName} size="sm" />
-                          )}
-                        </div>
-                      )}
+                      {/* Avatar: show anonymous icon on all anon messages, including own */}
+                      <div
+                        className="shrink-0"
+                        style={{
+                          animation: "pop 300ms cubic-bezier(.34,1.56,.64,1)",
+                          alignSelf: group.isOwn ? "flex-start" : "flex-end",
+                          marginTop: group.isOwn ? 6 : 0,
+                        }}
+                      >
+                        {anon ? (
+                          <AnonymousUserAvatar size={32} />
+                        ) : (
+                          <UserAvatar imageUrl={msg.senderImage ?? null} userName={msg.senderName} size="sm" />
+                        )}
+                      </div>
 
                       {/* Bubble */}
                       <div
