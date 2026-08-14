@@ -33,6 +33,10 @@ console.log('[chat module] backend/src/chat/chat.ts loaded');
 
 const ChatRouter = Router();
 
+function formatCursorTimestamp(date: Date): string {
+  return `${date.toISOString().slice(0, -1).replace('T', ' ')}000+00`;
+}
+
 ChatRouter.post('/', authenticate, async (req: Request, res: Response): Promise<void> => {
   if (!req.user){
     res.status(401).json({error:'Unauthorized'});
@@ -289,9 +293,21 @@ ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
 
   const chatId = req.params.chatId as string;
   const userId = req.user.id;
-  const before = req.query.before as string | undefined;
+  const beforeCreatedAt = req.query.beforeCreatedAt as string | undefined;
+  const beforeId = req.query.beforeId as string | undefined;
 
-  console.log(`[chat:GET /:chatId/messages] fetching messages for chat ${chatId} by user ${userId}${before ? ` before ${before}` : ''}`);
+  if ((beforeCreatedAt && !beforeId) || (!beforeCreatedAt && beforeId)) {
+    res.status(400).json({ error: 'beforeCreatedAt and beforeId must be provided together' });
+    return;
+  }
+
+  const parsedBeforeDate = beforeCreatedAt ? new Date(beforeCreatedAt) : null;
+  if (parsedBeforeDate && Number.isNaN(parsedBeforeDate.getTime())) {
+    res.status(400).json({ error: 'beforeCreatedAt must be a valid date' });
+    return;
+  }
+
+  console.log(`[chat:GET /:chatId/messages] fetching messages for chat ${chatId} by user ${userId}${beforeCreatedAt ? ` before ${beforeCreatedAt}/${beforeId}` : ''}`);
 
   if (!userId || !await requireChatMembership(userId, chatId)) {
     res.status(403).json({ error: 'Not a member of this chat' });
@@ -301,14 +317,18 @@ ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
   const limit = 20;
 
   try {
-    const where: Record<string, unknown> = { chat_id: chatId };
-    if (before) {
-      where.created_at = { lt: new Date(before) };
-    }
+    const cursorFilter = parsedBeforeDate && beforeId
+      ? {
+          OR: [
+            { created_at: { lt: parsedBeforeDate } },
+            { created_at: parsedBeforeDate, id: { lt: beforeId } },
+          ],
+        }
+      : {};
 
     const messages = await prisma.standardChatMessages.findMany({
-      where,
-      orderBy: { created_at: 'desc' },
+      where: { chat_id: chatId, ...cursorFilter },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit,
       include: {
         USERS: {
@@ -325,7 +345,11 @@ ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
           ? await signImageUrl(msg.content)
           : msg.content;
         const signedSenderImage = await signSenderImage(msg.USERS.image_url ?? null);
-        return { ...msg, content: signedContent, USERS: { ...msg.USERS, image_url: signedSenderImage } };
+        return {
+          ...msg,
+          content: signedContent,
+          USERS: { ...msg.USERS, image_url: signedSenderImage },
+        };
       }),
     );
 
@@ -333,7 +357,12 @@ ChatRouter.get('/:chatId/messages', authenticate, async (req, res) => {
 
     console.log(`[chat:GET /:chatId/messages] found ${signedMessages.length} messages for chat ${chatId} (hasMore: ${hasMore})`);
 
-    res.json({ messages: signedMessages, hasMore });
+    const oldestMessage = signedMessages[0];
+    const nextCursor = oldestMessage
+      ? { beforeCreatedAt: formatCursorTimestamp(oldestMessage.created_at), beforeId: oldestMessage.id }
+      : null;
+
+    res.json({ messages: signedMessages, hasMore, nextCursor });
   } catch (error) {
     console.error(`[chat:GET /:chatId/messages] error for chat ${chatId}:`, error);
     res.status(500).json({ error: 'Failed to fetch messages' });

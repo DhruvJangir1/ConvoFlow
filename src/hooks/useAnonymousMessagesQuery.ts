@@ -3,12 +3,13 @@ import { useSelector } from 'react-redux';
 import type { MutableRefObject } from 'react';
 import type { RootState } from '../store/store';
 import { anonChatKeys } from '../lib/queryKeys';
-import type { AnonymousChatMessages } from '../types/chat';
+import type { AnonymousChatMessages, MessageCursor } from '../types/chat';
 import { clerkFetch } from '../lib/clerkFetch';
 
 export interface AnonymousMessagesResponse {
   messages: AnonymousChatMessages[];
   hasMore: boolean;
+  nextCursor: MessageCursor | null;
 }
 
 function buildAnonMessage(
@@ -54,10 +55,10 @@ async function fetchAnonymousMessages(
   userName: string,
   userImageUrl: string | null,
   ownIdsRef: MutableRefObject<Set<string>>,
-  before?: string,
+  cursor?: MessageCursor,
 ): Promise<AnonymousMessagesResponse> {
-  const url = before
-    ? `/api/anonymousChats/${roomId}/messages?before=${encodeURIComponent(before)}`
+  const url = cursor
+    ? `/api/anonymousChats/${roomId}/messages?beforeCreatedAt=${encodeURIComponent(cursor.beforeCreatedAt)}&beforeId=${encodeURIComponent(cursor.beforeId)}`
     : `/api/anonymousChats/${roomId}/messages`;
   const res = await clerkFetch(url);
   if (!res.ok) throw new Error('Failed to fetch anonymous messages');
@@ -65,7 +66,7 @@ async function fetchAnonymousMessages(
   const msgs = (data.messages ?? []).map((m: Parameters<typeof buildAnonMessage>[0]) =>
     buildAnonMessage(m, roomId, userId, userName, userImageUrl, ownIdsRef),
   );
-  return { messages: msgs, hasMore: data.hasMore ?? false };
+  return { messages: msgs, hasMore: data.hasMore === true, nextCursor: data.nextCursor ? data.nextCursor : null };
 }
 
 export function useAnonymousMessagesQuery(

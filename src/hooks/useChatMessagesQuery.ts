@@ -2,33 +2,37 @@ import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store/store';
 import { chatKeys } from '../lib/queryKeys';
-import type { ChatMessages } from '../types/chat';
+import type { ChatMessages, MessageCursor } from '../types/chat';
 import { clerkFetch } from '../lib/clerkFetch';
 
 export interface MessagesResponse {
   messages: ChatMessages[];
   hasMore: boolean;
+  nextCursor: MessageCursor | null;
 }
 
-async function fetchMessages(chatId: string, userId: string, before?: string): Promise<MessagesResponse> {
-  const url = before
-    ? `/api/chats/${chatId}/messages?before=${encodeURIComponent(before)}`
+async function fetchMessages(chatId: string, userId: string, cursor?: MessageCursor): Promise<MessagesResponse> {
+  const url = cursor
+    ? `/api/chats/${chatId}/messages?beforeCreatedAt=${encodeURIComponent(cursor.beforeCreatedAt)}&beforeId=${encodeURIComponent(cursor.beforeId)}`
     : `/api/chats/${chatId}/messages`;
   const res = await clerkFetch(url);
   if (!res.ok) throw new Error('Failed to fetch messages');
   const data = await res.json();
-  const msgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited?: boolean; message_type?: string; USERS?: { user_name: string; image_url: string | null } | null }) => ({
-    id: m.id,
-    senderId: m.sender_id,
-    senderName: m.USERS ? m.USERS.user_name : m.sender_id.slice(0, 8),
-    senderImage: m.USERS ? m.USERS.image_url : null,
-    content: m.content,
-    createdAt: m.created_at,
-    isOwn: m.sender_id === userId,
-    isEdited: m.is_edited ?? false,
-    messageType: m.message_type,
-  }));
-  return { messages: msgs, hasMore: data.hasMore ?? false };
+  const msgs = data.messages.map((m: { id: string; sender_id: string; content: string; created_at: string; is_edited: boolean; message_type: string; USERS: { user_name: string; image_url: string | null } | null }) => {
+    const senderImg = m.USERS ? m.USERS.image_url : null;
+    return {
+      id: m.id,
+      senderId: m.sender_id,
+      senderName: m.USERS ? m.USERS.user_name : m.sender_id.slice(0, 8),
+      senderImage: senderImg,
+      content: m.content,
+      createdAt: m.created_at,
+      isOwn: m.sender_id === userId,
+      isEdited: m.is_edited ?? false,
+      messageType: m.message_type,
+    };
+  });
+  return { messages: msgs, hasMore: data.hasMore === true, nextCursor: data.nextCursor ? data.nextCursor : null };
 }
 
 export function useChatMessagesQuery(chatId: string | undefined) {

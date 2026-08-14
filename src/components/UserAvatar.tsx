@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useSelector } from "react-redux";
+import type { RootState } from "../store/store";
 
 type UserAvatarProps = {
   imageUrl: string | null;
@@ -16,7 +18,11 @@ import { getInitials, avatarGradient } from "../lib/avatar";
 
 export default function UserAvatar({ imageUrl, userName, size = "md" }: UserAvatarProps) {
   const [imgError, setImgError] = useState(false);
+  const reduxUser = useSelector((s: RootState) => s.userAuth.user);
   const dim = sizeClasses[size];
+  if (!reduxUser){
+    return;
+  }
 
   if (imageUrl && !imgError) {
     return (

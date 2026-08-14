@@ -135,11 +135,9 @@ export function createWsConnection(deps: WsConnectionDeps): WsConnection {
 
       ws.onopen = async () => { // when the connection is established between the browser and the server, do this. and now we can send to the server
         dispatch(setConnected(true));
-        console.log('[WS Client] connected');
 
         try {
           const chatIds = await fetchRoomIds();
-          console.log('[WS Client] subscribing to rooms:', chatIds.length, 'ids');
           subscribeToRooms(ws, chatIds);
         } catch {
           console.warn('[WS Client] failed to fetch rooms, subscribing to known rooms');

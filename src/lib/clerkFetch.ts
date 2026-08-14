@@ -45,6 +45,8 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timeout);
   }
+
+  return res;
 }
 
 async function fetchWithRetry(

@@ -4,6 +4,7 @@ import type { Server } from 'http';
 import { consumeTicket, startTicketCleanup, stopTicketCleanup } from '../src/services/wsTicketStore.js';
 import { prisma } from '../src/lib/connectionPoolClient.js';
 import { insertStandardChatMessage, requireChatMembership } from '../src/services/chatMessageService.js';
+import { signSenderImage } from '../src/chat/chatImageHelpers.js';
 import type { MessageSendPayload, WsClientMessage } from './wsTypes.js';
 
 interface AuthenticatedSocket extends WebSocket { // this type helps for sending messages fast and keep up with user's other needed data to not lookup in the DB
@@ -106,7 +107,12 @@ export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chat
     data: { updated_at: new Date() },
   });
 
-  sendToSocket(ws, { type: 'message:ack', payload: { id, tempId } });
+  sendToSocket(ws, { type: 'message:ack', payload: { id, tempId, createdAt: createdAt.toISOString() } });
+
+  console.log(`[WS:handleSendMessage] Broadcasting message - senderId=${ws.userId} senderImage=${ws.userImage} (type: ${typeof ws.userImage})`);
+
+  // Sign the image URL before broadcasting (convert raw S3 key to presigned URL)
+  const signedImageUrl = await signSenderImage(ws.userImage);
 
   broadcastToRoom(chatId, {
     type: 'message:new',
@@ -115,9 +121,9 @@ export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chat
       chatId,
       senderId: ws.userId,
       senderName: ws.userName || ws.userId.slice(0, 8),
-      senderImage: ws.userImage ?? null,
+      senderImage: signedImageUrl ?? null,
       content: content.trim(),
-      createdAt,
+      createdAt: createdAt.toISOString(),
       isEdited: false,
       isAnonymous: false,
       messageType: 'text',
@@ -187,12 +193,14 @@ export function createWebSocketServer(server: Server): void { // the server is t
       if (user) {
         ws.userName = user.user_name || userId.slice(0, 8);
         ws.userImage = user.image_url;
+        console.log(`[WS] Loaded user profile - userId=${userId} userName=${ws.userName} image_url=${ws.userImage} (type: ${typeof ws.userImage})`);
       } else {
         ws.userName = userId.slice(0, 8);
         ws.userImage = null;
+        console.log('[/websockets] user not found')
       }
     } catch (err){
-      console.error(err)
+      console.error('[WS] Error loading user profile:', err)
     }
 
     const existing = userSockets.get(userId);
