@@ -5,7 +5,6 @@ import { prisma } from '../lib/connectionPoolClient.js';
 import { resolveImageUrl } from '../services/imageUpload.js';
 import { broadcastToRoom } from '../../ws/websocket.js';
 
-
 const AnonymousChatRouter = Router();
 
 function formatCursorTimestamp(date: Date): string {
