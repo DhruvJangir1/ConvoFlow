@@ -10,7 +10,7 @@ import ConfirmModal from "../modals/ConfirmModal";
 import ImageModal from "../modals/ImageModal";
 import { useChatMessagesQuery } from "../hooks/useChatMessagesQuery";
 import { useEditMessageMutation, useDeleteMessageMutation } from "../hooks/useChatMutations";
-import type { ChatMessages } from "../types/chat";
+import type { ChatMessages, MessageCursor } from "../types/chat";
 
 type RawMessage = {
   id: string;
@@ -39,12 +39,20 @@ function parseMessage(raw: RawMessage, userId: string, chatId: string): ChatMess
   };
 }
 
+function insertMessageChronologically(messages: ChatMessages[], entry: ChatMessages): ChatMessages[] {
+  const withoutEntry = messages.filter((message) => message.id !== entry.id);
+  const entryTime = new Date(entry.createdAt).getTime();
+  const insertionIndex = withoutEntry.findIndex((message) => {
+    const messageTime = new Date(message.createdAt).getTime();
+    return entryTime < messageTime || (entryTime === messageTime && entry.id.localeCompare(message.id) < 0);
+  });
+
+  if (insertionIndex === -1) return [...withoutEntry, entry];
+  return [...withoutEntry.slice(0, insertionIndex), entry, ...withoutEntry.slice(insertionIndex)];
+}
+
 function mergeMessages(previous: ChatMessages[], server: ChatMessages[]): ChatMessages[] {
-  const byId = new Map<string, ChatMessages>();
-  for (const m of [...previous, ...server]) byId.set(m.id, m);
-  return [...byId.values()].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-  );
+  return server.reduce((messages, message) => insertMessageChronologically(messages, message), previous);
 }
 
 export default function ChatView() {
@@ -58,7 +66,7 @@ export default function ChatView() {
   const [messages, setMessages] = useState<ChatMessages[]>([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
-  const paginationCursor = useRef<string | null>(null);
+  const paginationCursor = useRef<MessageCursor | null>(null);
   const activeChatRef = useRef<string | null>(null);
 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -80,8 +88,7 @@ export default function ChatView() {
 
     if (switched) {
       setHasOlderMessages(messagesFromServer.hasMore);
-      const firstMsg = messagesFromServer.messages[0];
-      paginationCursor.current = firstMsg ? firstMsg.createdAt : null;
+      paginationCursor.current = messagesFromServer.nextCursor;
     }
   }, [messagesFromServer, chatId]);
 
@@ -90,11 +97,13 @@ export default function ChatView() {
 
     setIsLoadingMore(true);
     try {
-      const url = "/api/chats/" + chatId + "/messages?before=" + encodeURIComponent(paginationCursor.current);
+    const cursor = paginationCursor.current;
+    if (!cursor) return;
+    const url = "/api/chats/" + chatId + "/messages?beforeCreatedAt=" + encodeURIComponent(cursor.beforeCreatedAt) + "&beforeId=" + encodeURIComponent(cursor.beforeId);
       const response = await clerkFetch(url);
       if (!response.ok) return;
 
-      const data = await response.json();
+      const data = await response.json() as { messages: RawMessage[]; hasMore: boolean; nextCursor: MessageCursor | null };
       const olderMessages: ChatMessages[] = data.messages.map((msg: RawMessage) => parseMessage(msg, user.id, chatId));
       setMessages((previous) => {
         const existingIds = new Set(previous.map((m) => m.id));
@@ -102,9 +111,7 @@ export default function ChatView() {
         return fresh.concat(previous);
       });
       setHasOlderMessages(data.hasMore === true);
-      if (olderMessages.length > 0) {
-        paginationCursor.current = olderMessages[0].createdAt;
-      }
+      paginationCursor.current = data.nextCursor;
     } catch {
       // silently ignore
     } finally {

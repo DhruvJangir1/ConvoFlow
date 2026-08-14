@@ -13,10 +13,32 @@ import {
 } from "../../hooks/useAnonymousMutations";
 import AnonymousMessageFeed from "../../components/AnonymousMessageFeed";
 import ConfirmModal from "../../modals/ConfirmModal";
-import type { AnonymousChatMessages } from "../../types/chat";
+import type { AnonymousChatMessages, MessageCursor } from "../../types/chat";
 import AnonymousChatHeader from "./AnonymousChatHeader";
 import AnonymousChatComposer from "./AnonymousChatComposer";
 import { useWebSocket } from "../../context/WebSocketContext";
+
+function insertMessageChronologically(
+  messages: AnonymousChatMessages[],
+  entry: AnonymousChatMessages,
+): AnonymousChatMessages[] {
+  const withoutEntry = messages.filter((message) => message.id !== entry.id);
+  const entryTime = new Date(entry.createdAt).getTime();
+  const insertionIndex = withoutEntry.findIndex((message) => {
+    const messageTime = new Date(message.createdAt).getTime();
+    return entryTime < messageTime || (entryTime === messageTime && entry.id.localeCompare(message.id) < 0);
+  });
+
+  if (insertionIndex === -1) return [...withoutEntry, entry];
+  return [...withoutEntry.slice(0, insertionIndex), entry, ...withoutEntry.slice(insertionIndex)];
+}
+
+function mergeMessages(
+  previous: AnonymousChatMessages[],
+  server: AnonymousChatMessages[],
+): AnonymousChatMessages[] {
+  return server.reduce((messages, message) => insertMessageChronologically(messages, message), previous);
+}
 
 export default function AnonymousChat() {
   const { id: roomId } = useParams();
@@ -32,7 +54,7 @@ export default function AnonymousChat() {
   const [isAnonymous, setIsAnonymous] = useState(true);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const oldestDateRef = useRef<string | null>(null);
+  const oldestCursorRef = useRef<MessageCursor | null>(null);
   const activeRoomRef = useRef<string | null>(null);
   const ownMessageIds = useRef<Set<string>>(new Set());
 
@@ -59,7 +81,7 @@ export default function AnonymousChat() {
         setLoading(true);
         setMessages([]);
         setHasMore(true);
-        oldestDateRef.current = null;
+        oldestCursorRef.current = null;
         ownMessageIds.current.clear();
       });
       return;
@@ -71,7 +93,7 @@ export default function AnonymousChat() {
         setLoading(true);
         setMessages([]);
         setHasMore(true);
-        oldestDateRef.current = null;
+        oldestCursorRef.current = null;
         ownMessageIds.current.clear();
       });
       return;
@@ -83,14 +105,7 @@ export default function AnonymousChat() {
     queueMicrotask(() => {
       setMessages((prev) => {
         if (switched) return messagesData.messages;
-        const cacheIds = new Set(messagesData.messages.map((m) => m.id));
-        const oldestCache = messagesData.messages[0];
-        const extras = prev.filter((m) => {
-          if (cacheIds.has(m.id)) return false;
-          if (String(m.id).startsWith('temp-')) return true;
-          return oldestCache !== undefined && new Date(m.createdAt) < new Date(oldestCache.createdAt);
-        });
-        const merged = [...messagesData.messages, ...extras];
+        const merged = mergeMessages(prev, messagesData.messages);
         if (prev.length === merged.length &&
             prev.every((m, i) => m.id === merged[i].id)) {
           return prev;
@@ -100,21 +115,22 @@ export default function AnonymousChat() {
       setLoading((prev) => prev ? false : prev);
       if (switched) {
         setHasMore(messagesData.hasMore);
-        const oldestMsg = messagesData.messages[0];
-        oldestDateRef.current = oldestMsg ? oldestMsg.createdAt : null;
+        oldestCursorRef.current = messagesData.nextCursor;
       }
     });
   }, [messagesData, roomId]);
 
   async function loadMoreMessages() {
-    if (!roomId || loadingMore || !hasMore || !oldestDateRef.current || !user) return;
+    if (!roomId || loadingMore || !hasMore || !oldestCursorRef.current || !user) return;
     setLoadingMore(true);
     try {
+      const cursor = oldestCursorRef.current;
+      if (!cursor) return;
       const res = await clerkFetch(
-        `/api/anonymousChats/${roomId}/messages?before=${encodeURIComponent(oldestDateRef.current)}`,
+        `/api/anonymousChats/${roomId}/messages?beforeCreatedAt=${encodeURIComponent(cursor.beforeCreatedAt)}&beforeId=${encodeURIComponent(cursor.beforeId)}`,
       );
       if (!res.ok) throw new Error("Failed to load more messages");
-      const data = await res.json();
+      const data = await res.json() as { messages: { id: string; content: string | null; created_at: string; is_edited: boolean; TotalUpvotes: number; userVote: string | null; isAnonymous: boolean; sender_id: string; users: { id: string; user_name: string; image_url: string | null } | null }[]; hasMore: boolean; nextCursor: MessageCursor | null };
       const newMsgs: AnonymousChatMessages[] = data.messages.map((m: { id: string; content: string | null; created_at: string; is_edited: boolean; TotalUpvotes: number; userVote: string | null; isAnonymous: boolean; sender_id: string; users: { id: string; user_name: string; image_url: string | null } | null }) => {
         const isOwn = ownMessageIds.current.has(m.id) || m.sender_id === user.id;
         return {
@@ -138,10 +154,8 @@ export default function AnonymousChat() {
         const fresh = newMsgs.filter((m) => !existingIds.has(m.id));
         return [...fresh, ...prev];
       });
-      setHasMore(data.hasMore ?? false);
-      if (newMsgs.length > 0) {
-        oldestDateRef.current = newMsgs[0].createdAt;
-      }
+      setHasMore(data.hasMore === true);
+      oldestCursorRef.current = data.nextCursor;
     } catch {
       // failed to load more messages
     } finally {
@@ -180,15 +194,29 @@ export default function AnonymousChat() {
         onSuccess: (data) => {
           ownMessageIds.current.delete(tempId);
           ownMessageIds.current.add(data.message.id);
-          setMessages((prev) =>
-            prev
-              .filter((m) => m.id !== data.message.id)
-              .map((m) =>
-                m.id === tempId
-                  ? { id: data.message.id, chatId: roomId, senderId: user.id, senderName: isAnonymous ? "Anonymous" : user.user_name, senderImage: isAnonymous ? null : (user.image_url ?? null), content: data.message.content ?? '', createdAt: data.message.created_at, isOwn: true, isEdited: data.message.is_edited, messageType: 'text', isAnonymous, totalUpvotes: data.message.TotalUpvotes, userVote: null }
-                  : m,
-              ),
-          );
+          setMessages((prev) => {
+            const optimisticMessage = prev.find((message) => message.id === tempId);
+            if (!optimisticMessage) return prev;
+            const confirmedMessage: AnonymousChatMessages = {
+              id: data.message.id,
+              chatId: roomId,
+              senderId: user.id,
+              senderName: isAnonymous ? "Anonymous" : user.user_name,
+              senderImage: isAnonymous ? null : (user.image_url ?? null),
+              content: data.message.content ?? '',
+              createdAt: data.message.created_at,
+              isOwn: true,
+              isEdited: data.message.is_edited,
+              messageType: 'text',
+              isAnonymous,
+              totalUpvotes: data.message.TotalUpvotes,
+              userVote: null,
+            };
+            return insertMessageChronologically(
+              prev.filter((message) => message.id !== tempId),
+              confirmedMessage,
+            );
+          });
         },
         onError: () => {
           ownMessageIds.current.delete(tempId);

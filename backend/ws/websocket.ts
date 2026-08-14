@@ -107,7 +107,7 @@ export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chat
     data: { updated_at: new Date() },
   });
 
-  sendToSocket(ws, { type: 'message:ack', payload: { id, tempId } });
+  sendToSocket(ws, { type: 'message:ack', payload: { id, tempId, createdAt: createdAt.toISOString() } });
 
   console.log(`[WS:handleSendMessage] Broadcasting message - senderId=${ws.userId} senderImage=${ws.userImage} (type: ${typeof ws.userImage})`);
 
@@ -123,7 +123,7 @@ export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chat
       senderName: ws.userName || ws.userId.slice(0, 8),
       senderImage: signedImageUrl ?? null,
       content: content.trim(),
-      createdAt,
+      createdAt: createdAt.toISOString(),
       isEdited: false,
       isAnonymous: false,
       messageType: 'text',
