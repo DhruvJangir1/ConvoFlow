@@ -12,15 +12,41 @@ export async function createNotification(data: {
 }
 
 export async function deleteNotification(userId: string, notificationId: string) {
+  const notification = await prisma.notifications.findFirst({
+    where: { id: notificationId, receiver_user_id: userId },
+    select: { type: true, entity_id: true },
+  });
+
+  if (!notification) return { count: 0 };
+
+  if (notification.type.startsWith('friend_request')) {
+    await prisma.addFriendRequests.deleteMany({
+      where: { id: notification.entity_id },
+    });
+  }
+
   return prisma.notifications.deleteMany({
     where: { id: notificationId, receiver_user_id: userId },
   });
 }
 
 export async function deleteAllNotifications(userId: string) {
-  return prisma.notifications.deleteMany({
+  const notifications = await prisma.notifications.findMany({
     where: { receiver_user_id: userId },
+    select: { type: true, entity_id: true },
   });
+
+  const friendRequestEntityIds = notifications
+    .filter((n) => n.type.startsWith('friend_request'))
+    .map((n) => n.entity_id);
+
+  if (friendRequestEntityIds.length > 0) {
+    await prisma.addFriendRequests.deleteMany({
+      where: { id: { in: friendRequestEntityIds } },
+    });
+  }
+
+  return prisma.notifications.deleteMany({ where: { receiver_user_id: userId } });
 }
 
 export async function notifyFriendRequest(
