@@ -27,9 +27,6 @@ type MessageListProps = {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onDeleteClick: (msgId: string) => void;
-  showVoting: boolean;
-  onUpvote?: (messageId: string) => void;
-  onDownvote?: (messageId: string) => void;
   onImageClick?: (url: string) => void;
 };
 
@@ -152,8 +149,6 @@ export default function MessageList({
 
   const { groups } = useMemo(() => groupMessages(messages), [messages]);
 
-  const isVotable = showVoting && onUpvote && onDownvote;
-  
   useEffect(() => {
     const el = editTextareaRef.current;
     if (!el) return;
@@ -412,38 +407,6 @@ export default function MessageList({
                       {mi === 0 && group.isOwn && !isAnonMsg(msg) && (
                         <div className="shrink-0 self-end">
                           <UserAvatar imageUrl={msg.senderImage ?? null} userName={msg.senderName} size="sm" />
-                        </div>
-                      )}
-
-                      { isVotable && isAnonMsg(msg) && (
-                        <div className={`flex mt-0.5 ${group.isOwn ? "justify-end" : "justify-start"}`}>
-                          <div className="flex items-center gap-0.5">
-                            <button
-                              onClick={() => onUpvote(msg.id)}
-                              className={`flex h-6 items-center gap-1 rounded px-1.5 transition-colors ${
-                                msg.userVote === 'upvote'
-                                  ? 'text-accent-success bg-accent-success/20'
-                                  : 'text-text-secondary hover:text-accent-success hover:bg-surface-hover/50'
-                              }`}
-                              aria-label="Upvote"
-                            >
-                              <ThumbsUp className={`h-3.5 w-3.5 ${msg.userVote === 'upvote' ? 'fill-accent-success' : ''}`} />
-                              {(msg.totalUpvotes ?? 0) > 0 && (
-                                <span className="text-[11px] font-medium leading-none">{msg.totalUpvotes}</span>
-                              )}
-                            </button>
-                            <button
-                              onClick={() => onDownvote(msg.id)}
-                              className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
-                                msg.userVote === 'downvote'
-                                  ? 'text-accent-danger bg-accent-danger/20'
-                                  : 'text-text-secondary hover:text-accent-danger hover:bg-surface-hover/50'
-                              }`}
-                              aria-label="Downvote"
-                            >
-                              <ThumbsDown className={`h-3.5 w-3.5 ${msg.userVote === 'downvote' ? 'fill-accent-danger' : ''}`} />
-                            </button>
-                          </div>
                         </div>
                       )}
 

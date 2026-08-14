@@ -5,6 +5,7 @@ import { prisma } from '../lib/connectionPoolClient.js';
 import { resolveImageUrl } from '../services/imageUpload.js';
 import { broadcastToRoom } from '../../ws/websocket.js';
 
+
 const AnonymousChatRouter = Router();
 
 function formatCursorTimestamp(date: Date): string {
@@ -125,10 +126,6 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
         }
       : {};
 
-<<<<<<< HEAD
-=======
-    // get the anonymous chat messages
->>>>>>> 87a9552 (Removed user voting and polls)
     const messages = await prisma.anonymousChatMessages.findMany({
       where: { chat_id: chatId, ...cursorFilter },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
@@ -155,30 +152,10 @@ AnonymousChatRouter.get('/:id/messages', authenticate, async (req: Request, res:
       for (const u of users) userMap.set(u.id, { ...u, image_url: await resolveImageUrl(u.image_url) });
     }
 
-<<<<<<< HEAD
-    const messageIds = messages.map(m => m.id);
-
-    // get user votes
-    const userVotes = await prisma.anonymousChatMessagesUserVotes.findMany({
-      where: { user_id: userId, message_id: { in: messageIds } },
-      select: { message_id: true, type: true },
-    });
-
-    const voteMap = new Map(userVotes.map(v => [v.message_id as string, v.type]));
-
-    const messagesWithMeta = messages.map((m) => {
-      return {
-        ...m,
-        userVote: voteMap.get(m.id) ?? null,
-        users: m.isAnonymous ? null : (userMap.get(m.sender_id as string) ?? null),
-      };
-    });
-=======
     const messagesWithMeta = messages.map(m => ({
       ...m,
       users: m.isAnonymous ? null : (userMap.get(m.sender_id as string) ?? null),
     }));
->>>>>>> 87a9552 (Removed user voting and polls)
 
     messagesWithMeta.reverse();
     const hasMore = messages.length === limit;

@@ -128,13 +128,8 @@ export default function AnonymousChat() {
         `/api/anonymousChats/${roomId}/messages?beforeCreatedAt=${encodeURIComponent(cursor.beforeCreatedAt)}&beforeId=${encodeURIComponent(cursor.beforeId)}`,
       );
       if (!res.ok) throw new Error("Failed to load more messages");
-<<<<<<< HEAD
-      const data = await res.json() as { messages: { id: string; content: string | null; created_at: string; is_edited: boolean; TotalUpvotes: number; userVote: string | null; isAnonymous: boolean; sender_id: string; users: { id: string; user_name: string; image_url: string | null } | null }[]; hasMore: boolean; nextCursor: MessageCursor | null };
-      const newMsgs: AnonymousChatMessages[] = data.messages.map((m: { id: string; content: string | null; created_at: string; is_edited: boolean; TotalUpvotes: number; userVote: string | null; isAnonymous: boolean; sender_id: string; users: { id: string; user_name: string; image_url: string | null } | null }) => {
-=======
-      const data = await res.json();
+      const data = await res.json() as { messages: { id: string; content: string | null; created_at: string; is_edited: boolean; isAnonymous: boolean; sender_id: string; users: { id: string; user_name: string; image_url: string | null } | null }[]; hasMore: boolean; nextCursor: MessageCursor | null };
       const newMsgs: AnonymousChatMessages[] = data.messages.map((m: { id: string; content: string | null; created_at: string; is_edited: boolean; isAnonymous: boolean; sender_id: string; users: { id: string; user_name: string; image_url: string | null } | null }) => {
->>>>>>> 87a9552 (Removed user voting and polls)
         const isOwn = ownMessageIds.current.has(m.id) || m.sender_id === user.id;
         return {
           id: m.id,
@@ -193,7 +188,6 @@ export default function AnonymousChat() {
         onSuccess: (data) => {
           ownMessageIds.current.delete(tempId);
           ownMessageIds.current.add(data.message.id);
-<<<<<<< HEAD
           setMessages((prev) => {
             const optimisticMessage = prev.find((message) => message.id === tempId);
             if (!optimisticMessage) return prev;
@@ -209,25 +203,12 @@ export default function AnonymousChat() {
               isEdited: data.message.is_edited,
               messageType: 'text',
               isAnonymous,
-              totalUpvotes: data.message.TotalUpvotes,
-              userVote: null,
             };
             return insertMessageChronologically(
               prev.filter((message) => message.id !== tempId),
               confirmedMessage,
             );
           });
-=======
-          setMessages((prev) =>
-            prev
-              .filter((m) => m.id !== data.message.id)
-              .map((m) =>
-                m.id === tempId
-                  ? { id: data.message.id, chatId: roomId, senderId: user.id, senderName: isAnonymous ? "Anonymous" : user.user_name, senderImage: isAnonymous ? null : (user.image_url ?? null), content: data.message.content ?? '', createdAt: data.message.created_at, isOwn: true, isEdited: data.message.is_edited, messageType: 'text', isAnonymous }
-                  : m,
-              ),
-          );
->>>>>>> 87a9552 (Removed user voting and polls)
         },
         onError: () => {
           ownMessageIds.current.delete(tempId);
