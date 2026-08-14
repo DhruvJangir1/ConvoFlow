@@ -31,7 +31,7 @@ export default function Navbar() {
 
       <button
         onClick={() => navigate("/profile")}
-        className="group flex items-center justify-center rounded-full transition-all duration-200 ease-out hover:opacity-80"
+        className="group flex cursor-pointer items-center justify-center rounded-full transition-all duration-200 ease-out hover:opacity-80"
         title="Profile"
       >
         <UserAvatar imageUrl={user.image_url} userName={user.user_name} size="sm" />

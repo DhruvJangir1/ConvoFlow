@@ -69,7 +69,7 @@ export default function ProfileView() {
         <button
           onClick={() => navigate(-1)}
           aria-label="Go back"
-          className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>

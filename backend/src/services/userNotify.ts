@@ -11,6 +11,18 @@ export async function createNotification(data: {
   return prisma.notifications.create({ data });
 }
 
+export async function deleteNotification(userId: string, notificationId: string) {
+  return prisma.notifications.deleteMany({
+    where: { id: notificationId, receiver_user_id: userId },
+  });
+}
+
+export async function deleteAllNotifications(userId: string) {
+  return prisma.notifications.deleteMany({
+    where: { receiver_user_id: userId },
+  });
+}
+
 export async function notifyFriendRequest(
   receiverId: string,
   senderId: string,

@@ -10,11 +10,9 @@ import UserSearchModal from "../modals/UserSearchModal";
 import AddFriendButton from "../components/AddFriendButton";
 import UserAvatar from "../components/UserAvatar";
 
-type ChatListProps = Record<string, never>;
-
 import { getInitials, avatarGradient } from "../lib/avatar";
 
-export default function ChatList(_props: ChatListProps) {
+export default function ChatList() {
   const chats = useSelector((s: RootState) => s.chat.chats);
   const { loading } = useChats();
   const navigate = useNavigate();
@@ -119,7 +117,7 @@ export default function ChatList(_props: ChatListProps) {
                   <button
                     key={room.id}
                     onClick={() => handleNavigate(`/anonymous/${room.id}`)}
-                      className={`relative mx-2 my-0.5 flex h-16 items-center gap-3 rounded-[10px] px-3 text-left transition-colors duration-120 hover:bg-surface-raised ${
+                      className={`relative mx-2 my-0.5 flex h-16 cursor-pointer items-center gap-3 rounded-[10px] px-3 text-left transition-colors duration-120 hover:bg-surface-raised ${
                       isActive ? "bg-surface/50" : ""
                     }`}
                   >
@@ -170,7 +168,7 @@ export default function ChatList(_props: ChatListProps) {
                   <button
                     key={chat.id}
                     onClick={() => handleNavigate(`/chat/${chat.id}`)}
-                      className={`relative mx-2 my-0.5 flex h-16 items-center gap-3 rounded-[10px] px-3 text-left transition-colors duration-120 hover:bg-surface-raised ${
+                      className={`relative mx-2 my-0.5 flex h-16 cursor-pointer items-center gap-3 rounded-[10px] px-3 text-left transition-colors duration-120 hover:bg-surface-raised ${
                       isActive ? "bg-surface/50" : ""
                     }`}
                   >

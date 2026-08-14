@@ -26,7 +26,7 @@ function CopyButton({ value }: { value: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="flex h-6 w-6 items-center justify-center rounded text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary"
+      className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary"
       title="Copy"
     >
       {copied ? <Check className="h-3 w-3 text-accent-success" /> : <Copy className="h-3 w-3" />}
@@ -91,7 +91,7 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
           <h2 className="text-[15px] font-semibold text-text-primary">Profile</h2>
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -169,14 +169,14 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
         <div className="flex gap-2 border-t border-border px-4 py-3">
           <button
             onClick={onEditProfile}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-surface py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+            className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-surface py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
           >
             <Pencil className="h-3.5 w-3.5" />
             Edit Profile
           </button>
           <button
             onClick={async () => { await signOut(); navigate('/'); }}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-accent-danger/20 bg-accent-danger/10 py-2 text-sm font-medium text-accent-danger transition-colors hover:bg-accent-danger/20"
+            className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-accent-danger/20 bg-accent-danger/10 py-2 text-sm font-medium text-accent-danger transition-colors hover:bg-accent-danger/20"
           >
             <LogOut className="h-3.5 w-3.5" />
             Sign Out

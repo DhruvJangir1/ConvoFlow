@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
+import { deleteNotification, deleteAllNotifications } from '../services/userNotify.js';
 
 const NotificationRouter = Router();
 
@@ -67,6 +68,36 @@ NotificationRouter.patch('/read-all', authenticate, async (req: Request, res: Re
     where: { receiver_user_id: userId, read_at: null },
     data: { read_at: new Date() },
   });
+
+  res.json({ success: true });
+});
+
+NotificationRouter.delete('/:id', authenticate, async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const userId = req.user.id;
+  const { id } = req.params;
+
+  const result = await deleteNotification(userId, id as string);
+
+  if (result.count === 0) {
+    res.status(404).json({ error: 'Notification not found' });
+    return;
+  }
+
+  res.json({ success: true });
+});
+
+NotificationRouter.delete('/', authenticate, async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  await deleteAllNotifications(req.user.id);
 
   res.json({ success: true });
 });
