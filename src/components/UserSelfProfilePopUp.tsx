@@ -14,7 +14,7 @@ export default function UserSelfProfilePopUp() {
   return (
     <button
       onClick={() => navigate("/profile")}
-      className="group absolute bottom-2 left-2 flex w-[calc(4.5rem+15rem)] max-w-[calc(100vw-1rem)] items-center gap-2.5 rounded-full bg-surface-elevated px-2 py-1.5 transition-opacity duration-200 hover:opacity-60"
+      className="group absolute bottom-2 left-2 flex w-[calc(4.5rem+15rem)] max-w-[calc(100vw-1rem)] cursor-pointer items-center gap-2.5 rounded-full bg-surface-elevated px-2 py-1.5 transition-opacity duration-200 hover:opacity-60"
       style={{ filter: "brightness(1.5)" }}
     >
       <div className="shrink-0">

@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserPlus, UserCheck, UserX, Bell, Loader2, Send, ArrowLeft } from "lucide-react";
+import { UserPlus, UserCheck, UserX, Bell, Loader2, Send, ArrowLeft, Trash2 } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { resetUnreadNotif } from "../store/userAuthSlice";
 import { addChat } from "../store/chatSlice";
@@ -11,8 +11,11 @@ import {
   useMarkAllNotificationsRead,
   useRejectFriendRequest,
   useAcceptFriendRequest,
+  useDeleteNotification,
+  useDeleteAllNotifications,
 } from "../hooks/useNotificationMutations";
 import AddFriendModal from "../modals/AddFriendModal";
+import ConfirmDeleteAllNotificationModal from "../modals/ConfirmDeleteAllNotificationModal";
 import type { Notification } from "../types/chat";
 import type { Chat } from "../types/chat";
 import { useQueryClient } from "@tanstack/react-query";
@@ -56,10 +59,13 @@ export default function NotificationsPage() {
   const markAllReadMutation = useMarkAllNotificationsRead();
   const rejectMutation = useRejectFriendRequest();
   const acceptMutation = useAcceptFriendRequest();
+  const deleteMutation = useDeleteNotification();
+  const deleteAllMutation = useDeleteAllNotifications();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [acceptLoading, setAcceptLoading] = useState(false);
   const [acceptSenderName, setAcceptSenderName] = useState("");
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
 
     function removeNotification(id: string) {
     setNotifications(prev => prev.filter(x => x.id !== id));
@@ -90,6 +96,28 @@ export default function NotificationsPage() {
     );
     dispatch(resetUnreadNotif());
   }, [markAllReadMutation, dispatch]);
+
+  const handleDelete = useCallback((id: string) => {
+    setActionLoading(id);
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        removeNotification(id);
+      },
+      onSettled: () => {
+        setActionLoading(null);
+      },
+    });
+  }, [deleteMutation]);
+
+  const handleDeleteAll = useCallback(() => {
+    setDeleteAllOpen(false);
+    deleteAllMutation.mutate(undefined, {
+      onSuccess: () => {
+        setNotifications([]);
+        dispatch(resetUnreadNotif());
+      },
+    });
+  }, [deleteAllMutation, dispatch]);
 
   const handleReject = useCallback(async (notification: Notification) => {
     setActionLoading(notification.id);
@@ -224,8 +252,8 @@ export default function NotificationsPage() {
             </div>
           )}
 
-          {n.type === 'friend_request_accepted' && (
-            <div className="mt-3">
+          <div className="mt-3 flex items-center gap-2">
+            {n.type === 'friend_request_accepted' && (
               <button
                 onClick={() => handleCreateChat(n)}
                 className="flex items-center gap-1.5 rounded-md bg-accent-success/10 px-3 py-1.5 text-xs font-medium text-accent-success transition-colors hover:bg-accent-success/20"
@@ -233,12 +261,26 @@ export default function NotificationsPage() {
                 <Send className="h-3 w-3" />
                 Send Message
               </button>
+            )}
+            <div className="ml-auto flex">
+              <button
+                onClick={() => handleDelete(n.id)}
+                disabled={actionLoading === n.id}
+                aria-label="Delete notification"
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-accent-danger/10 text-accent-danger transition-colors hover:bg-accent-danger/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {actionLoading === n.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+              </button>
             </div>
-          )}
+          </div>
         </div>
 
         {isUnread && (
-          <span className="absolute right-2 top-3 h-2 w-2 rounded-full bg-accent-warning" />
+          <span className="absolute right-2 -top-1 h-2 w-2 rounded-full bg-accent-warning" />
         )}
       </div>
     );
@@ -257,14 +299,30 @@ export default function NotificationsPage() {
           </button>
           <h1 className="text-base sm:text-lg font-semibold text-text-primary">Notifications</h1>
         </div>
-        {unread.length > 0 && (
-          <button
-            onClick={markAllAsRead}
-            className="shrink-0 rounded-md bg-accent-warning/10 px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-accent-warning transition-colors hover:bg-accent-warning/20"
-          >
-            Mark all as read
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {unread.length > 0 && (
+            <button
+              onClick={markAllAsRead}
+              className="shrink-0 rounded-md bg-accent-warning/10 px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-accent-warning transition-colors hover:bg-accent-warning/20"
+            >
+              Mark all as read
+            </button>
+          )}
+          {notifications.length > 0 && (
+            <button
+              onClick={() => setDeleteAllOpen(true)}
+              disabled={deleteAllMutation.isPending}
+              className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md bg-accent-danger/10 px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-accent-danger transition-colors hover:bg-accent-danger/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deleteAllMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Trash2 className="h-3 w-3" />
+              )}
+              Delete all
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto">
         <div className="relative px-3 sm:px-6 py-4 sm:py-5">
@@ -303,6 +361,11 @@ export default function NotificationsPage() {
       </div>
 
       <AddFriendModal isOpen={acceptLoading} senderName={acceptSenderName} />
+      <ConfirmDeleteAllNotificationModal
+        isOpen={deleteAllOpen}
+        onClose={() => setDeleteAllOpen(false)}
+        onConfirm={handleDeleteAll}
+      />
     </div>
   );
 }

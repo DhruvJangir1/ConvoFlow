@@ -442,14 +442,14 @@ export default function MessageList({
                               <IconButton
                                 size="small"
                                 onClick={() => onStartEdit(String(msg.id))}
-                                sx={{ color: 'var(--color-text-secondary)', padding: '4px' }}
+                                sx={{ color: 'var(--color-text-secondary)', padding: '4px', cursor: 'pointer' }}
                               >
                                 <Edit sx={{ fontSize: 14 }} />
                               </IconButton>
                               <IconButton
                                 size="small"
                                 onClick={() => onDeleteClick(String(msg.id))}
-                                sx={{ color: 'var(--color-text-secondary)', padding: '4px' }}
+                                sx={{ color: 'var(--color-text-secondary)', padding: '4px', cursor: 'pointer' }}
                               >
                                 <Delete sx={{ fontSize: 14 }} />
                               </IconButton>

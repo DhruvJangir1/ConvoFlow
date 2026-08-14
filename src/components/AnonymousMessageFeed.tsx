@@ -325,10 +325,10 @@ export default function AnonymousMessageFeed({
                     {/* Edit/Delete — own messages */}
                     {group.isOwn && !isEditing && (
                       <div className="flex gap-0.5 mt-0.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-150" style={{ justifyContent: group.isOwn ? "flex-end" : "flex-start" }}>
-                        <button onClick={() => onStartEdit(String(msg.id))} className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-surface-hover hover:text-text-secondary transition-colors" aria-label="Edit">
+                        <button onClick={() => onStartEdit(String(msg.id))} className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-text-muted hover:bg-surface-hover hover:text-text-secondary transition-colors" aria-label="Edit">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                         </button>
-                        <button onClick={() => onDeleteClick(String(msg.id))} className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-surface-hover hover:text-accent-danger transition-colors" aria-label="Delete">
+                        <button onClick={() => onDeleteClick(String(msg.id))} className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-text-muted hover:bg-surface-hover hover:text-accent-danger transition-colors" aria-label="Delete">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                         </button>
                       </div>

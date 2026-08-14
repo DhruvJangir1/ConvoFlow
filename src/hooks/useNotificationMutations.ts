@@ -63,6 +63,46 @@ export function useMarkAllNotificationsRead() {
   });
 }
 
+/* ───── Delete Single ───── */
+async function deleteNotification(id: string) {
+  const res = await clerkFetch(`/api/notifications/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to delete notification');
+  return res.json();
+}
+
+export function useDeleteNotification() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteNotification,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: notifKeys.lists() });
+    },
+  });
+}
+
+/* ───── Delete All ───── */
+async function deleteAllNotifications() {
+  const res = await clerkFetch('/api/notifications', {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to delete all notifications');
+  return res.json();
+}
+
+export function useDeleteAllNotifications() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteAllNotifications,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: notifKeys.lists() });
+    },
+  });
+}
+
 /* ───── Reject Friend Request ───── */
 async function rejectFriendRequest(entityId: string) {
   const res = await clerkFetch(`/api/friends/${entityId}/reject`, {
