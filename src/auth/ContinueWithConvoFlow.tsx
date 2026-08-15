@@ -70,10 +70,10 @@ export default function ContinueWithConvoFlow({ onProviderClick }: ContinueWithC
       onProviderClick(provider.name);
     }
     try {
-      await signIn.authenticateWithRedirect({
+      await signIn.authenticateWithRedirect({ // this is basically a clerk sign in component's execution
         strategy,
-        redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/home",
+         redirectUrl: `${window.location.origin}/sso-callback`,
+         redirectUrlComplete: `${window.location.origin}/home`,
       });
     } catch (err) {
       console.error(err);
