@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { validateOrigin } from './src/middleware/validateOrigin';
 import { connectRedis, disconnectRedis } from './redis/redisClient'
 import { createWebSocketServer } from './ws/websocket.js';
+import { clerkMiddleware } from "@clerk/express";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -29,6 +30,13 @@ const supabaseStorageOrigin = (() => {
 })();
 
 const app = express();
+app.use(
+  clerkMiddleware({
+    frontendApiProxy: {
+      enabled: true,
+    },
+  })
+);
 app.use(express.json());
 
 app.use(

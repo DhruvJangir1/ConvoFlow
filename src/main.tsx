@@ -14,7 +14,7 @@ const root = document.getElementById('root');
 
 if (root){
 createRoot(root).render(
-    <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY} afterSignOutUrl="/">
+    <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY} proxyUrl={import.meta.env.VITE_CLERK_PROXY_URL} afterSignOutUrl="/">
     <QueryClientProvider client={queryClient}>
         <Provider store={store}>
           <AuthProvider>
