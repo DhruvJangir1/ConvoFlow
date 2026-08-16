@@ -19,7 +19,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const { getToken } = useClerkAuth();
   
-  setGetTokenFn(getToken);
+  useEffect(()=>{
+    setGetTokenFn(getToken);
+  },[getToken])
+
 
   useEffect(() => {
     if (!isLoaded) return;

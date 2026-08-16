@@ -7,6 +7,10 @@
       "destination": "https://convoflow-2.onrender.com/api/:path*"
     },
     {
+      "source": "/__clerk/:path*",
+      "destination": "https://convoflow-2.onrender.com/__clerk/:path*"
+    },
+    {
       "source": "/:path*",
       "destination": "/index.html"
     }
