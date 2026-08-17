@@ -1,19 +1,15 @@
-import { useState } from "react";
 import { Navigate, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useSelector } from "react-redux";
 import { useUser } from "@clerk/react";
 import type { RootState } from "../store/store";
 import { useAuth } from "../context/AuthContext";
-import ContinueWithConvoFlow, { type OAuthProviderName } from "./ContinueWithConvoFlow";
-import SSOCallbackPage from "./SSOCallbackPage";
-
+import ContinueWithConvoFlow from "./ContinueWithConvoFlow";
 
 export default function LoginForm() {
   const user = useSelector((s: RootState) => s.userAuth.user);
   const { user: clerkUser } = useUser();
   const { loading } = useAuth();
-  const [selectedProvider, setSelectedProvider] = useState<OAuthProviderName | null>(null);
 
   if (loading) {
     return (
@@ -25,10 +21,6 @@ export default function LoginForm() {
 
   if (clerkUser || user) {
     return <Navigate to="/home" replace />;
-  }
-
-  if (selectedProvider) {
-    return <SSOCallbackPage />;
   }
 
   return (
@@ -54,7 +46,7 @@ export default function LoginForm() {
             />
           </div>
           
-          <ContinueWithConvoFlow onProviderClick={setSelectedProvider} />
+          <ContinueWithConvoFlow />
         </div>
       </div>
     </div>

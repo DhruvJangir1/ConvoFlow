@@ -9,7 +9,6 @@ const OAUTH_PROVIDERS = [
 ] as const;
 
 type OAuthStrategy = (typeof OAUTH_PROVIDERS)[number]["strategy"];
-export type OAuthProviderName = (typeof OAUTH_PROVIDERS)[number]["name"];
 
 function GoogleIcon(): ReactElement {
   return (
@@ -50,11 +49,7 @@ const PROVIDER_ICONS: Record<OAuthStrategy, () => ReactElement> = {
   oauth_microsoft: MicrosoftIcon,
 };
 
-interface ContinueWithConvoFlowProps {
-  onProviderClick: (provider: OAuthProviderName) => void;
-}
-
-export default function ContinueWithConvoFlow({ onProviderClick }: ContinueWithConvoFlowProps) {
+export default function ContinueWithConvoFlow() {
   const { signIn } = useSignIn();
   const { user } = useUser();
   const navigate = useNavigate();
@@ -65,10 +60,6 @@ export default function ContinueWithConvoFlow({ onProviderClick }: ContinueWithC
       navigate('/home');
       return;
     }
-    const provider = OAUTH_PROVIDERS.find((p) => p.strategy === strategy);
-    if (provider) {
-      onProviderClick(provider.name);
-    }
     try {
       await signIn.authenticateWithRedirect({ // this is basically a clerk sign in component's execution
         strategy,
@@ -77,7 +68,6 @@ export default function ContinueWithConvoFlow({ onProviderClick }: ContinueWithC
       });
     } catch (err) {
       console.error(err);
-      navigate('/home');
     }
   }
 
