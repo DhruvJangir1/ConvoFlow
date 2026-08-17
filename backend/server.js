@@ -32,9 +32,12 @@ const supabaseStorageOrigin = (() => {
 const app = express();
 app.use(
   clerkMiddleware({
+    
     frontendApiProxy: {
       enabled: true,
     },
+
+    proxyUrl : process.env.CLERK_PROXY_URL || undefined,
   })
 );
 app.use(express.json());
