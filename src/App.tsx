@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { SignIn } from "@clerk/react";
+import { dark } from "@clerk/themes";
 import RootLayout from "./layouts/RootLayout";
 import Home from "./pages/Home";
 import ChatView from "./pages/ChatView";
@@ -9,16 +11,14 @@ import NotFoundPage from "./pages/NotFoundPage";
 import AnonymousChat from "./pages/AnonymousChats/AnonymousChat";
 import Communities from "./pages/Communities";
 import ProtectedRoute from "./components/ProtectedRoute";
-import LoginForm from "./auth/LoginForm";
-import SSOCallbackPage from "./auth/SSOCallbackPage";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/auth" element={<LoginForm />} />
-        <Route path="/sso-callback" element={<SSOCallbackPage />} />
+        <Route path="/auth" element={<SignIn routing="path" path="/auth" forceRedirectUrl="/home" signUpUrl="/auth" appearance={{ theme: dark }} />} />
+        <Route path="/auth/*" element={<SignIn routing="path" path="/auth" forceRedirectUrl="/home" signUpUrl="/auth" appearance={{ theme: dark }} />} />
         <Route
           element={
             <ProtectedRoute>
