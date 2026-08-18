@@ -83,13 +83,9 @@ Each package has its own `package.json`, `node_modules/`, and `tsconfig.json`. T
 
 ```
 src/
-├── main.tsx                  # React entry point — wraps App in ClerkProvider + providers
-├── App.tsx                   # React Router route definitions
+├── main.tsx                  # React entry point — wraps App in ClerkProvider (afterSignOutUrl="/auth") + providers
+├── App.tsx                   # React Router route definitions — /auth uses Clerk <SignIn> with dark theme
 ├── index.css                 # Global styles + Tailwind imports
-├── auth/                     # Authentication UI (Clerk OAuth)
-│   ├── LoginForm.tsx         # /auth page — OAuth card, renders <ContinueWithConvoFlow /> (no Clerk <SignIn>)
-│   ├── ContinueWithConvoFlow.tsx  # Google/Microsoft OAuth buttons — imports useSignIn from @clerk/react/legacy
-│   └── SSOCallbackPage.tsx   # /sso-callback — branded loading page while Clerk finalizes the OAuth session
 ├── components/               # Shared reusable UI components
 │   ├── AddFriendButton.tsx
 │   ├── ChatHeader.tsx        # Top bar of a chat (name, avatar, online status)
@@ -440,7 +436,7 @@ The backend runs as an ESM Node.js process. `server.js` is a plain `.js` file th
 ### Frontend Provider Tree (`src/main.tsx`)
 
 ```
-<ClerkProvider publishableKey={...}>   ← Clerk auth (manages session, OAuth redirect + callback)
+<ClerkProvider publishableKey={...} afterSignOutUrl="/auth">   ← Clerk auth (manages session, OAuth redirect + callback)
   <QueryClientProvider>                ← TanStack React Query (server state caching)
     <Provider store={store}>           ← Redux Toolkit (client state)
       <AuthProvider>                   ← Syncs Clerk user to Redux via useUser()/useAuth()
@@ -491,18 +487,20 @@ ConvoFlow uses **Clerk** for authentication. Clerk handles user management, sess
    b. AuthContext dispatches setUser(null) — user is now "logged out"
 ```
 
-### Login/Signup Flow (OAuth)
+### Login/Signup Flow (OAuth via Clerk `<SignIn>`)
 
 ```
 1. User navigates to /auth (via LandingPage CTA or ProtectedRoute redirect)
-2. LoginForm renders <ContinueWithConvoFlow /> — Google + Microsoft buttons
-3. Clicking a provider calls signIn.authenticateWithRedirect({ strategy, redirectUrl: '/sso-callback', redirectUrlComplete: '/home' })
-   — via useSignIn from @clerk/react/legacy (the default @clerk/react useSignIn is a "future" API without this method)
-4. Clerk redirects the browser to the provider; unknown emails are auto-provisioned as new accounts (no separate signup step)
-5. Provider redirects back to /sso-callback → <AuthenticateWithRedirectCallback /> finalizes the session
-6. useUser() in AuthContext fires with the new user → Redux state updates → UI re-renders
-7. ProtectedRoute sees user in Redux → allows access to protected pages
+2. App.tsx renders Clerk's <SignIn> component at /auth (with routing="path", dark theme from @clerk/themes)
+3. <SignIn> shows Google + GitHub buttons (providers configured in Clerk Dashboard)
+4. Clicking a provider → Clerk handles OAuth redirect internally (routing="path" manages sub-paths like /auth/sso-callback)
+5. Provider redirects back → Clerk's JS SDK finalizes session on /auth/* sub-paths
+6. <SignIn> redirects to /home (forceRedirectUrl="/home")
+7. useUser() in AuthContext fires with the new user → Redux state updates → UI re-renders
+8. ProtectedRoute sees user in Redux → allows access to protected pages
 ```
+
+**Why two routes for `/auth`**: React Router's `/auth/*` splat does NOT match bare `/auth`. The `/auth` route catches the initial visit; `/auth/*` catches Clerk's internal sub-paths (`/auth/factor-one`, `/auth/sso-callback`). Both render the same `<SignIn>` component which internally detects its sub-path.
 
 ### Logout Flow
 
@@ -511,7 +509,7 @@ ConvoFlow uses **Clerk** for authentication. Clerk handles user management, sess
 2. Component calls useClerk().signOut()
 3. Clerk destroys the session and clears its internal state
 4. useUser() returns null → AuthContext dispatches setUser(null) + resetChats() → Redux clears user + chat state
-5. ProtectedRoute detects user is null via useEffect → navigates to /auth
+5. ProtectedRoute detects user is null via useEffect → navigates to /auth (afterSignOutUrl="/auth")
 ```
 
 ### `clerkFetch` Utility (`src/lib/clerkFetch.ts`)
@@ -888,8 +886,7 @@ The WebSocket handlers in `WebSocketContext.tsx` delegate cache mutations to `ws
 | Route | Component | Protected? | Description |
 |-------|-----------|------------|-------------|
 | `/` | `LandingPage` | No | Marketing page — auto-redirects to /home if logged in |
-| `/auth` | `LoginForm` | No | OAuth login/signup — custom Google/Microsoft buttons (no Clerk `<SignIn>`) |
-| `/sso-callback` | `SSOCallbackPage` | No | OAuth redirect callback — branded loading page while Clerk finalizes the session |
+| `/auth` | Clerk `<SignIn>` | No | OAuth login/signup — Google + GitHub buttons (dark theme from @clerk/themes) |
 | `/home` | `Home` | Yes | Chat list / home feed |
 | `/communities` | `Communities` | Yes | Communities page |
 | `/chat/:chatId` | `ChatView` | Yes | Standard chat view |
@@ -934,7 +931,7 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 7. **Never push/add/commit/pull code on or from GitHub without asking**
 8. **Do NOT read any env files at all costs**
 9. **Two WebSocket providers** exist in the tree — `main.tsx` wraps the app in one, `RootLayout` wraps protected pages in another. The inner one shadows the outer one.
-10. **OAuth-only auth flow** — `/auth` renders custom Google/Microsoft buttons via `ContinueWithConvoFlow.tsx`. It imports `useSignIn` from `@clerk/react/legacy` because the default `@clerk/react` `useSignIn` exposes a "future" API without `authenticateWithRedirect`. No Clerk `<SignIn>`/`<SignUp>` components are rendered.
+10. **OAuth-only auth flow** — `/auth` renders Clerk's `<SignIn>` component with `routing="path"` and dark theme from `@clerk/themes`. Providers (Google, GitHub) are configured in the Clerk Dashboard, not in code. Two routes (`/auth` and `/auth/*`) are needed because React Router's splat doesn't match bare `/auth`, and Clerk's internal sub-paths (factor-one, sso-callback) need the `/*` route.
 11. **Clerk ID vs DB UUID** — Clerk user IDs (e.g., `user_3Gp...`) are NOT valid UUIDs. The database requires UUID format. A `clerk_id` mapping column has been added to `USERS` and the `authenticate` middleware maps Clerk IDs to DB UUIDs via this column.
 12. **`clerkFetch` must be used for all API calls** — Never use raw `fetch()` for backend requests. Always import `clerkFetch` from `../lib/clerkFetch` which injects the Clerk JWT automatically.
 13. **WebSocket subscribe enforces membership for standard chats** — The subscribe handler batch-queries `standardChatMembers` (membership) before allowing room subscription; non-member chatIds are silently skipped. Anonymous rooms are the exception: they are validated against `anonymousChats` by existence, so any authenticated user can subscribe to any anon room.
