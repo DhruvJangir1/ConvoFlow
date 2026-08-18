@@ -12,13 +12,21 @@ import AnonymousChat from "./pages/AnonymousChats/AnonymousChat";
 import Communities from "./pages/Communities";
 import ProtectedRoute from "./components/ProtectedRoute";
 
+function SignInPage() {
+  return (
+    <div className="flex h-dvh items-center justify-center bg-surface-base">
+      <SignIn routing="path" path="/auth" forceRedirectUrl="/home" signUpUrl="/auth" appearance={{ theme: dark }} />
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/auth" element={<SignIn routing="path" path="/auth" forceRedirectUrl="/home" signUpUrl="/auth" appearance={{ theme: dark }} />} />
-        <Route path="/auth/*" element={<SignIn routing="path" path="/auth" forceRedirectUrl="/home" signUpUrl="/auth" appearance={{ theme: dark }} />} />
+        <Route path="/auth" element={<SignInPage />} />
+        <Route path="/auth/*" element={<SignInPage />} />
         <Route
           element={
             <ProtectedRoute>
