@@ -50,6 +50,7 @@ VITE_WS_URL=wss://your-backend-domain.com/ws      # WebSocket server URL
 NODE_ENV=development
 PORT=3000
 CORS_ORIGIN=http://localhost:5173
+RENDER_API_URL=http://localhost:3000      # Backend public URL (base for WS ticket parsing)
 
 # Database
 DATABASE_URL="postgresql://user:password@localhost:5432/convoflow?schema=public"
@@ -210,6 +211,7 @@ Frontend runs on `http://localhost:5173`, backend on `http://localhost:3000`. Th
 - **WebSocket**: Same Render server, path `/ws`
 - **Vercel rewrites**: `/api/:path*` → Render backend (forwards path correctly)
 - **CORS_ORIGIN** on Render: `https://convo-flow-4eu6.vercel.app`
+- **RENDER_API_URL** on Render: `https://convoflow-2.onrender.com`
 - **VITE_WS_URL** on Vercel: `wss://convoflow-2.onrender.com/ws`
 
 ### Production Build
@@ -224,6 +226,7 @@ npm start        # build + start backend serving dist/
 ```env
 NODE_ENV=production
 CORS_ORIGIN=https://yourdomain.com          # MUST be a real URL, no wildcards
+RENDER_API_URL=https://convoflow-2.onrender.com   # Backend public URL (base for WS ticket parsing)
 DATABASE_URL=postgresql://...
 DIRECT_URL=postgresql://...
 SUPABASE_JWT_SECRET=...

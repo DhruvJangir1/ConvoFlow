@@ -117,20 +117,17 @@ const PORT = process.env.PORT || 3000;
 // Trust proxy so req.ip reflects client IPs when behind a reverse proxy/load balancer
 app.set('trust proxy', true);
 
-// Validate and determine CORS origin. In production, CORS_ORIGIN must be a valid non-wildcard URL.
+// Validate and determine CORS origin. CORS_ORIGIN must be set and be a valid non-wildcard URL.
 const corsOrigin = (() => {
-  if (process.env.NODE_ENV === 'production') {
-    const v = process.env.CORS_ORIGIN;
-    if (!v) throw new Error('CRITICAL: CORS_ORIGIN must be set in production');
-    try {
-      const parsed = new URL(v);
-      if (parsed.hostname === '*' || v.trim() === '*') throw new Error('CORS_ORIGIN wildcard is not allowed in production');
-      return v;
-    } catch (err) {
-      throw new Error('CRITICAL: CORS_ORIGIN must be a valid absolute URL in production');
-    }
+  const v = process.env.CORS_ORIGIN;
+  if (!v) throw new Error('CRITICAL: CORS_ORIGIN must be set');
+  try {
+    const parsed = new URL(v);
+    if (parsed.hostname === '*' || v.trim() === '*') throw new Error('CORS_ORIGIN wildcard is not allowed');
+    return v;
+  } catch {
+    throw new Error('CRITICAL: CORS_ORIGIN must be a valid absolute URL');
   }
-  return 'http://localhost:5173';
 })();
 
 app.use(cors({
@@ -199,7 +196,7 @@ async function makeWsServer() {
   const server = http.createServer(app);
   createWebSocketServer(server);
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on ${process.env.RENDER_API_URL}`);
     console.log(`[server] CORS origin: ${corsOrigin}`);
     console.log(`[server] Environment: ${process.env.NODE_ENV || 'development'}`);
   });

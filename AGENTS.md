@@ -163,7 +163,6 @@ backend/
 │   │   ├── auth.ts                 # Clerk abstraction layer — verifyClerkToken(), fetchClerkUser()
 │   │   ├── connectionPoolClient.ts # Prisma client instance
 │   │   ├── calculatePoolSize.ts
-│   │   ├── databaseClusterClass.ts
 │   │   ├── gracefulShutDown.ts
 │   │   ├── healthCheckPool.ts
 │   │   ├── multiTenantPool.ts
@@ -276,6 +275,7 @@ This runs the build first, then starts the backend which serves `dist/` as stati
 ```env
 NODE_ENV=production
 CORS_ORIGIN=https://convo-flow-4eu6.vercel.app   # MUST be a real URL, no wildcards
+RENDER_API_URL=https://convoflow-2.onrender.com  # Backend public URL (base for WS ticket parsing)
 DATABASE_URL=postgresql://...
 DIRECT_URL=postgresql://...
 CLERK_SECRET_KEY=sk_test_...                      # Clerk backend secret key
@@ -296,6 +296,7 @@ SUPABASE_S3_BUCKET_NAME=...
 - **Backend**: Render at `https://convoflow-2.onrender.com`
 - **Vercel rewrites**: `/api/:path*` → Render backend (forwards path correctly)
 - **CORS_ORIGIN** on Render: `https://convo-flow-4eu6.vercel.app`
+- **RENDER_API_URL** on Render: `https://convoflow-2.onrender.com`
 - **VITE_WS_URL** on Vercel: `wss://convoflow-2.onrender.com/ws`
 
 ---
