@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
@@ -32,7 +33,8 @@ export function authenticateConnection(url: string): string | null { // this con
     if (!ticket) return null;
     const userId = consumeTicket(ticket);
     return userId;
-  } catch {
+  } catch (error) {
+    console.error(error);
     return null
   }
 }

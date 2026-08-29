@@ -50,7 +50,7 @@ VITE_WS_URL=wss://your-backend-domain.com/ws      # WebSocket server URL
 NODE_ENV=development
 PORT=3000
 CORS_ORIGIN=http://localhost:5173
-RENDER_API_URL=http://localhost:3000      # Backend public URL (base for WS ticket parsing)
+RENDER_API_URL=http://localhost:3000      # Backend public URL (base for WS ticket parsing); must be set as an env var or in .env for backend tests too
 
 # Database
 DATABASE_URL="postgresql://user:password@localhost:5432/convoflow?schema=public"
@@ -211,7 +211,8 @@ Frontend runs on `http://localhost:5173`, backend on `http://localhost:3000`. Th
 - **WebSocket**: Same Render server, path `/ws`
 - **Vercel rewrites**: `/api/:path*` → Render backend (forwards path correctly)
 - **CORS_ORIGIN** on Render: `https://convo-flow-4eu6.vercel.app`
-- **RENDER_API_URL** on Render: `https://convoflow-2.onrender.com`
+- **RENDER_API_URL** on Render: `https://convoflow-2.onrender.com` — server identity; with `NODE_ENV=production`, boot fails with `CRITICAL` if this ever resolves to localhost/loopback, and the startup log prints this URL
+- **CLERK_PROXY_URL** on Render: unset (or `/__clerk`) — keep it pointing at the Render origin, never localhost
 - **VITE_WS_URL** on Vercel: `wss://convoflow-2.onrender.com/ws`
 
 ### Production Build
@@ -226,7 +227,7 @@ npm start        # build + start backend serving dist/
 ```env
 NODE_ENV=production
 CORS_ORIGIN=https://yourdomain.com          # MUST be a real URL, no wildcards
-RENDER_API_URL=https://convoflow-2.onrender.com   # Backend public URL (base for WS ticket parsing)
+RENDER_API_URL=https://convoflow-2.onrender.com   # Backend public URL (base for WS ticket parsing); required at startup and by backend tests
 DATABASE_URL=postgresql://...
 DIRECT_URL=postgresql://...
 SUPABASE_JWT_SECRET=...
