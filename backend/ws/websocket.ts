@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import dotenv from 'dotenv'
 import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
@@ -7,7 +7,7 @@ import { prisma } from '../src/lib/connectionPoolClient.js';
 import { insertStandardChatMessage, requireChatMembership } from '../src/services/chatMessageService.js';
 import { signSenderImage } from '../src/chat/chatImageHelpers.js';
 import type { MessageSendPayload, WsClientMessage } from './wsTypes.js';
-
+dotenv.config();
 const backendBaseUrl = process.env.RENDER_API_URL;
 if (!backendBaseUrl) {
   throw new Error('CRITICAL: RENDER_API_URL must be set');
