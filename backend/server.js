@@ -19,6 +19,41 @@ function normalizeEnvVar(value) {
   return value.replace(/^['"]|['"]$/g, '');
 }
 
+// ---------------------------------------------------------------------------
+// Environment config — each required URL is read from env ONCE and validated.
+// In production we also require public (non-loopback) URLs, so the server can
+// never silently run against localhost instead of the Render URL.
+// ---------------------------------------------------------------------------
+const isProduction = process.env.NODE_ENV === 'production';
+
+function requiredUrlFromEnv(name, mustBePublic = false) {
+  const rawValue = process.env[name];
+  if (!rawValue) throw new Error(`CRITICAL: ${name} must be set`);
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(rawValue);
+  } catch {
+    throw new Error(`CRITICAL: ${name} must be a valid absolute URL`);
+  }
+
+  if (mustBePublic && isLoopbackHostname(parsedUrl.hostname)) { // so if the url has to be a prod url and we dont have a prod url, then we throw an error
+    throw new Error(`CRITICAL: ${name} must be a public URL, got ${parsedUrl.origin}`);
+  }
+
+  return parsedUrl.origin;
+}
+
+function isLoopbackHostname(hostname) { // if this function returns a true value, then that means that we are returning a loopback (non-public) hostname
+  return (
+    hostname === 'localhost' ||   // the conventional hostname alias for this machine
+    hostname === '::1' ||         // IPv6 loopback (the IPv6 equivalent of 127.0.0.1)
+    hostname === '[::1]' ||       // IPv6 loopback as it appears when URL.hostname includes brackets
+    hostname === '0.0.0.0' ||     // "all interfaces" wildcard — usually means bound locally, not a real public host
+    hostname.startsWith('127.')   // the whole 127.0.0.0/8 loopback range (127.0.0.1, 127.0.0.2, …)
+  );
+}
+
 const supabaseStorageOrigin = (() => {
   const raw = normalizeEnvVar(process.env.SUPA_BASE_URL);
   if (!raw) return null;
@@ -117,26 +152,15 @@ const PORT = process.env.PORT || 3000;
 // Trust proxy so req.ip reflects client IPs when behind a reverse proxy/load balancer
 app.set('trust proxy', true);
 
-// Validate and determine CORS origin. In production, CORS_ORIGIN must be a valid non-wildcard URL.
-const corsOrigin = (() => {
-  if (process.env.NODE_ENV === 'production') {
-    const v = process.env.CORS_ORIGIN;
-    if (!v) throw new Error('CRITICAL: CORS_ORIGIN must be set in production');
-    try {
-      const parsed = new URL(v);
-      if (parsed.hostname === '*' || v.trim() === '*') throw new Error('CORS_ORIGIN wildcard is not allowed in production');
-      return v;
-    } catch (err) {
-      throw new Error('CRITICAL: CORS_ORIGIN must be a valid absolute URL in production');
-    }
-  }
-  return 'http://localhost:5173';
-})();
+const corsOrigin = requiredUrlFromEnv('CORS_ORIGIN');
 
 app.use(cors({
   origin: corsOrigin,
   credentials: true,
 }));
+
+const wsTicketBaseUrl = requiredUrlFromEnv('RENDER_API_URL', isProduction);
+
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
@@ -199,7 +223,7 @@ async function makeWsServer() {
   const server = http.createServer(app);
   createWebSocketServer(server);
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on ${wsTicketBaseUrl}`);
     console.log(`[server] CORS origin: ${corsOrigin}`);
     console.log(`[server] Environment: ${process.env.NODE_ENV || 'development'}`);
   });

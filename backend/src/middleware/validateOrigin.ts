@@ -2,7 +2,16 @@ import type { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 
 dotenv.config();
-const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
+const rawAllowedOrigin = process.env.CORS_ORIGIN;
+if (!rawAllowedOrigin) {
+  throw new Error('CRITICAL: CORS_ORIGIN must be set');
+}
+
+const ALLOWED_ORIGIN: string | URL = rawAllowedOrigin;
+
+function resolveOrigin(value: string | URL): URL {
+  return value instanceof URL ? value : new URL(value);
+}
 
 export function validateOrigin(req: Request, res: Response, next: NextFunction) {
   if (['GET', 'OPTIONS', 'HEAD'].includes(req.method)) return next();
@@ -12,7 +21,7 @@ export function validateOrigin(req: Request, res: Response, next: NextFunction) 
     const origin = req.headers.origin;
 
     if (forwardedHost) {
-      const allowedHost = new URL(ALLOWED_ORIGIN).host;
+      const allowedHost = resolveOrigin(ALLOWED_ORIGIN).host;
       const firstHost = Array.isArray(forwardedHost)
         ? forwardedHost[0]
         : forwardedHost.split(',')[0].trim();
@@ -21,7 +30,7 @@ export function validateOrigin(req: Request, res: Response, next: NextFunction) 
 
     if (origin) {
       try {
-        if (new URL(origin.toString()).origin === ALLOWED_ORIGIN) return next();
+        if (new URL(origin.toString()).origin === resolveOrigin(ALLOWED_ORIGIN).origin) return next();
       } catch {
         /* invalid origin format — fall through to block */
       }
@@ -40,7 +49,7 @@ export function validateOrigin(req: Request, res: Response, next: NextFunction) 
     return res.status(403).json({ error: 'Invalid Origin format' });
   }
 
-  if (originStr !== ALLOWED_ORIGIN) {
+  if (originStr !== resolveOrigin(ALLOWED_ORIGIN).origin) {
     return res.status(403).json({ error: 'Invalid Origin' });
   }
 
