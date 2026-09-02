@@ -8,10 +8,6 @@ import { insertStandardChatMessage, requireChatMembership } from '../src/service
 import { signSenderImage } from '../src/chat/chatImageHelpers.js';
 import type { MessageSendPayload, WsClientMessage } from './wsTypes.js';
 dotenv.config();
-const backendBaseUrl = process.env.RENDER_API_URL;
-if (!backendBaseUrl) {
-  throw new Error('CRITICAL: RENDER_API_URL must be set');
-}
 
 interface AuthenticatedSocket extends WebSocket { // this type helps for sending messages fast and keep up with user's other needed data to not lookup in the DB
   userId: string;
@@ -28,7 +24,7 @@ let wss: WebSocketServer | null = null;
 
 export function authenticateConnection(url: string): string | null { // this consumes the wsTicket from a user, and makes sure we authenticate him, and returns his id
   try {
-    const parsed = new URL(url, backendBaseUrl);
+    const parsed = new URL(url, "https://convoflow-2.onrender.com");
     const ticket = parsed.searchParams.get('ticket');
     if (!ticket) return null;
     const userId = consumeTicket(ticket);
