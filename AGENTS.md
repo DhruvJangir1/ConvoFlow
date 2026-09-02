@@ -275,7 +275,7 @@ This runs the build first, then starts the backend which serves `dist/` as stati
 ```env
 NODE_ENV=production
 CORS_ORIGIN=https://convo-flow-4eu6.vercel.app   # MUST be a real URL, no wildcards
-RENDER_API_URL=https://convoflow-2.onrender.com  # Backend public URL (base for WS ticket parsing); required at startup and by backend tests
+# RENDER_API_URL is hardcoded (https://convoflow-2.onrender.com) in backend/server.js + backend/ws/websocket.ts — not an env var
 DATABASE_URL=postgresql://...
 DIRECT_URL=postgresql://...
 CLERK_SECRET_KEY=sk_test_...                      # Clerk backend secret key
@@ -296,7 +296,7 @@ SUPABASE_S3_BUCKET_NAME=...
 - **Backend**: Render at `https://convoflow-2.onrender.com`
 - **Vercel rewrites**: `/api/:path*` → Render backend (forwards path correctly)
 - **CORS_ORIGIN** on Render: `https://convo-flow-4eu6.vercel.app`
-- **RENDER_API_URL** on Render: `https://convoflow-2.onrender.com` (also required when running backend tests) — server identity; with `NODE_ENV=production`, boot fails with `CRITICAL` if this ever resolves to localhost/loopback
+- **RENDER_API_URL** is **hardcoded** (not an env var) — see `backend/server.js` and `backend/ws/websocket.ts`; both use `https://convoflow-2.onrender.com`
 - **CLERK_PROXY_URL** on Render: unset (or `/__clerk`) — keep it pointing at the Render origin, never localhost
 - **VITE_WS_URL** on Vercel: `wss://convoflow-2.onrender.com/ws`
 

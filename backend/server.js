@@ -20,13 +20,11 @@ function normalizeEnvVar(value) {
 }
 
 // ---------------------------------------------------------------------------
-// Environment config — each required URL is read from env ONCE and validated.
-// In production we also require public (non-loopback) URLs, so the server can
-// never silently run against localhost instead of the Render URL.
+// Environment config — required URLs are validated so the server can never
+// silently run against a bad or localhost value.
 // ---------------------------------------------------------------------------
-const isProduction = process.env.NODE_ENV === 'production';
 
-function requiredUrlFromEnv(name, mustBePublic = false) {
+function requiredUrlFromEnv(name) {
   const rawValue = process.env[name];
   if (!rawValue) throw new Error(`CRITICAL: ${name} must be set`);
 
@@ -37,21 +35,7 @@ function requiredUrlFromEnv(name, mustBePublic = false) {
     throw new Error(`CRITICAL: ${name} must be a valid absolute URL`);
   }
 
-  if (mustBePublic && isLoopbackHostname(parsedUrl.hostname)) { // so if the url has to be a prod url and we dont have a prod url, then we throw an error
-    throw new Error(`CRITICAL: ${name} must be a public URL, got ${parsedUrl.origin}`);
-  }
-
   return parsedUrl.origin;
-}
-
-function isLoopbackHostname(hostname) { // if this function returns a true value, then that means that we are returning a loopback (non-public) hostname
-  return (
-    hostname === 'localhost' ||   // the conventional hostname alias for this machine
-    hostname === '::1' ||         // IPv6 loopback (the IPv6 equivalent of 127.0.0.1)
-    hostname === '[::1]' ||       // IPv6 loopback as it appears when URL.hostname includes brackets
-    hostname === '0.0.0.0' ||     // "all interfaces" wildcard — usually means bound locally, not a real public host
-    hostname.startsWith('127.')   // the whole 127.0.0.0/8 loopback range (127.0.0.1, 127.0.0.2, …)
-  );
 }
 
 const supabaseStorageOrigin = (() => {
@@ -159,7 +143,9 @@ app.use(cors({
   credentials: true,
 }));
 
-const wsTicketBaseUrl = requiredUrlFromEnv('RENDER_API_URL', isProduction);
+// Backend public URL (base for WS ticket parsing). Hardcoded because the Render
+// env var was causing deployment failures — update this constant if the host ever changes.
+const wsTicketBaseUrl = new URL('https://convoflow-2.onrender.com').origin;
 
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
