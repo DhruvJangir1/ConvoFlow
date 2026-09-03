@@ -15,7 +15,32 @@ import ProtectedRoute from "./components/ProtectedRoute";
 function SignInPage() {
   return (
     <div className="flex h-dvh items-center justify-center bg-surface-base">
-      <SignIn routing="path" path="/auth" forceRedirectUrl="/home" signUpUrl="/auth" appearance={{ theme: dark }} />
+      <SignIn
+        routing="path"
+        path="/auth"
+        forceRedirectUrl="/home"
+        signUpUrl="/auth"
+        appearance={{
+          theme: dark,
+          variables: {
+            colorPrimary: "#FFFFFF",
+            colorPrimaryForeground: "#000000",
+            colorDanger: "#EF4444",
+            colorSuccess: "#22C543",
+            colorWarning: "#F36B16",
+            colorNeutral: "#FFFFFF",
+            colorForeground: "#FFFFFF",
+            colorBackground: "#000000",
+            colorInput: "#26262B",
+            colorInputForeground: "#FFFFFF",
+            colorRing: "color-mix(in srgb, #ffffff 15%, transparent)",
+            colorShimmer: "#FFFFFF",
+            colorModalBackdrop: "#000000",
+            borderRadius: "0.375rem",
+            spacing: "1rem",
+          },
+        }}
+      />
     </div>
   );
 }
