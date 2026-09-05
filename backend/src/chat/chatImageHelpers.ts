@@ -6,8 +6,9 @@ export async function signSenderImage(
   if (!image_url) return null;
   try {
     return await resolveImageUrl(image_url);
-  } catch {
+  } catch(error) {
     console.error('[chatImageHelpers] Failed to sign sender image:', image_url);
+    console.error('[chatImageHelpers] Error details:', error);
     return null;
   }
 }
