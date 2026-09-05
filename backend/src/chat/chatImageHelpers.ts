@@ -12,8 +12,10 @@ export async function signSenderImage(
     const result = await resolveImageUrl(image_url);
     console.log(`[chatImageHelpers:signSenderImage] total: ${Math.round(performance.now() - start)}ms`);
     return result;
-  } catch {
+  } catch (err) {
+    console.log(`[chatImageHelpers:signSenderImage] total: ${Math.round(performance.now() - start)}ms (FAILED)`);
     console.error('[chatImageHelpers] Failed to sign sender image:', image_url);
+    console.error(err);
     return null;
   }
 }
