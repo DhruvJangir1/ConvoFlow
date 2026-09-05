@@ -107,14 +107,6 @@ export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chat
   const { id, createdAt } = await insertStandardChatMessage(newMessageId, chatId, ws.userId, content.trim());
   steps.push({ name: 'insertMessage', ms: Math.round(performance.now() - t0) });
 
-  const updateStart = performance.now();
-  prisma.standardChats.update({
-    where: { id: chatId },
-    data: { updated_at: new Date() },
-  }).then(() => {
-    steps.push({ name: 'updateChatTimestamp', ms: Math.round(performance.now() - updateStart) });
-  });
-
   sendToSocket(ws, { type: 'message:ack', payload: { id, tempId, createdAt: createdAt.toISOString() } });
 
   console.log(`[WS:handleSendMessage] Broadcasting message - senderId=${ws.userId} senderImage=${ws.userImage} (type: ${typeof ws.userImage})`);
@@ -142,8 +134,17 @@ export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chat
     },
   });
 
-  const total = Date.now() - receivedAt;
-  console.log(`[WS:handleSendMessage] total=${total}ms chatId=${chatId}`);
+  const updateStart = performance.now();
+  await prisma.standardChats.update({
+    where: { id: chatId },
+    data: { updated_at: new Date() },
+  });
+  steps.push({ name: 'updateChatTimestamp', ms: Math.round(performance.now() - updateStart) });
+
+  const now = Date.now();
+  const total = now - receivedAt;
+  const clientTotal = (typeof sentAt === 'number' && Number.isFinite(sentAt)) ? now - sentAt : null;
+  console.log(`[WS:handleSendMessage] chatId=${chatId} total=${total}ms +${clientTotal ?? '?'}ms`);
   for (const s of steps) {
     console.log(`  [WS:handleSendMessage] ${s.name}: ${s.ms}ms`);
   }
