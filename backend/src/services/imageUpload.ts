@@ -94,23 +94,39 @@ async function resolveBucketName(): Promise<string> {
 const SIGNED_URL_EXPIRES_IN = 3600;
 
 export async function signImageUrl(key: string): Promise<string> {
+  const b0 = performance.now();
   const bucket = await resolveBucketName();
-  return getSignedUrl(
+  console.log(`[imageUpload:signImageUrl] resolveBucketName: ${Math.round(performance.now() - b0)}ms (key=${key ? key.slice(0, 24) : '?'})`);
+
+  const g0 = performance.now();
+  const url = await getSignedUrl(
     s3Client,
     new GetObjectCommand({ Bucket: bucket, Key: key }),
     { expiresIn: SIGNED_URL_EXPIRES_IN },
   );
+  console.log(`[imageUpload:signImageUrl] getSignedUrl: ${Math.round(performance.now() - g0)}ms`);
+  return url;
 }
 
 export async function resolveImageUrl(stored: string | null): Promise<string | null> {
-  if (!stored) return null;
+  const start = performance.now();
+  if (!stored) {
+    console.log('[imageUpload:resolveImageUrl] early-return (no stored): 0ms');
+    return null;
+  }
   if (stored.startsWith('http')) {
     try {
       const key = new URL(stored).pathname.slice(1);
-      if (key) return signImageUrl(key);
+      if (key) {
+        const result = await signImageUrl(key);
+        console.log(`[imageUpload:resolveImageUrl] http-path: ${Math.round(performance.now() - start)}ms`);
+        return result;
+      }
     } catch { /* not a valid URL, treat as key */ }
   }
-  return signImageUrl(stored);
+  const result = await signImageUrl(stored);
+  console.log(`[imageUpload:resolveImageUrl] key-path: ${Math.round(performance.now() - start)}ms`);
+  return result;
 }
 
 export async function uploadImageToStorage(input: ImageUploadInput): Promise<ImageUploadResult> {

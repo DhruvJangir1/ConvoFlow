@@ -95,18 +95,24 @@ export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chat
   if (!chatId || chatId === '') return;
 
   const receivedAt = Date.now();
+  const steps: { name: string; ms: number }[] = [];
 
+  let t0 = performance.now();
   const isMember = await requireChatMembership(ws.userId, chatId);
+  steps.push({ name: 'membershipCheck', ms: Math.round(performance.now() - t0) });
   if (!isMember) return;
 
   const newMessageId = crypto.randomUUID();
-  const dbStart = Date.now();
+  t0 = performance.now();
   const { id, createdAt } = await insertStandardChatMessage(newMessageId, chatId, ws.userId, content.trim());
-  const dbTime = Date.now() - dbStart;
+  steps.push({ name: 'insertMessage', ms: Math.round(performance.now() - t0) });
 
+  const updateStart = performance.now();
   prisma.standardChats.update({
     where: { id: chatId },
     data: { updated_at: new Date() },
+  }).then(() => {
+    steps.push({ name: 'updateChatTimestamp', ms: Math.round(performance.now() - updateStart) });
   });
 
   sendToSocket(ws, { type: 'message:ack', payload: { id, tempId, createdAt: createdAt.toISOString() } });
@@ -114,7 +120,9 @@ export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chat
   console.log(`[WS:handleSendMessage] Broadcasting message - senderId=${ws.userId} senderImage=${ws.userImage} (type: ${typeof ws.userImage})`);
 
   // Sign the image URL before broadcasting (convert raw S3 key to presigned URL)
+  const signStart = performance.now();
   const signedImageUrl = await signSenderImage(ws.userImage);
+  steps.push({ name: 'signSenderImage', ms: Math.round(performance.now() - signStart) });
 
   broadcastToRoom(chatId, {
     type: 'message:new',
@@ -135,7 +143,10 @@ export async function handleSendMessage(ws: AuthenticatedSocket, payload: { chat
   });
 
   const total = Date.now() - receivedAt;
-  console.log(`[WS] handleSendMessage: chatId=${chatId} dbTime=${dbTime}ms total=${total}ms +${sentAt ? Date.now() - sentAt : '?'}ms`);
+  console.log(`[WS:handleSendMessage] total=${total}ms chatId=${chatId}`);
+  for (const s of steps) {
+    console.log(`  [WS:handleSendMessage] ${s.name}: ${s.ms}ms`);
+  }
 }
 
 export function subscribeToRoom(chatId:string,userId:string, ws: AuthenticatedSocket){
