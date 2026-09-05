@@ -3,19 +3,11 @@ import { resolveImageUrl } from '../services/imageUpload.js';
 export async function signSenderImage(
   image_url: string | null
 ): Promise<string | null> {
-  if (!image_url) {
-    console.log('[chatImageHelpers:signSenderImage] no image_url: 0ms');
-    return null;
-  }
-  const start = performance.now();
+  if (!image_url) return null;
   try {
-    const result = await resolveImageUrl(image_url);
-    console.log(`[chatImageHelpers:signSenderImage] total: ${Math.round(performance.now() - start)}ms`);
-    return result;
-  } catch (err) {
-    console.log(`[chatImageHelpers:signSenderImage] total: ${Math.round(performance.now() - start)}ms (FAILED)`);
+    return await resolveImageUrl(image_url);
+  } catch {
     console.error('[chatImageHelpers] Failed to sign sender image:', image_url);
-    console.error(err);
     return null;
   }
 }
