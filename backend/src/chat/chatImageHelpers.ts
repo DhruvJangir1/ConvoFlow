@@ -3,9 +3,15 @@ import { resolveImageUrl } from '../services/imageUpload.js';
 export async function signSenderImage(
   image_url: string | null
 ): Promise<string | null> {
-  if (!image_url) return null;
+  if (!image_url) {
+    console.log('[chatImageHelpers:signSenderImage] no image_url: 0ms');
+    return null;
+  }
+  const start = performance.now();
   try {
-    return await resolveImageUrl(image_url);
+    const result = await resolveImageUrl(image_url);
+    console.log(`[chatImageHelpers:signSenderImage] total: ${Math.round(performance.now() - start)}ms`);
+    return result;
   } catch {
     console.error('[chatImageHelpers] Failed to sign sender image:', image_url);
     return null;
