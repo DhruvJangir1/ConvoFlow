@@ -157,7 +157,7 @@ Frontend runs on `http://localhost:5173`, backend on `http://localhost:3000`. Th
 | GET | `/api/chats/:chatId/messages` | Paginated messages (20 at a time, `?before=` cursor) |
 | POST | `/api/chats/:chatId/image` | Upload image to chat (multipart, 5MB limit) |
 | POST | `/api/chats/:chatId/:userId/appendMessage` | Send message (REST fallback) |
-| PATCH | `/api/chats/:chatId/messages/:messageId/:userId` | Edit message |
+| PATCH | `/api/chats/:chatId/messages/:messageId/:userId` | Edit message (broadcasts `message:edit`) |
 | DELETE | `/api/chats/:chatId/messages/:messageId/:userId` | Delete message (broadcasts `message:delete`) |
 
 ### Anonymous Chats
@@ -169,7 +169,7 @@ Frontend runs on `http://localhost:5173`, backend on `http://localhost:3000`. Th
 | POST | `/api/anonymousChats/:id/join` | Join a room |
 | GET | `/api/anonymousChats/:id/messages` | Paginated messages (`?before=` cursor) |
 | POST | `/api/anonymousChats/:id/messages/:userId/:isAnonymous` | Send message (anonymous or identified) |
-| PATCH | `/api/anonymousChats/:id/messages/:messageId` | Edit message |
+| PATCH | `/api/anonymousChats/:id/messages/:messageId` | Edit message (broadcasts `message:edit`) |
 | DELETE | `/api/anonymousChats/:id/messages/:messageId` | Delete message (broadcasts `message:delete`) |
 
 ### Friends

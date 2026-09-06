@@ -52,6 +52,7 @@ interface MockState {
     anonymousChats: { findMany: ReturnType<typeof vi.fn> };
     $queryRaw: ReturnType<typeof vi.fn>;
     standardChats: { update: ReturnType<typeof vi.fn> };
+    standardChatMessages: { update: ReturnType<typeof vi.fn> };
   };
   mockWsInstances: MockWsInstance[];
 }
@@ -87,9 +88,10 @@ function getMockState(): MockState {
         users: { findUnique: vi.fn() },
         standardChatMembers: { findUnique: vi.fn(), findMany: vi.fn() },
         anonymousChats: { findMany: vi.fn() },
-        $queryRaw: vi.fn(),
-        standardChats: { update: vi.fn() },
-      },
+$queryRaw: vi.fn(),
+      standardChats: { update: vi.fn() },
+      standardChatMessages: { update: vi.fn() },
+    },
       mockWsInstances: [] as MockWsInstance[],
     };
   }
@@ -222,6 +224,7 @@ beforeEach(() => {
     return [{ id, createdAt: new Date() }];
   });
   ms.prisma.standardChats.update.mockResolvedValue({});
+  ms.prisma.standardChatMessages.update.mockResolvedValue({ id: 'msg-edit', is_edited: true, content: 'edited' });
 
   setupWebSocket(server as never);
 
@@ -537,6 +540,78 @@ describe('Send message via WS', () => {
     const newMsg = ws2Msgs.find((m) => m.type === 'message:new');
     const newMsgPayload = requirePayload(newMsg);
     expect(newMsgPayload.content).toBe('hi');
+  });
+});
+
+// ── Edit Message via WS ───────────────────────────────────────────────────────
+
+describe('Edit message via WS', () => {
+  it('updates the message and broadcasts message:edit to room members', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    const messageId = 'msg-edit-' + Date.now();
+    ms.consumeTicket.mockReturnValue(userId);
+
+    const ws1 = emitConnection('t-edit-1');
+    await sleep();
+    const ws2 = emitConnection('t-edit-2');
+    await sleep();
+
+    ws1.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    ws2.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+
+    ws1.sent = [];
+    ws2.sent = [];
+
+    ws1.emit('message', JSON.stringify({ type: 'message:edit', payload: { chatId, messageId, content: 'updated content' } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.update).toHaveBeenCalledWith({
+      where: { id: messageId },
+      data: { content: 'updated content', is_edited: true },
+    });
+
+    const ws2Msgs = getAllSent(ws2);
+    const editMsg = ws2Msgs.find((m) => m.type === 'message:edit');
+    const editPayload = requirePayload(editMsg);
+    expect(editPayload.chatId).toBe(chatId);
+    expect(editPayload.messageId).toBe(messageId);
+    expect(editPayload.content).toBe('updated content');
+    expect(editPayload.isEdited).toBe(true);
+    expect(editPayload.isAnonymous).toBe(false);
+  });
+
+  it('ignores message:edit when content is empty', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    ms.consumeTicket.mockReturnValue(userId);
+
+    const ws = emitConnection('t-edit-empty');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'message:edit', payload: { chatId, messageId: 'm1', content: '   ' } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.update).not.toHaveBeenCalled();
+  });
+
+  it('ignores message:edit for non-members', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMembers.findUnique.mockResolvedValue(null);
+
+    const ws = emitConnection('t-edit-nonmember');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'message:edit', payload: { chatId, messageId: 'm1', content: 'x' } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.update).not.toHaveBeenCalled();
   });
 });
 

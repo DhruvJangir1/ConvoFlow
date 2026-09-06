@@ -2,7 +2,7 @@
 
 ## Overview
 
-Anonymous Chat rooms allow users to communicate without revealing their identity. Messages can be sent anonymously (default) or with the user's real name attached, toggled per-message via a UI switch. Anonymous chats share the same WebSocket infrastructure as standard chats (same `chatRooms` Map, same `message:new`/`message:delete` broadcasts).
+Anonymous Chat rooms allow users to communicate without revealing their identity. Messages can be sent anonymously (default) or with the user's real name attached, toggled per-message via a UI switch. Anonymous chats share the same WebSocket infrastructure as standard chats (same `chatRooms` Map, same `message:new`/`message:edit`/`message:delete` broadcasts).
 
 ## Database Models
 
@@ -105,6 +105,20 @@ The `updated_at` field on `AnonymousChats` is updated every time a message is se
    ```
 5. All room members remove the message from their UI immediately
 
+### Editing Messages (`PATCH /:id/messages/:messageId`)
+
+1. Verifies the message exists and belongs to the room
+2. Verifies the requesting user is the message sender (`sender_id` check)
+3. Updates `content` and sets `is_edited: true` in the database
+4. **Broadcasts `message:edit`** via WebSocket to the room:
+   ```typescript
+   broadcastToRoom(chatId, {
+     type: 'message:edit',
+     payload: { chatId, messageId, content: content.trim(), senderId: req.user.id, isEdited: true, isAnonymous: existing.isAnonymous ?? false },
+   });
+   ```
+5. All room members map the message to the new content + `isEdited: true` in their cache — edit propagates live with no refresh
+
 ### Fetching Messages (`GET /:id/messages`)
 
 1. Queries `AnonymousChatMessages` ordered by `created_at` desc, limit 20
@@ -179,6 +193,15 @@ broadcastToRoom(chatId, {
 });
 ```
 
+Message editing follows the same broadcast pattern:
+
+```typescript
+broadcastToRoom(chatId, {
+  type: 'message:edit',
+  payload: { chatId, messageId, content, senderId, isEdited: true, isAnonymous: true },
+});
+```
+
 The client-side `onMessage` handler in `AnonymousChat.tsx` uses the `isAnonymous` flag to determine whether to show "Anonymous" or the real sender name.
 
 ## Auto-Subscribe
@@ -188,14 +211,14 @@ Anonymous rooms are subscribed for real-time delivery in two ways:
 1. **On WS connect**: `WebSocketContext.tsx` fetches room IDs from `GET /api/chats/subscribed-ids` (which returns all standard memberships **plus the latest 20 anonymous rooms** regardless of membership) and sends a `subscribe` message for all of them.
 2. **On room open**: `AnonymousChat.tsx` calls `subscribeToChats([roomId])` on mount, so a room opened from a link or search is subscribed to immediately even if it wasn't in the initial batch.
 
-Because the WS subscribe handler validates anonymous rooms by **existence** (`AnonymousChats`) rather than membership, any authenticated user can receive live `message:new`/`message:delete` events for any anonymous room. Standard chat subscriptions still require a membership row in `StandardChatMembers`.
+Because the WS subscribe handler validates anonymous rooms by **existence** (`AnonymousChats`) rather than membership, any authenticated user can receive live `message:new`/`message:edit`/`message:delete` events for any anonymous room. Standard chat subscriptions still require a membership row in `StandardChatMembers`.
 
 ## Key Files
 
 | File | Role |
 |------|------|
-| `backend/src/routes/anonymousChat.ts` | All REST endpoints for anonymous chat CRUD, message deletion broadcasts `message:delete` |
-| `backend/ws/websocket.ts` | Shared WebSocket server — `broadcastToRoom()` sends `message:new` and `message:delete` to all room members; subscribe validates anon rooms by existence |
+| `backend/src/routes/anonymousChat.ts` | All REST endpoints for anonymous chat CRUD, message edit/delete broadcasts `message:edit` / `message:delete` |
+| `backend/ws/websocket.ts` | Shared WebSocket server — `broadcastToRoom()` sends `message:new`, `message:edit`, and `message:delete` to all room members; subscribe validates anon rooms by existence |
 | `backend/src/chat/chat.ts` | `GET /api/chats/subscribed-ids` — returns standard memberships + latest 20 anonymous room ids |
 | `src/pages/AnonymousChats/AnonymousChat.tsx` | Full anonymous chat UI with editing, deleting, `onMessage` handler; lazy-subscribes to the opened room |
 | `src/components/ChatInput.tsx` | Input component with anonymous toggle |

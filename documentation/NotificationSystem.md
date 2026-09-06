@@ -199,11 +199,12 @@ When received (e.g., after a friend request is accepted), the client:
 },
 ```
 
-### Related: `message:new` and `message:delete`
+### Related: `message:new`, `message:edit`, and `message:delete`
 
 While not notification-specific, these WebSocket events also have built-in handlers in `WebSocketContext`:
 
 - **`message:new`**: Updates the messages cache (`chatKeys.messages(chatId)`), updates the standard and anonymous chat list caches (`chatKeys.lists()` and `anonChatKeys.lists()`) with the latest `lastMessage` and `timestamp`, and dispatches `setChats()` to Redux for immediate sidebar reorder.
+- **`message:edit`**: Maps the edited message in the messages cache (`chatKeys.messages(chatId)`) to the new `content` + `isEdited: true` — real-time edit propagation with no refresh.
 - **`message:delete`**: Filters the deleted message from the messages cache (`chatKeys.messages(chatId)`).
 
 ### Custom Handlers via `onMessage`

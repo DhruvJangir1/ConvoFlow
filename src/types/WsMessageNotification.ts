@@ -20,4 +20,5 @@ export type MessageNewPayload = Extract<WSMessage, { type: 'message:new' }>['pay
         'chat:new': Extract<WSMessage, { type: 'chat:new' }>['payload'];
         'message:new': MessageNewPayload;
         'message:delete': Extract<WSMessage, { type: 'message:delete' }>['payload'];
+        'message:edit': Extract<WSMessage, { type: 'message:edit' }>['payload'];
       };

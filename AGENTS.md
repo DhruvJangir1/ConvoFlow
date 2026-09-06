@@ -652,6 +652,19 @@ This also broadcasts `message:new` to the room via `broadcastToRoom()`.
 4. All room members remove the message from their UI immediately
 ```
 
+### Editing Messages
+
+Editing is a **REST source + WS receive** flow. The REST `PATCH` is the source of truth — it persists the edit and broadcasts `message:edit`, so every room member updates their cache in real time (no refresh).
+
+```
+1. Client: PATCH /api/chats/:chatId/messages/:messageId/:userId { content }  (or the anonymous equivalent)
+2. Server: authenticate → membership check → ownership check → prisma.update({ content, is_edited: true })
+3. Server broadcasts: { type: "message:edit", payload: { chatId, messageId, content, senderId, isEdited, isAnonymous } }
+4. All room members map the message in their cache: content + isEdited ← received values (idempotent — the sender's own optimistic edit is simply overwritten with the same value)
+```
+
+There is also a WS-native `message:edit` client message (`backend/ws/websocket.ts` `handleEditMessage`) that mirrors `message:send` — it validates membership, writes the DB update, and broadcasts. The frontend currently uses the REST path (thanks to the broadcast in `chat.ts` / `anonymousChat.ts`), so the WS receive handler is the critical client-side piece.
+
 ### Typing Indicators
 
 ```
@@ -693,6 +706,8 @@ On mount (when `user` becomes available):
 | `message:new` (anonymous) | `addMessageToAnonCache()` | `anonChatKeys.messages()` + `anonChatKeys.lists()` |
 | `message:delete` (standard) | `removeMessageFromChatCache()` | `chatKeys.messages()` |
 | `message:delete` (anonymous) | `removeMessageFromAnonCache()` | `anonChatKeys.messages()` |
+| `message:edit` (standard) | `editMessageInChatCache()` | `chatKeys.messages()` |
+| `message:edit` (anonymous) | `editMessageInAnonCache()` | `anonChatKeys.messages()` |
 | `chat:new` | `addChatFromWs()` | `chatKeys.lists()` + Redux `addChat` |
 | `notification:new` | `addNotificationFromWs()` | `notifKeys.lists()` + Redux `incrementUnreadNotif` |
 | `chat:online-users` | inline `dispatch(setOnlineUsers)` | Redux only |
@@ -879,7 +894,7 @@ notifKeys = {
 };
 ```
 
-The WebSocket handlers in `WebSocketContext.tsx` delegate cache mutations to `wsCacheHandlers.ts` which updates these caches in real-time when `message:new`, `message:delete`, `chat:new`, or `notification:new` events arrive.
+The WebSocket handlers in `WebSocketContext.tsx` delegate cache mutations to `wsCacheHandlers.ts` which updates these caches in real-time when `message:new`, `message:edit`, `message:delete`, `chat:new`, or `notification:new` events arrive.
 
 ---
 
@@ -961,8 +976,8 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 | POST | `/api/chats/:chatId/image` | `authenticate` + multer | Upload image to chat |
 | GET | `/api/chats/:chatId/messages` | `authenticate` | Paginated messages (20/page) |
 | POST | `/api/chats/:chatId/:userId/appendMessage` | `authenticate` | Send text message (REST) |
-| PATCH | `/api/chats/:chatId/messages/:messageId/:userId` | `authenticate` | Edit message |
-| DELETE | `/api/chats/:chatId/messages/:messageId/:userId` | `authenticate` | Delete message |
+| PATCH | `/api/chats/:chatId/messages/:messageId/:userId` | `authenticate` | Edit message (broadcasts `message:edit`) |
+| DELETE | `/api/chats/:chatId/messages/:messageId/:userId` | `authenticate` | Delete message (broadcasts `message:delete`) |
 
 ### Anonymous Chat Routes (`/api/anonymousChats`)
 
@@ -973,8 +988,8 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 | POST | `/api/anonymousChats/:id/join` | `authenticate` | Join room |
 | GET | `/api/anonymousChats/:id/messages` | `authenticate` | Paginated messages (`?before=` cursor) |
 | POST | `/api/anonymousChats/:id/messages/:userId/:isAnonymous` | `authenticate` | Send message (uses `req.user.id`, not URL param) |
-| PATCH | `/api/anonymousChats/:id/messages/:messageId` | `authenticate` | Edit message |
-| DELETE | `/api/anonymousChats/:id/messages/:messageId` | `authenticate` | Delete message |
+| PATCH | `/api/anonymousChats/:id/messages/:messageId` | `authenticate` | Edit message (broadcasts `message:edit`) |
+| DELETE | `/api/anonymousChats/:id/messages/:messageId` | `authenticate` | Delete message (broadcasts `message:delete`) |
 
 ### User Routes (`/api/users`)
 

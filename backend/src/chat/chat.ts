@@ -479,7 +479,7 @@ ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (re
   const chatId = req.params.chatId as string;
   const messageId = req.params.messageId as string;
   const userId = req.user.id;
-  const { content } = req.body as { content?: string };
+  const { content } = req.body as { content: string };
 
   console.log(`[chat:PATCH /:chatId/messages/:messageId] user ${userId} updating message ${messageId} in chat ${chatId}`);
 
@@ -525,6 +525,18 @@ ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (re
     });
 
     console.log(`[chat:PATCH /:chatId/messages/:messageId] message ${messageId} updated successfully`);
+
+    broadcastToRoom(chatId, {
+      type: 'message:edit',
+      payload: {
+        chatId,
+        messageId,
+        content: content.trim(),
+        senderId: userId,
+        isEdited: true,
+        isAnonymous: false,
+      },
+    });
 
     await prisma.standardChats.update({
       where: { id: chatId },

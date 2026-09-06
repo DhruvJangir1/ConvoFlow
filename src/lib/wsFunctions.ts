@@ -55,6 +55,9 @@ function handleMessage(msg: WSMessage, handlers: WsHandlers) {
     case 'message:delete':
       handlers['message:delete'](msg.payload);
       break;
+    case 'message:edit':
+      handlers['message:edit'](msg.payload);
+      break;
   }
 }
 

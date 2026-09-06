@@ -8,6 +8,8 @@ import {
   addMessageToAnonCache,
   addMessageToChatCache,
   addNotificationFromWs,
+  editMessageInAnonCache,
+  editMessageInChatCache,
   removeMessageFromAnonCache,
   removeMessageFromChatCache,
 } from '../hooks/wsCacheHandlers';
@@ -49,6 +51,14 @@ export function createWsHandlers(
         removeMessageFromAnonCache(queryClient, payload.chatId, payload.messageId);
       } else {
         removeMessageFromChatCache(queryClient, payload.chatId, payload.messageId);
+      }
+    },
+
+    'message:edit': (payload) => {
+      if (payload.isAnonymous) {
+        editMessageInAnonCache(queryClient, payload.chatId, payload.messageId, payload.content);
+      } else {
+        editMessageInChatCache(queryClient, payload.chatId, payload.messageId, payload.content);
       }
     },
   };

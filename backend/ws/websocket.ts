@@ -6,7 +6,7 @@ import { consumeTicket, startTicketCleanup, stopTicketCleanup } from '../src/ser
 import { prisma } from '../src/lib/connectionPoolClient.js';
 import { insertStandardChatMessage, requireChatMembership } from '../src/services/chatMessageService.js';
 import { signSenderImage } from '../src/chat/chatImageHelpers.js';
-import type { MessageSendPayload, WsClientMessage } from './wsTypes.js';
+import type { MessageEditPayload, MessageSendPayload, WsClientMessage } from './wsTypes.js';
 dotenv.config();
 
 interface AuthenticatedSocket extends WebSocket { // this type helps for sending messages fast and keep up with user's other needed data to not lookup in the DB
@@ -19,7 +19,6 @@ interface AuthenticatedSocket extends WebSocket { // this type helps for sending
 
 const userSockets = new Map<string, AuthenticatedSocket[]>();
 const chatRooms = new Map<string, Set<AuthenticatedSocket>>();
-
 let wss: WebSocketServer | null = null;
 
 export function authenticateConnection(url: string): string | null { // this consumes the wsTicket from a user, and makes sure we authenticate him, and returns his id
@@ -39,6 +38,37 @@ function sendToSocket(ws: WebSocket, data: Record<string, unknown>): void {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(data));
   }
+}
+
+export async function handleEditMessage(
+  ws: AuthenticatedSocket,
+  payload: { chatId: string; messageId: string; content: string },
+): Promise<void> {
+  if (!ws.userId) return;
+  const { chatId, messageId, content } = payload;
+
+  if (!content || typeof content !== 'string' || !content.trim()) return;
+  if (!chatId || chatId === '') return;
+  if (!messageId || messageId === '') return;
+
+  if (!(await requireChatMembership(ws.userId, chatId))) return;
+
+  await prisma.standardChatMessages.update({
+    where: { id: messageId },
+    data: { content: content.trim(), is_edited: true },
+  });
+
+  broadcastToRoom(chatId, {
+    type: 'message:edit',
+    payload: {
+      chatId,
+      messageId,
+      content: content.trim(),
+      senderId: ws.userId,
+      isEdited: true,
+      isAnonymous: false,
+    },
+  });
 }
 
 export function broadcastToRoom(chatId: string, data: Record<string, unknown>): void {
@@ -281,6 +311,11 @@ export function createWebSocketServer(server: Server): void { // the server is t
           case 'message:send': {
             const msgPayload = msg.payload as MessageSendPayload;
             await handleSendMessage(ws, msgPayload);
+            break;
+          }
+          case 'message:edit': {
+            const msgPayload = msg.payload as MessageEditPayload;
+            await handleEditMessage(ws, msgPayload);
             break;
           }
         }
