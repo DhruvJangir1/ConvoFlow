@@ -6,7 +6,7 @@ import { consumeTicket, startTicketCleanup, stopTicketCleanup } from '../src/ser
 import { prisma } from '../src/lib/connectionPoolClient.js';
 import { insertStandardChatMessage, requireChatMembership } from '../src/services/chatMessageService.js';
 import { signSenderImage } from '../src/chat/chatImageHelpers.js';
-import type { MessageEditPayload, MessageSendPayload, WsClientMessage } from './wsTypes.js';
+import type { MessageDeletePayload, MessageEditPayload, MessageSendPayload, WsClientMessage } from './wsTypes.js';
 dotenv.config();
 
 interface AuthenticatedSocket extends WebSocket { // this type helps for sending messages fast and keep up with user's other needed data to not lookup in the DB
@@ -66,6 +66,33 @@ export async function handleEditMessage(
       content: content.trim(),
       senderId: ws.userId,
       isEdited: true,
+      isAnonymous: false,
+    },
+  });
+}
+
+export async function handleDeleteMessage(
+  ws: AuthenticatedSocket,
+  payload: { chatId: string; messageId: string },
+): Promise<void> {
+  if (!ws.userId) return;
+  const { chatId, messageId } = payload;
+
+  if (!chatId || chatId === '') return;
+  if (!messageId || messageId === '') return;
+
+  if (!(await requireChatMembership(ws.userId, chatId))) return;
+
+  await prisma.standardChatMessages.delete({
+    where: { id: messageId },
+  });
+
+  broadcastToRoom(chatId, {
+    type: 'message:delete',
+    payload: {
+      chatId,
+      messageId,
+      senderId: ws.userId,
       isAnonymous: false,
     },
   });
@@ -316,6 +343,11 @@ export function createWebSocketServer(server: Server): void { // the server is t
           case 'message:edit': {
             const msgPayload = msg.payload as MessageEditPayload;
             await handleEditMessage(ws, msgPayload);
+            break;
+          }
+          case 'message:delete': {
+            const msgPayload = msg.payload as MessageDeletePayload;
+            await handleDeleteMessage(ws, msgPayload);
             break;
           }
         }

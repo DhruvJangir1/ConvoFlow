@@ -52,7 +52,7 @@ interface MockState {
     anonymousChats: { findMany: ReturnType<typeof vi.fn> };
     $queryRaw: ReturnType<typeof vi.fn>;
     standardChats: { update: ReturnType<typeof vi.fn> };
-    standardChatMessages: { update: ReturnType<typeof vi.fn> };
+    standardChatMessages: { update: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
   };
   mockWsInstances: MockWsInstance[];
 }
@@ -90,7 +90,7 @@ function getMockState(): MockState {
         anonymousChats: { findMany: vi.fn() },
 $queryRaw: vi.fn(),
       standardChats: { update: vi.fn() },
-      standardChatMessages: { update: vi.fn() },
+      standardChatMessages: { update: vi.fn(), delete: vi.fn() },
     },
       mockWsInstances: [] as MockWsInstance[],
     };
@@ -225,6 +225,7 @@ beforeEach(() => {
   });
   ms.prisma.standardChats.update.mockResolvedValue({});
   ms.prisma.standardChatMessages.update.mockResolvedValue({ id: 'msg-edit', is_edited: true, content: 'edited' });
+  ms.prisma.standardChatMessages.delete.mockResolvedValue({ id: 'msg-del' });
 
   setupWebSocket(server as never);
 
@@ -612,6 +613,76 @@ describe('Edit message via WS', () => {
     await sleep();
 
     expect(ms.prisma.standardChatMessages.update).not.toHaveBeenCalled();
+  });
+});
+
+// ── Delete Message via WS ─────────────────────────────────────────────────────
+
+describe('Delete message via WS', () => {
+  it('deletes the message and broadcasts message:delete to room members', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    const messageId = 'msg-del-' + Date.now();
+    ms.consumeTicket.mockReturnValue(userId);
+
+    const ws1 = emitConnection('t-del-1');
+    await sleep();
+    const ws2 = emitConnection('t-del-2');
+    await sleep();
+
+    ws1.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    ws2.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+
+    ws1.sent = [];
+    ws2.sent = [];
+
+    ws1.emit('message', JSON.stringify({ type: 'message:delete', payload: { chatId, messageId } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.delete).toHaveBeenCalledWith({
+      where: { id: messageId },
+    });
+
+    const ws2Msgs = getAllSent(ws2);
+    const delMsg = ws2Msgs.find((m) => m.type === 'message:delete');
+    const delPayload = requirePayload(delMsg);
+    expect(delPayload.chatId).toBe(chatId);
+    expect(delPayload.messageId).toBe(messageId);
+    expect(delPayload.senderId).toBe(userId);
+    expect(delPayload.isAnonymous).toBe(false);
+  });
+
+  it('ignores message:delete when messageId is missing', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    ms.consumeTicket.mockReturnValue(userId);
+
+    const ws = emitConnection('t-del-missing');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'message:delete', payload: { chatId, messageId: '' } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.delete).not.toHaveBeenCalled();
+  });
+
+  it('ignores message:delete for non-members', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMembers.findUnique.mockResolvedValue(null);
+
+    const ws = emitConnection('t-del-nonmember');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'message:delete', payload: { chatId, messageId: 'm1' } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.delete).not.toHaveBeenCalled();
   });
 });
 

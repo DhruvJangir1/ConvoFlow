@@ -72,6 +72,20 @@ Editing uses the **REST source + WS receive** pattern (the same source-of-truth 
 
 Idempotency: the sender's own optimistic edit is overwritten with the identical broadcast value, so no visual glitch. There is also a WS-native `message:edit` client message handled by `handleEditMessage` (mirrors `message:send`), but the frontend currently edits through REST so the receive path is the critical piece.
 
+### Deleting messages in real-time
+
+Deletion follows the same **REST source + WS receive** pattern:
+
+```
+1. User A taps delete → DELETE /api/chats/:chatId/messages/:messageId/:userId
+2. Server: membership + ownership check → prisma.standardChatMessages.delete()
+3. Server broadcasts: { type: "message:delete", payload: { chatId, messageId, senderId, isAnonymous } }
+4. Every room member's WebSocketContext routes to removeMessageFromChatCache / removeMessageFromAnonCache
+5. The cache filters out the message — UI updates without a refresh
+```
+
+The standard-chat DELETE route in `chat.ts` and the anonymous DELETE route in `anonymousChat.ts` both broadcast. There is also a WS-native `message:delete` client message handled by `handleDeleteMessage` (mirrors `message:edit`), but the frontend currently deletes through REST so the receive path is the critical piece. Removal is idempotent — the sender's own optimistic local removal and the WS cache filter agree, so no glitch.
+
 ### Room subscription
 
 - On connect, `WebSocketContext.tsx` fetches all chat IDs from `GET /api/chats/subscribed-ids` (standard memberships **+ latest 20 anonymous rooms**) and sends a single `subscribe` message for all of them
@@ -110,6 +124,7 @@ All messages are JSON. The `type` field determines the action.
 | `unsubscribe` | `{ chatIds: string[] }` | Unsubscribe from one or more chat rooms |
 | `message:send` | `{ chatId: string, content: string }` | Send a message to a chat |
 | `message:edit` | `{ chatId: string, messageId: string, content: string }` | Edit an existing message |
+| `message:delete` | `{ chatId: string, messageId: string }` | Delete an existing message |
 | `typing:start` | `{ chatId: string }` | Start typing indicator |
 | `typing:stop` | `{ chatId: string }` | Stop typing indicator |
 
@@ -167,6 +182,7 @@ All messages are JSON. The `type` field determines the action.
 | `removeSocketFromAllRooms(ws)` | Removes a socket from all rooms (used on disconnect) |
 | `handleSendMessage(ws, payload)` | Handles `message:send` — writes to DB, broadcasts, sends ACK |
 | `handleEditMessage(ws, payload)` | Handles `message:edit` — validates membership, writes DB update, broadcasts |
+| `handleDeleteMessage(ws, payload)` | Handles `message:delete` — validates membership, deletes DB row, broadcasts |
 
 ---
 

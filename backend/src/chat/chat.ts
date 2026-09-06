@@ -597,6 +597,10 @@ ChatRouter.delete('/:chatId/messages/:messageId/:userId', authenticate, async (r
       where: { id: messageId },
     });
 
+    broadcastToRoom(chatId, {
+      type: 'message:delete',
+      payload: { chatId, messageId, senderId: userId, isAnonymous: false },
+    });
 
     console.log(`[chat:DELETE /:chatId/messages/:messageId] message ${messageId} deleted successfully`);
 

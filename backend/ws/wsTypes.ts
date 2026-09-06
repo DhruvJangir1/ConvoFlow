@@ -17,6 +17,11 @@ export type MessageEditPayload = {
   content: string;
 }
 
+export type MessageDeletePayload = {
+  chatId: string;
+  messageId: string;
+}
+
 export type TypingPayload = {
   chatId: string;
 }
@@ -26,6 +31,7 @@ export type WsClientMessage =
   | { type: 'unsubscribe'; payload: SubscribePayload }
   | { type: 'message:send'; payload: MessageSendPayload }
   | { type: 'message:edit'; payload: MessageEditPayload }
+  | { type: 'message:delete'; payload: MessageDeletePayload }
   | { type: 'typing:start'; payload: TypingPayload }
   | { type: 'typing:stop'; payload: TypingPayload };
 
