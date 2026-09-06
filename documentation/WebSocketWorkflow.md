@@ -58,6 +58,20 @@
 - Other users see the message instantly from the WS broadcast
 - Cache dedup: `addMessageToChatCache` checks `old.messages.some(m => m.id === entry.id)` before adding
 
+### Editing messages in real-time
+
+Editing uses the **REST source + WS receive** pattern (the same source-of-truth model the frontend already relies on for optimistic updates):
+
+```
+1. User A taps edit → PATCH /api/chats/:chatId/messages/:messageId/:userId { content }
+2. Server: membership + ownership check → prisma.standardChatMessages.update({ content, is_edited: true })
+3. Server broadcasts: { type: "message:edit", payload: { chatId, messageId, content, senderId, isEdited, isAnonymous } }
+4. Every room member's WebSocketContext routes to editMessageInChatCache / editMessageInAnonCache
+5. The cache maps the message to { content, isEdited: true } — UI updates without a refresh
+```
+
+Idempotency: the sender's own optimistic edit is overwritten with the identical broadcast value, so no visual glitch. There is also a WS-native `message:edit` client message handled by `handleEditMessage` (mirrors `message:send`), but the frontend currently edits through REST so the receive path is the critical piece.
+
 ### Room subscription
 
 - On connect, `WebSocketContext.tsx` fetches all chat IDs from `GET /api/chats/subscribed-ids` (standard memberships **+ latest 20 anonymous rooms**) and sends a single `subscribe` message for all of them
@@ -95,6 +109,7 @@ All messages are JSON. The `type` field determines the action.
 | `subscribe` | `{ chatIds: string[] }` | Subscribe to one or more chat rooms |
 | `unsubscribe` | `{ chatIds: string[] }` | Unsubscribe from one or more chat rooms |
 | `message:send` | `{ chatId: string, content: string }` | Send a message to a chat |
+| `message:edit` | `{ chatId: string, messageId: string, content: string }` | Edit an existing message |
 | `typing:start` | `{ chatId: string }` | Start typing indicator |
 | `typing:stop` | `{ chatId: string }` | Stop typing indicator |
 
@@ -105,6 +120,7 @@ All messages are JSON. The `type` field determines the action.
 | `message:new` | `{ id, chatId, senderId, senderName, senderImage, content, createdAt, isAnonymous, messageType }` | New message broadcast to all room members |
 | `message:ack` | `{ id, tempId? }` | Acknowledgement sent to message sender with real DB ID |
 | `message:delete` | `{ chatId, messageId, senderId, isAnonymous }` | Message deleted broadcast |
+| `message:edit` | `{ chatId, messageId, content, senderId, isEdited, isAnonymous }` | Message edited broadcast |
 | `chat:online-users` | `{ chatId, userIds }` | List of online users in a chat |
 | `user:online` | `{ chatId, userId }` | User came online in a chat |
 | `user:offline` | `{ chatId, userId }` | User went offline in a chat |
@@ -150,6 +166,7 @@ All messages are JSON. The `type` field determines the action.
 | `unsubscribeFromRoom(chatId, userId)` | Removes a user's socket from a room's Set |
 | `removeSocketFromAllRooms(ws)` | Removes a socket from all rooms (used on disconnect) |
 | `handleSendMessage(ws, payload)` | Handles `message:send` — writes to DB, broadcasts, sends ACK |
+| `handleEditMessage(ws, payload)` | Handles `message:edit` — validates membership, writes DB update, broadcasts |
 
 ---
 

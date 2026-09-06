@@ -284,6 +284,18 @@ AnonymousChatRouter.patch('/:id/messages/:messageId', authenticate, async (req: 
       },
     });
 
+    broadcastToRoom(chatId, {
+      type: 'message:edit',
+      payload: {
+        chatId,
+        messageId,
+        content: content.trim(),
+        senderId: req.user.id,
+        isEdited: true,
+        isAnonymous: existing.isAnonymous ?? false,
+      },
+    });
+
     res.json({ message: updated });
   } catch (error) {
     console.error('[anonymousChat:PATCH /:id/messages/:messageId] error:', error);

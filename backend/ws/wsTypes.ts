@@ -11,6 +11,12 @@ export type MessageSendPayload = {
   tempId: string;
 }
 
+export type MessageEditPayload = {
+  chatId: string;
+  messageId: string;
+  content: string;
+}
+
 export type TypingPayload = {
   chatId: string;
 }
@@ -19,6 +25,7 @@ export type WsClientMessage =
   | { type: 'subscribe'; payload: SubscribePayload }
   | { type: 'unsubscribe'; payload: SubscribePayload }
   | { type: 'message:send'; payload: MessageSendPayload }
+  | { type: 'message:edit'; payload: MessageEditPayload }
   | { type: 'typing:start'; payload: TypingPayload }
   | { type: 'typing:stop'; payload: TypingPayload };
 
@@ -26,6 +33,7 @@ export type WsClientMessage =
   | { type: 'message:new'; payload: { id: string; chatId: string; senderId: string; senderName: string; senderImage: string | null; content: string; createdAt: string; messageType: string; isAnonymous: boolean; chatType: string,isEdited:boolean } }
   | { type: 'message:ack'; payload: { id: string; tempId: string; createdAt: string } }
   | { type: 'message:delete'; payload: { chatId: string; messageId: string; senderId: string; isAnonymous: boolean } }
+  | { type: 'message:edit'; payload: { chatId: string; messageId: string; content: string; senderId: string; isEdited: boolean; isAnonymous: boolean } }
   | { type: 'typing:update'; payload: { chatId: string; userId: string; isTyping: boolean } }
   | { type: 'subscribed'; payload: { chatIds: string[] } }
   | { type: 'unsubscribed'; payload: { chatIds: string[] } }

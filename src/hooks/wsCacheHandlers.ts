@@ -95,6 +95,24 @@ export function removeMessageFromChatCache(
   });
 }
 
+/* ───── Standard Chat: message:edit ───── */
+export function editMessageInChatCache(
+  queryClient: QueryClient,
+  chatId: string,
+  messageId: string,
+  content: string,
+): void {
+  queryClient.setQueryData<MessagesResponse>(chatKeys.messages(chatId), (old) => {
+    if (!old) return old;
+    return {
+      ...old,
+      messages: old.messages.map((m) =>
+        m.id === messageId ? { ...m, content, isEdited: true } : m,
+      ),
+    };
+  });
+}
+
 /* ───── Standard Chat: chat:new ───── */
 export function addChatFromWs(
   queryClient: QueryClient,
@@ -171,6 +189,24 @@ export function removeMessageFromAnonCache(
   queryClient.setQueryData<{ messages: AnonymousChatMessages[]; hasMore: boolean }>(anonChatKeys.messages(chatId), (old) => {
     if (!old) return old;
     return { ...old, messages: old.messages.filter((m) => m.id !== messageId) };
+  });
+}
+
+/* ───── Anonymous Chat: message:edit ───── */
+export function editMessageInAnonCache(
+  queryClient: QueryClient,
+  chatId: string,
+  messageId: string,
+  content: string,
+): void {
+  queryClient.setQueryData<{ messages: AnonymousChatMessages[]; hasMore: boolean }>(anonChatKeys.messages(chatId), (old) => {
+    if (!old) return old;
+    return {
+      ...old,
+      messages: old.messages.map((m) =>
+        m.id === messageId ? { ...m, content, isEdited: true } : m,
+      ),
+    };
   });
 }
 
