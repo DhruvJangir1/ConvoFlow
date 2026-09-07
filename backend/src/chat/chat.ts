@@ -6,7 +6,7 @@ import { prisma } from '../lib/connectionPoolClient.js';
 import { findDmChat, createDmChat } from '../services/dmChat.js';
 import { uploadImageToStorage, signImageUrl } from '../services/imageUpload.js';
 import { signChatAvatar, signMemberImages, signSenderImage } from './chatImageHelpers.js';
-import { broadcastToRoom } from '../../ws/websocket.js';
+import { broadcastToRoom, isMessageAlreadyDeleted } from '../../ws/websocket.js';
 import { requireChatMembership } from '../services/chatMessageService.js';
 
 type ChatUploadRequest = Request & {
@@ -534,7 +534,7 @@ ChatRouter.patch('/:chatId/messages/:messageId/:userId', authenticate, async (re
         content: content.trim(),
         senderId: userId,
         isEdited: true,
-        isAnonymous: false,
+        chatType: 'standard',
       },
     });
 
@@ -597,11 +597,23 @@ ChatRouter.delete('/:chatId/messages/:messageId/:userId', authenticate, async (r
       where: { id: messageId },
     });
 
+    broadcastToRoom(chatId, {
+      type: 'message:delete',
+      payload: { chatId, messageId, senderId: userId, chatType: 'standard' },
+    });
 
     console.log(`[chat:DELETE /:chatId/messages/:messageId] message ${messageId} deleted successfully`);
 
     res.json({ success: true });
   } catch (error) {
+    if (isMessageAlreadyDeleted(error)) {
+      broadcastToRoom(chatId, {
+        type: 'message:delete',
+        payload: { chatId, messageId, senderId: userId, chatType: 'standard' },
+      });
+      res.json({ success: true });
+      return;
+    }
     console.error(`[chat:DELETE /:chatId/messages/:messageId] error deleting message ${messageId}:`, error);
     res.status(500).json({ error: 'Failed to delete message' });
   }

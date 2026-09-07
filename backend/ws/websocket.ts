@@ -6,7 +6,7 @@ import { consumeTicket, startTicketCleanup, stopTicketCleanup } from '../src/ser
 import { prisma } from '../src/lib/connectionPoolClient.js';
 import { insertStandardChatMessage, requireChatMembership } from '../src/services/chatMessageService.js';
 import { signSenderImage } from '../src/chat/chatImageHelpers.js';
-import type { MessageEditPayload, MessageSendPayload, WsClientMessage } from './wsTypes.js';
+import type { MessageDeletePayload, MessageEditPayload, MessageSendPayload, WsClientMessage } from './wsTypes.js';
 dotenv.config();
 
 interface AuthenticatedSocket extends WebSocket { // this type helps for sending messages fast and keep up with user's other needed data to not lookup in the DB
@@ -40,6 +40,12 @@ function sendToSocket(ws: WebSocket, data: Record<string, unknown>): void {
   }
 }
 
+export function isMessageAlreadyDeleted(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  if (!('code' in error)) return false;
+  return (error as Record<string, unknown>).code === 'P2025';
+}
+
 export async function handleEditMessage(
   ws: AuthenticatedSocket,
   payload: { chatId: string; messageId: string; content: string },
@@ -53,10 +59,31 @@ export async function handleEditMessage(
 
   if (!(await requireChatMembership(ws.userId, chatId))) return;
 
-  await prisma.standardChatMessages.update({
+  const existing = await prisma.standardChatMessages.findUnique({
     where: { id: messageId },
-    data: { content: content.trim(), is_edited: true },
   });
+  if (!existing) {
+    console.log(`[handleEditMessage] message ${messageId} not found`);
+    sendToSocket(ws, { type: 'error', payload: { message: 'Message not found' } });
+    return;
+  }
+  if (existing.sender_id !== ws.userId) {
+    console.log(`[handleEditMessage] user ${ws.userId} not authorized to edit message ${messageId}`);
+    sendToSocket(ws, { type: 'error', payload: { message: 'Not authorized to edit this message' } });
+    return;
+  }
+
+  try {
+    await prisma.standardChatMessages.update({
+      where: { id: messageId },
+      data: { content: content.trim(), is_edited: true },
+    });
+  } catch (error) {
+    if (isMessageAlreadyDeleted(error)) return;
+    console.error('[handleEditMessage] Failed to update message:', error);
+    sendToSocket(ws, { type: 'error', payload: { message: 'Failed to update message' } });
+    return;
+  }
 
   broadcastToRoom(chatId, {
     type: 'message:edit',
@@ -66,7 +93,55 @@ export async function handleEditMessage(
       content: content.trim(),
       senderId: ws.userId,
       isEdited: true,
-      isAnonymous: false,
+      chatType: 'standard',
+    },
+  });
+}
+
+export async function handleDeleteMessage(
+  ws: AuthenticatedSocket,
+  payload: { chatId: string; messageId: string },
+): Promise<void> {
+  if (!ws.userId) return;
+  const { chatId, messageId } = payload;
+
+  if (!chatId || chatId === '') return;
+  if (!messageId || messageId === '') return;
+
+  if (!(await requireChatMembership(ws.userId, chatId))) return;
+
+  const existing = await prisma.standardChatMessages.findUnique({
+    where: { id: messageId },
+  });
+  if (!existing) {
+    console.log(`[handleDeleteMessage] message ${messageId} not found`);
+    sendToSocket(ws, { type: 'error', payload: { message: 'Message not found' } });
+    return;
+  }
+  if (existing.sender_id !== ws.userId) {
+    console.log(`[handleDeleteMessage] user ${ws.userId} not authorized to delete message ${messageId}`);
+    sendToSocket(ws, { type: 'error', payload: { message: 'Not authorized to delete this message' } });
+    return;
+  }
+
+  try {
+    await prisma.standardChatMessages.delete({
+      where: { id: messageId },
+    });
+  } catch (error) {
+    if (isMessageAlreadyDeleted(error)) return;
+    console.error('[handleDeleteMessage] Failed to delete message:', error);
+    sendToSocket(ws, { type: 'error', payload: { message: 'Failed to delete message' } });
+    return;
+  }
+
+  broadcastToRoom(chatId, {
+    type: 'message:delete',
+    payload: {
+      chatId,
+      messageId,
+      senderId: ws.userId,
+      chatType: 'standard',
     },
   });
 }
@@ -316,6 +391,11 @@ export function createWebSocketServer(server: Server): void { // the server is t
           case 'message:edit': {
             const msgPayload = msg.payload as MessageEditPayload;
             await handleEditMessage(ws, msgPayload);
+            break;
+          }
+          case 'message:delete': {
+            const msgPayload = msg.payload as MessageDeletePayload;
+            await handleDeleteMessage(ws, msgPayload);
             break;
           }
         }

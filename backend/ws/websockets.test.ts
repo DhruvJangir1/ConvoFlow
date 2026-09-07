@@ -52,7 +52,7 @@ interface MockState {
     anonymousChats: { findMany: ReturnType<typeof vi.fn> };
     $queryRaw: ReturnType<typeof vi.fn>;
     standardChats: { update: ReturnType<typeof vi.fn> };
-    standardChatMessages: { update: ReturnType<typeof vi.fn> };
+    standardChatMessages: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
   };
   mockWsInstances: MockWsInstance[];
 }
@@ -90,7 +90,7 @@ function getMockState(): MockState {
         anonymousChats: { findMany: vi.fn() },
 $queryRaw: vi.fn(),
       standardChats: { update: vi.fn() },
-      standardChatMessages: { update: vi.fn() },
+      standardChatMessages: { findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
     },
       mockWsInstances: [] as MockWsInstance[],
     };
@@ -225,6 +225,7 @@ beforeEach(() => {
   });
   ms.prisma.standardChats.update.mockResolvedValue({});
   ms.prisma.standardChatMessages.update.mockResolvedValue({ id: 'msg-edit', is_edited: true, content: 'edited' });
+  ms.prisma.standardChatMessages.delete.mockResolvedValue({ id: 'msg-del' });
 
   setupWebSocket(server as never);
 
@@ -552,6 +553,7 @@ describe('Edit message via WS', () => {
     const chatId = cid();
     const messageId = 'msg-edit-' + Date.now();
     ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMessages.findUnique.mockResolvedValue({ id: messageId, sender_id: userId });
 
     const ws1 = emitConnection('t-edit-1');
     await sleep();
@@ -580,7 +582,7 @@ describe('Edit message via WS', () => {
     expect(editPayload.messageId).toBe(messageId);
     expect(editPayload.content).toBe('updated content');
     expect(editPayload.isEdited).toBe(true);
-    expect(editPayload.isAnonymous).toBe(false);
+    expect(editPayload.chatType).toBe('standard');
   });
 
   it('ignores message:edit when content is empty', async () => {
@@ -612,6 +614,269 @@ describe('Edit message via WS', () => {
     await sleep();
 
     expect(ms.prisma.standardChatMessages.update).not.toHaveBeenCalled();
+  });
+
+  it('does not edit a message owned by another user and notifies the requester', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    const messageId = 'msg-edit-owner';
+    ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMessages.findUnique.mockResolvedValue({ id: messageId, sender_id: 'another-user' });
+
+    const ws = emitConnection('t-edit-owner');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'message:edit', payload: { chatId, messageId, content: 'hijacked' } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.update).not.toHaveBeenCalled();
+    const sent = getAllSent(ws);
+    const err = sent.find((m) => m.type === 'error');
+    expect(requirePayload(err).message).toBe('Not authorized to edit this message');
+  });
+
+  it('ignores message:edit when message not found and notifies the requester', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    const messageId = 'msg-edit-missing';
+    ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMessages.findUnique.mockResolvedValue(null);
+
+    const ws = emitConnection('t-edit-missing');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'message:edit', payload: { chatId, messageId, content: 'x' } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.update).not.toHaveBeenCalled();
+    const sent = getAllSent(ws);
+    const err = sent.find((m) => m.type === 'error');
+    expect(requirePayload(err).message).toBe('Message not found');
+  });
+
+  it('does not broadcast message:edit and notifies the requester when update fails', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    const messageId = 'msg-edit-fail';
+    ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMessages.findUnique.mockResolvedValue({ id: messageId, sender_id: userId });
+    ms.prisma.standardChatMessages.update.mockRejectedValue(new Error('db down'));
+
+    const ws1 = emitConnection('t-edit-fail-1');
+    await sleep();
+    const ws2 = emitConnection('t-edit-fail-2');
+    await sleep();
+
+    ws1.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    ws2.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+
+    ws1.sent = [];
+    ws2.sent = [];
+
+    ws1.emit('message', JSON.stringify({ type: 'message:edit', payload: { chatId, messageId, content: 'x' } }));
+    await sleep();
+
+    expect(getAllSent(ws2).some((m) => m.type === 'message:edit')).toBe(false);
+    const err = getAllSent(ws1).find((m) => m.type === 'error');
+    expect(requirePayload(err).message).toBe('Failed to update message');
+  });
+
+  it('treats P2025 on update as idempotent and does not broadcast', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    const messageId = 'msg-edit-p2025';
+    ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMessages.findUnique.mockResolvedValue({ id: messageId, sender_id: userId });
+    ms.prisma.standardChatMessages.update.mockRejectedValue({ code: 'P2025' });
+
+    const ws1 = emitConnection('t-edit-p2025-1');
+    await sleep();
+    const ws2 = emitConnection('t-edit-p2025-2');
+    await sleep();
+
+    ws1.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    ws2.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+
+    ws1.sent = [];
+    ws2.sent = [];
+
+    ws1.emit('message', JSON.stringify({ type: 'message:edit', payload: { chatId, messageId, content: 'x' } }));
+    await sleep();
+
+    expect(getAllSent(ws2).some((m) => m.type === 'message:edit')).toBe(false);
+    expect(getAllSent(ws1).some((m) => m.type === 'error')).toBe(false);
+  });
+});
+
+// ── Delete Message via WS ─────────────────────────────────────────────────────
+
+describe('Delete message via WS', () => {
+  it('deletes the message and broadcasts message:delete to room members', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    const messageId = 'msg-del-' + Date.now();
+    ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMessages.findUnique.mockResolvedValue({ id: messageId, sender_id: userId });
+
+    const ws1 = emitConnection('t-del-1');
+    await sleep();
+    const ws2 = emitConnection('t-del-2');
+    await sleep();
+
+    ws1.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    ws2.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+
+    ws1.sent = [];
+    ws2.sent = [];
+
+    ws1.emit('message', JSON.stringify({ type: 'message:delete', payload: { chatId, messageId } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.delete).toHaveBeenCalledWith({
+      where: { id: messageId },
+    });
+
+    const ws2Msgs = getAllSent(ws2);
+    const delMsg = ws2Msgs.find((m) => m.type === 'message:delete');
+    const delPayload = requirePayload(delMsg);
+    expect(delPayload.chatId).toBe(chatId);
+    expect(delPayload.messageId).toBe(messageId);
+    expect(delPayload.senderId).toBe(userId);
+    expect(delPayload.chatType).toBe('standard');
+  });
+
+  it('ignores message:delete when messageId is missing', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    ms.consumeTicket.mockReturnValue(userId);
+
+    const ws = emitConnection('t-del-missing');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'message:delete', payload: { chatId, messageId: '' } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.delete).not.toHaveBeenCalled();
+  });
+
+  it('ignores message:delete for non-members', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMembers.findUnique.mockResolvedValue(null);
+
+    const ws = emitConnection('t-del-nonmember');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'message:delete', payload: { chatId, messageId: 'm1' } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.delete).not.toHaveBeenCalled();
+  });
+
+  it('does not delete a message owned by another user and notifies the requester', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    const messageId = 'msg-del-owner';
+    ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMessages.findUnique.mockResolvedValue({ id: messageId, sender_id: 'another-user' });
+
+    const ws = emitConnection('t-del-owner');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'message:delete', payload: { chatId, messageId } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.delete).not.toHaveBeenCalled();
+    const err = getAllSent(ws).find((m) => m.type === 'error');
+    expect(requirePayload(err).message).toBe('Not authorized to delete this message');
+  });
+
+  it('ignores message:delete when message not found and notifies the requester', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    const messageId = 'msg-del-missing';
+    ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMessages.findUnique.mockResolvedValue(null);
+
+    const ws = emitConnection('t-del-missing');
+    await sleep();
+
+    ws.emit('message', JSON.stringify({ type: 'message:delete', payload: { chatId, messageId } }));
+    await sleep();
+
+    expect(ms.prisma.standardChatMessages.delete).not.toHaveBeenCalled();
+    const err = getAllSent(ws).find((m) => m.type === 'error');
+    expect(requirePayload(err).message).toBe('Message not found');
+  });
+
+  it('does not broadcast message:delete and notifies the requester when delete fails', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    const messageId = 'msg-del-fail';
+    ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMessages.findUnique.mockResolvedValue({ id: messageId, sender_id: userId });
+    ms.prisma.standardChatMessages.delete.mockRejectedValue(new Error('db down'));
+
+    const ws1 = emitConnection('t-del-fail-1');
+    await sleep();
+    const ws2 = emitConnection('t-del-fail-2');
+    await sleep();
+
+    ws1.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    ws2.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+
+    ws1.sent = [];
+    ws2.sent = [];
+
+    ws1.emit('message', JSON.stringify({ type: 'message:delete', payload: { chatId, messageId } }));
+    await sleep();
+
+    expect(getAllSent(ws2).some((m) => m.type === 'message:delete')).toBe(false);
+    const err = getAllSent(ws1).find((m) => m.type === 'error');
+    expect(requirePayload(err).message).toBe('Failed to delete message');
+  });
+
+  it('treats P2025 on delete as idempotent and does not broadcast', async () => {
+    const ms = getMockState();
+    const userId = uid();
+    const chatId = cid();
+    const messageId = 'msg-del-p2025';
+    ms.consumeTicket.mockReturnValue(userId);
+    ms.prisma.standardChatMessages.findUnique.mockResolvedValue({ id: messageId, sender_id: userId });
+    ms.prisma.standardChatMessages.delete.mockRejectedValue({ code: 'P2025' });
+
+    const ws1 = emitConnection('t-del-p2025-1');
+    await sleep();
+    const ws2 = emitConnection('t-del-p2025-2');
+    await sleep();
+
+    ws1.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    ws2.emit('message', JSON.stringify({ type: 'subscribe', payload: { chatIds: [chatId] } }));
+    await sleep();
+
+    ws1.sent = [];
+    ws2.sent = [];
+
+    ws1.emit('message', JSON.stringify({ type: 'message:delete', payload: { chatId, messageId } }));
+    await sleep();
+
+    expect(getAllSent(ws2).some((m) => m.type === 'message:delete')).toBe(false);
+    expect(getAllSent(ws1).some((m) => m.type === 'error')).toBe(false);
   });
 });
 
