@@ -100,7 +100,7 @@ The `updated_at` field on `AnonymousChats` is updated every time a message is se
    ```typescript
    broadcastToRoom(chatId, {
      type: 'message:delete',
-     payload: { chatId, messageId, senderId: existing.sender_id, isAnonymous: true },
+payload: { chatId, messageId, senderId: existing.sender_id, chatType: 'anonymous' },
    });
    ```
 5. All room members remove the message from their UI immediately
@@ -114,7 +114,7 @@ The `updated_at` field on `AnonymousChats` is updated every time a message is se
    ```typescript
    broadcastToRoom(chatId, {
      type: 'message:edit',
-     payload: { chatId, messageId, content: content.trim(), senderId: req.user.id, isEdited: true, isAnonymous: existing.isAnonymous ?? false },
+     payload: { chatId, messageId, content: content.trim(), senderId: req.user.id, isEdited: true, chatType: 'anonymous' },
    });
    ```
 5. All room members map the message to the new content + `isEdited: true` in their cache — edit propagates live with no refresh
@@ -189,7 +189,7 @@ Message deletion is broadcast similarly:
 ```typescript
 broadcastToRoom(chatId, {
   type: 'message:delete',
-  payload: { chatId, messageId, senderId: existing.sender_id, isAnonymous: true },
+  payload: { chatId, messageId, senderId: existing.sender_id, chatType: 'anonymous' },
 });
 ```
 
@@ -198,7 +198,7 @@ Message editing follows the same broadcast pattern:
 ```typescript
 broadcastToRoom(chatId, {
   type: 'message:edit',
-  payload: { chatId, messageId, content, senderId, isEdited: true, isAnonymous: true },
+  payload: { chatId, messageId, content, senderId, isEdited: true, chatType: 'anonymous' },
 });
 ```
 

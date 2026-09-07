@@ -65,7 +65,7 @@ Editing uses the **REST source + WS receive** pattern (the same source-of-truth 
 ```
 1. User A taps edit → PATCH /api/chats/:chatId/messages/:messageId/:userId { content }
 2. Server: membership + ownership check → prisma.standardChatMessages.update({ content, is_edited: true })
-3. Server broadcasts: { type: "message:edit", payload: { chatId, messageId, content, senderId, isEdited, isAnonymous } }
+3. Server broadcasts: { type: "message:edit", payload: { chatId, messageId, content, senderId, isEdited, chatType } }
 4. Every room member's WebSocketContext routes to editMessageInChatCache / editMessageInAnonCache
 5. The cache maps the message to { content, isEdited: true } — UI updates without a refresh
 ```
@@ -79,7 +79,7 @@ Deletion follows the same **REST source + WS receive** pattern:
 ```
 1. User A taps delete → DELETE /api/chats/:chatId/messages/:messageId/:userId
 2. Server: membership + ownership check → prisma.standardChatMessages.delete()
-3. Server broadcasts: { type: "message:delete", payload: { chatId, messageId, senderId, isAnonymous } }
+3. Server broadcasts: { type: "message:delete", payload: { chatId, messageId, senderId, chatType } }
 4. Every room member's WebSocketContext routes to removeMessageFromChatCache / removeMessageFromAnonCache
 5. The cache filters out the message — UI updates without a refresh
 ```
@@ -134,8 +134,8 @@ All messages are JSON. The `type` field determines the action.
 |------|---------|-------------|
 | `message:new` | `{ id, chatId, senderId, senderName, senderImage, content, createdAt, isAnonymous, messageType }` | New message broadcast to all room members |
 | `message:ack` | `{ id, tempId? }` | Acknowledgement sent to message sender with real DB ID |
-| `message:delete` | `{ chatId, messageId, senderId, isAnonymous }` | Message deleted broadcast |
-| `message:edit` | `{ chatId, messageId, content, senderId, isEdited, isAnonymous }` | Message edited broadcast |
+| `message:delete` | `{ chatId, messageId, senderId, chatType }` | Message deleted broadcast |
+| `message:edit` | `{ chatId, messageId, content, senderId, isEdited, chatType }` | Message edited broadcast |
 | `chat:online-users` | `{ chatId, userIds }` | List of online users in a chat |
 | `user:online` | `{ chatId, userId }` | User came online in a chat |
 | `user:offline` | `{ chatId, userId }` | User went offline in a chat |
@@ -181,8 +181,8 @@ All messages are JSON. The `type` field determines the action.
 | `unsubscribeFromRoom(chatId, userId)` | Removes a user's socket from a room's Set |
 | `removeSocketFromAllRooms(ws)` | Removes a socket from all rooms (used on disconnect) |
 | `handleSendMessage(ws, payload)` | Handles `message:send` — writes to DB, broadcasts, sends ACK |
-| `handleEditMessage(ws, payload)` | Handles `message:edit` — validates membership, writes DB update, broadcasts |
-| `handleDeleteMessage(ws, payload)` | Handles `message:delete` — validates membership, deletes DB row, broadcasts |
+| `handleEditMessage(ws, payload)` | Handles `message:edit` — validates membership + ownership (`sender_id`), writes DB update, broadcasts; sends `error` to requester on not-found/unauthorized/failure; treats P2025 as idempotent |
+| `handleDeleteMessage(ws, payload)` | Handles `message:delete` — validates membership + ownership (`sender_id`), deletes DB row, broadcasts; sends `error` to requester on not-found/unauthorized/failure; treats P2025 as idempotent |
 
 ---
 

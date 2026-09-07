@@ -47,7 +47,7 @@ export function createWsHandlers(
     },
 
     'message:delete': (payload) => {
-      if (payload.isAnonymous) {
+      if (payload.chatType === 'anonymous') {
         removeMessageFromAnonCache(queryClient, payload.chatId, payload.messageId);
       } else {
         removeMessageFromChatCache(queryClient, payload.chatId, payload.messageId);
@@ -55,7 +55,7 @@ export function createWsHandlers(
     },
 
     'message:edit': (payload) => {
-      if (payload.isAnonymous) {
+      if (payload.chatType === 'anonymous') {
         editMessageInAnonCache(queryClient, payload.chatId, payload.messageId, payload.content);
       } else {
         editMessageInChatCache(queryClient, payload.chatId, payload.messageId, payload.content);

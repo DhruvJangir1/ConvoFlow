@@ -650,7 +650,7 @@ Deletion is a **REST source + WS receive** flow (mirror of editing). The REST `D
 ```
 1. Client: DELETE /api/chats/:chatId/messages/:messageId/:userId  (or the anonymous equivalent)
 2. Server: authenticate → membership check → ownership check → prisma.delete
-3. Server broadcasts: { type: "message:delete", payload: { chatId, messageId, senderId, isAnonymous } }
+3. Server broadcasts: { type: "message:delete", payload: { chatId, messageId, senderId, chatType } }
 4. All room members filter the message out of their cache immediately (idempotent — the sender's own optimistic removal and the WS cache filter agree)
 ```
 
@@ -663,7 +663,7 @@ Editing is a **REST source + WS receive** flow. The REST `PATCH` is the source o
 ```
 1. Client: PATCH /api/chats/:chatId/messages/:messageId/:userId { content }  (or the anonymous equivalent)
 2. Server: authenticate → membership check → ownership check → prisma.update({ content, is_edited: true })
-3. Server broadcasts: { type: "message:edit", payload: { chatId, messageId, content, senderId, isEdited, isAnonymous } }
+3. Server broadcasts: { type: "message:edit", payload: { chatId, messageId, content, senderId, isEdited, chatType } }
 4. All room members map the message in their cache: content + isEdited ← received values (idempotent — the sender's own optimistic edit is simply overwritten with the same value)
 ```
 

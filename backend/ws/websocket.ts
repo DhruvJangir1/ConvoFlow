@@ -40,6 +40,12 @@ function sendToSocket(ws: WebSocket, data: Record<string, unknown>): void {
   }
 }
 
+export function isMessageAlreadyDeleted(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  if (!('code' in error)) return false;
+  return (error as Record<string, unknown>).code === 'P2025';
+}
+
 export async function handleEditMessage(
   ws: AuthenticatedSocket,
   payload: { chatId: string; messageId: string; content: string },
@@ -53,10 +59,31 @@ export async function handleEditMessage(
 
   if (!(await requireChatMembership(ws.userId, chatId))) return;
 
-  await prisma.standardChatMessages.update({
+  const existing = await prisma.standardChatMessages.findUnique({
     where: { id: messageId },
-    data: { content: content.trim(), is_edited: true },
   });
+  if (!existing) {
+    console.log(`[handleEditMessage] message ${messageId} not found`);
+    sendToSocket(ws, { type: 'error', payload: { message: 'Message not found' } });
+    return;
+  }
+  if (existing.sender_id !== ws.userId) {
+    console.log(`[handleEditMessage] user ${ws.userId} not authorized to edit message ${messageId}`);
+    sendToSocket(ws, { type: 'error', payload: { message: 'Not authorized to edit this message' } });
+    return;
+  }
+
+  try {
+    await prisma.standardChatMessages.update({
+      where: { id: messageId },
+      data: { content: content.trim(), is_edited: true },
+    });
+  } catch (error) {
+    if (isMessageAlreadyDeleted(error)) return;
+    console.error('[handleEditMessage] Failed to update message:', error);
+    sendToSocket(ws, { type: 'error', payload: { message: 'Failed to update message' } });
+    return;
+  }
 
   broadcastToRoom(chatId, {
     type: 'message:edit',
@@ -66,7 +93,7 @@ export async function handleEditMessage(
       content: content.trim(),
       senderId: ws.userId,
       isEdited: true,
-      isAnonymous: false,
+      chatType: 'standard',
     },
   });
 }
@@ -83,9 +110,30 @@ export async function handleDeleteMessage(
 
   if (!(await requireChatMembership(ws.userId, chatId))) return;
 
-  await prisma.standardChatMessages.delete({
+  const existing = await prisma.standardChatMessages.findUnique({
     where: { id: messageId },
   });
+  if (!existing) {
+    console.log(`[handleDeleteMessage] message ${messageId} not found`);
+    sendToSocket(ws, { type: 'error', payload: { message: 'Message not found' } });
+    return;
+  }
+  if (existing.sender_id !== ws.userId) {
+    console.log(`[handleDeleteMessage] user ${ws.userId} not authorized to delete message ${messageId}`);
+    sendToSocket(ws, { type: 'error', payload: { message: 'Not authorized to delete this message' } });
+    return;
+  }
+
+  try {
+    await prisma.standardChatMessages.delete({
+      where: { id: messageId },
+    });
+  } catch (error) {
+    if (isMessageAlreadyDeleted(error)) return;
+    console.error('[handleDeleteMessage] Failed to delete message:', error);
+    sendToSocket(ws, { type: 'error', payload: { message: 'Failed to delete message' } });
+    return;
+  }
 
   broadcastToRoom(chatId, {
     type: 'message:delete',
@@ -93,7 +141,7 @@ export async function handleDeleteMessage(
       chatId,
       messageId,
       senderId: ws.userId,
-      isAnonymous: false,
+      chatType: 'standard',
     },
   });
 }

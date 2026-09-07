@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
 import { resolveImageUrl } from '../services/imageUpload.js';
-import { broadcastToRoom } from '../../ws/websocket.js';
+import { broadcastToRoom, isMessageAlreadyDeleted } from '../../ws/websocket.js';
 
 
 const AnonymousChatRouter = Router();
@@ -292,7 +292,7 @@ AnonymousChatRouter.patch('/:id/messages/:messageId', authenticate, async (req: 
         content: content.trim(),
         senderId: req.user.id,
         isEdited: true,
-        isAnonymous: existing.isAnonymous ?? false,
+        chatType: 'anonymous',
       },
     });
 
@@ -338,11 +338,19 @@ AnonymousChatRouter.delete('/:id/messages/:messageId', authenticate, async (req:
 
     broadcastToRoom(chatId, {
       type: 'message:delete',
-      payload: { chatId, messageId, senderId: req.user.id, isAnonymous: existing.isAnonymous ?? false },
+      payload: { chatId, messageId, senderId: req.user.id, chatType: 'anonymous' },
     });
 
     res.json({ success: true });
   } catch (error) {
+    if (isMessageAlreadyDeleted(error)) {
+      broadcastToRoom(chatId, {
+        type: 'message:delete',
+        payload: { chatId, messageId, senderId: req.user.id, chatType: 'anonymous' },
+      });
+      res.json({ success: true });
+      return;
+    }
     console.error('[anonymousChat:DELETE /:id/messages/:messageId] error:', error);
     res.status(500).json({ error: 'Failed to delete message' });
   }
