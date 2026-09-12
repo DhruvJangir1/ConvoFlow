@@ -10,6 +10,7 @@ import ConfirmModal from "../modals/ConfirmModal";
 import ImageModal from "../modals/ImageModal";
 import { useChatMessagesQuery } from "../hooks/useChatMessagesQuery";
 import { useEditMessageMutation, useDeleteMessageMutation } from "../hooks/useChatMutations";
+import { useWebSocket } from "../context/WebSocketContext";
 import type { ChatMessages, MessageCursor } from "../types/chat";
 
 type RawMessage = {
@@ -58,6 +59,7 @@ function mergeMessages(previous: ChatMessages[], server: ChatMessages[]): ChatMe
 export default function ChatView() {
   const user = useSelector((s: RootState) => s.userAuth.user);
   const { chatId } = useParams();
+  const { onMessage } = useWebSocket();
 
   const editMutation = useEditMessageMutation();
   const deleteMutation = useDeleteMessageMutation();
@@ -68,6 +70,7 @@ export default function ChatView() {
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const paginationCursor = useRef<MessageCursor | null>(null);
   const activeChatRef = useRef<string | null>(null);
+  const deletedMessageIds = useRef<Set<string>>(new Set());
 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
@@ -82,8 +85,12 @@ export default function ChatView() {
     activeChatRef.current = chatId;
 
     setMessages((previous) => {
-      if (switched) return messagesFromServer.messages;
-      return mergeMessages(previous, messagesFromServer.messages);
+      if (switched) {
+        deletedMessageIds.current.clear();
+        return messagesFromServer.messages;
+      }
+      const purgeDeleted = previous.filter((message) => !deletedMessageIds.current.has(message.id));
+      return mergeMessages(purgeDeleted, messagesFromServer.messages);
     });
 
     if (switched) {
@@ -91,6 +98,16 @@ export default function ChatView() {
       paginationCursor.current = messagesFromServer.nextCursor;
     }
   }, [messagesFromServer, chatId]);
+
+  useEffect(() => {
+    if (!chatId) return;
+    return onMessage((msg) => {
+      if (msg.type === "message:delete" && msg.payload.chatId === chatId) {
+        deletedMessageIds.current.add(msg.payload.messageId);
+        setMessages((previous) => previous.filter((message) => message.id !== msg.payload.messageId));
+      }
+    });
+  }, [onMessage, chatId]);
 
   async function loadMoreMessages() {
     if (!chatId || !user || isLoadingMore || !hasOlderMessages || !paginationCursor.current) return;
