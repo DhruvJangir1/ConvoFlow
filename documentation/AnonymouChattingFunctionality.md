@@ -103,7 +103,7 @@ The `updated_at` field on `AnonymousChats` is updated every time a message is se
 payload: { chatId, messageId, senderId: existing.sender_id, chatType: 'anonymous' },
    });
    ```
-5. All room members remove the message from their UI immediately
+5. All room members remove the message from their UI immediately — `AnonymousChat.tsx` strips it from the rendered list via an `onMessage` `message:delete` listener and records the id in a `deletedMessageIds` ref so the insert-only cache→state merge can't resurrect it
 
 ### Editing Messages (`PATCH /:id/messages/:messageId`)
 

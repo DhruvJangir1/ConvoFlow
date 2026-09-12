@@ -42,7 +42,7 @@ function mergeMessages(
 export default function AnonymousChat() {
   const { id: roomId } = useParams();
   const user = useSelector((s: RootState) => s.userAuth.user);
-  const { subscribeToChats } = useWebSocket();
+  const { subscribeToChats, onMessage } = useWebSocket();
   const [messages, setMessages] = useState<AnonymousChatMessages[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -56,6 +56,7 @@ export default function AnonymousChat() {
   const oldestCursorRef = useRef<MessageCursor | null>(null);
   const activeRoomRef = useRef<string | null>(null);
   const ownMessageIds = useRef<Set<string>>(new Set());
+  const deletedMessageIds = useRef<Set<string>>(new Set());
 
   const { data: roomDetail } = useAnonymousRoomQuery(roomId);
   const roomName = roomDetail ? roomDetail.name : "Anonymous Chat";
@@ -70,6 +71,16 @@ export default function AnonymousChat() {
     clerkFetch(`/api/anonymousChats/${roomId}/join`, { method: "POST" }).catch(() => {});
     subscribeToChats([roomId]);
   }, [roomId, user, subscribeToChats]);
+
+  useEffect(() => {
+    if (!roomId) return;
+    return onMessage((msg) => {
+      if (msg.type === "message:delete" && msg.payload.chatId === roomId) {
+        deletedMessageIds.current.add(msg.payload.messageId);
+        setMessages((prev) => prev.filter((m) => m.id !== msg.payload.messageId));
+      }
+    });
+  }, [onMessage, roomId]);
 
   // Seed messages from cache
   useEffect(() => {
@@ -102,8 +113,12 @@ export default function AnonymousChat() {
 
     queueMicrotask(() => {
       setMessages((prev) => {
-        if (switched) return messagesData.messages;
-        const merged = mergeMessages(prev, messagesData.messages);
+        if (switched) {
+          deletedMessageIds.current.clear();
+          return messagesData.messages;
+        }
+        const purgeDeleted = prev.filter((m) => !deletedMessageIds.current.has(m.id));
+        const merged = mergeMessages(purgeDeleted, messagesData.messages);
         if (prev.length === merged.length &&
             prev.every((m, i) => m.id === merged[i].id)) {
           return prev;

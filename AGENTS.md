@@ -651,7 +651,11 @@ Deletion is a **REST source + WS receive** flow (mirror of editing). The REST `D
 1. Client: DELETE /api/chats/:chatId/messages/:messageId/:userId  (or the anonymous equivalent)
 2. Server: authenticate → membership check → ownership check → prisma.delete
 3. Server broadcasts: { type: "message:delete", payload: { chatId, messageId, senderId, chatType } }
-4. All room members filter the message out of their cache immediately (idempotent — the sender's own optimistic removal and the WS cache filter agree)
+4. All room members filter the message out of their cache immediately
+5. ChatView / AnonymousChat also listen for message:delete via onMessage: they remove the message
+   from the rendered local state and record its id in a `deletedMessageIds` ref so the insert-only
+   cache→state merge can't resurrect it (idempotent — the sender's own optimistic removal and the
+   WS listener agree)
 ```
 
 There is also a WS-native `message:delete` client message (`backend/ws/websocket.ts` `handleDeleteMessage`) that mirrors `handleEditMessage` — it validates membership, deletes the DB row, and broadcasts. The frontend currently deletes via the REST path, so the WS receive handler is the critical client-side piece.

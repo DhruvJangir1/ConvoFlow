@@ -81,10 +81,13 @@ Deletion follows the same **REST source + WS receive** pattern:
 2. Server: membership + ownership check → prisma.standardChatMessages.delete()
 3. Server broadcasts: { type: "message:delete", payload: { chatId, messageId, senderId, chatType } }
 4. Every room member's WebSocketContext routes to removeMessageFromChatCache / removeMessageFromAnonCache
-5. The cache filters out the message — UI updates without a refresh
+5. The cache filters out the message
+6. ChatView / AnonymousChat also listen for the WS message:delete via onMessage: they remove the message
+   from the rendered local state and record its id in a `deletedMessageIds` ref so the insert-only
+   cache→state merge can't resurrect it — the UI updates without a refresh
 ```
 
-The standard-chat DELETE route in `chat.ts` and the anonymous DELETE route in `anonymousChat.ts` both broadcast. There is also a WS-native `message:delete` client message handled by `handleDeleteMessage` (mirrors `message:edit`), but the frontend currently deletes through REST so the receive path is the critical piece. Removal is idempotent — the sender's own optimistic local removal and the WS cache filter agree, so no glitch.
+The standard-chat DELETE route in `chat.ts` and the anonymous DELETE route in `anonymousChat.ts` both broadcast. There is also a WS-native `message:delete` client message handled by `handleDeleteMessage` (mirrors `message:edit`), but the frontend currently deletes through REST so the receive path is the critical piece. Removal is idempotent — the sender's own optimistic local removal and the WS cache filter agree, so no glitch. The `deletedMessageIds` guard exists because `mergeMessages` (which syncs the TanStack cache into the component's local rendered state) is insert-only — it can replace an entry by id (which is why live edits work) but cannot remove an entry that vanished from the cache.
 
 ### Room subscription
 
@@ -162,6 +165,7 @@ All messages are JSON. The `type` field determines the action.
 - Handler calls `addMessageToChatCache(queryClient, dispatch, payload, userId)` from `wsCacheHandlers.ts`
 - This appends the message to `chatKeys.messages(chatId)` cache and updates `chatKeys.lists()` lastMessage
 - `ChatView`'s `useEffect` on `messagesData` picks up the cache change and re-renders
+- For deletions, `removeMessageFromChatCache` strips the message from the cache, and `ChatView`'s own `onMessage` `message:delete` listener additionally removes it from the rendered local list (guarded by a `deletedMessageIds` ref so the insert-only merge doesn't re-add it)
 
 ### Duplicate prevention
 - Sender's socket is excluded server-side from the broadcast — they never receive their own message via WS
