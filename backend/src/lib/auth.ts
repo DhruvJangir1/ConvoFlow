@@ -7,6 +7,7 @@ export interface ClerkTokenPayload {
 
 export interface ClerkUserInfo {
   emailAddress: string;
+  userName: string;
 }
 
 export async function verifyClerkToken(token: string): Promise<ClerkTokenPayload> {
@@ -22,22 +23,17 @@ export async function fetchClerkUser(clerkId: string): Promise<ClerkUserInfo> {
   console.log('[auth] fetchClerkUser called for clerkId:', clerkId);
   const clerkUser = await clerkClient.users.getUser(clerkId);
   console.log('[auth] Clerk API returned user:', clerkUser.id);
-
+  
   const primaryEmail = clerkUser.emailAddresses.find(
     (ea) => ea.id === clerkUser.primaryEmailAddressId,
   );
 
-  if (!primaryEmail){
-    console.log('no primary email found from user!')
-    return { emailAddress : '' };
-  }
-
-  if (!primaryEmail.emailAddress){
-    console.log('no user email address found!');
-    return { emailAddress:''};
+  if (!primaryEmail || !primaryEmail.emailAddress) {
+    console.log('no primary email found from user!');
+    return { emailAddress: '', userName: '' };
   }
 
   console.log('[auth] Primary email:', primaryEmail.emailAddress);
 
-  return { emailAddress: primaryEmail.emailAddress };
+  return { emailAddress: primaryEmail.emailAddress, userName: clerkUser.fullName || '' };
 }

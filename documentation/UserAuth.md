@@ -37,8 +37,8 @@
 |------|----------------|-------------|
 | `backend/src/routes/auth.ts` | Auth router hub | `POST /setup-user` (authenticated) → returns DB user via `PRISMA_SAFE_SELECT` with `image_url` resolved to a presigned URL; mounts `WsTicketRouter` |
 | `backend/src/routes/wsTicket.ts` | WS ticket issuance | `GET /ws-ticket` (authenticated) → `{ ticket }` via `generateTicket(req.user.id)` |
-| `backend/src/middleware/authenticate.ts` | Protected-route gate | Bearer extraction → Clerk JWT verify → `clerk_id` lookup → email link → auto-provision → `req.user = { id, email }` (DB UUID) |
-| `backend/src/lib/auth.ts` | Clerk abstraction (only file importing `@clerk/backend`) | `verifyClerkToken()` — local `verifyToken()` with `CLERK_SECRET_KEY`; `fetchClerkUser()` — `clerkClient.users.getUser()` + primary-email extraction |
+| `backend/src/middleware/authenticate.ts` | Protected-route gate | Bearer extraction → Clerk JWT verify → `clerk_id` lookup → email link → auto-provision (`user_name` = Clerk fullName w/ email-part fallback, `user_tag` = `cleanName#<count+1>`) → `req.user = { id, email }` (DB UUID) |
+| `backend/src/lib/auth.ts` | Clerk abstraction (only file importing `@clerk/backend`) | `verifyClerkToken()` — local `verifyToken()` with `CLERK_SECRET_KEY`; `fetchClerkUser()` — `clerkClient.users.getUser()` + primary-email extraction + `fullName` |
 | `backend/src/services/wsTicketStore.ts` | WS ticket store | In-memory `Map<ticket, { userId, expiresAt }>` |
 | `backend/src/services/rateLimiter.ts` | IP throttling | Redis sorted set + in-memory fallback |
 | `backend/src/services/authVerificaiton.ts` | Email sending | `sendFriendRequestEmail()` via Gmail SMTP / Nodemailer |
@@ -81,9 +81,10 @@ clerkFetch('/api/chats')               incoming request
                                          │  5. users.findFirst({ email })
                                          │       ├─ clerk_id set to a different value ─▶ 409 (takeover guard)
                                          │       └─ else update clerk_id ──────────────▶ req.user, next()
-                                         │  6. auto-provision (first login):
+│  6. auto-provision (first login):
                                          │       supabase.auth.admin.createUser({ email, email_confirm: true })
-                                         │       → unique user_tag collision loop
+                                         │       → user_name = fullName || email local-part || 'user'
+                                         │       → user_tag = 'cleanName#' + (users.count() + 1)
                                          │       → clerkUsers.upsert({ clerk_id, email })
                                          │       → users.create({ id: authUserId, ... is_verified: true })
                                          │       → req.user, next()
@@ -250,10 +251,12 @@ Every protected API route uses this middleware:
    On TokenVerificationError (expired/invalid) → 401, not 500
 4. Look up user by clerk_id in DB → req.user = { id: dbUuid, email } → next()
 5. If not found → auto-provision:
-   a. fetchClerkUser(clerkId) → email from Clerk API
+   a. fetchClerkUser(clerkId) → { email, fullName } from Clerk API
    b. Existing user by email?
       - If it has a clerk_id set to a different value → 409 (blocks account takeover)
-   c. supabase.auth.admin.createUser() → prisma.clerkUsers.upsert() → prisma.users.create()
+   c. user_name = trimmed fullName, or the email local-part (e.g. "xyz" from "xyz@gmail.com"), or "user"
+   d. user_tag = lowercase name with spaces stripped + "#" + (total users + 1)  (e.g. "John Smith" → "johnsmith#12")
+   e. supabase.auth.admin.createUser() → prisma.clerkUsers.upsert() → prisma.users.create()
 ```
 
 **Clerk ID vs DB UUID**: Clerk user IDs (e.g., `user_3Gp...`) are NOT valid UUIDs. The middleware maps Clerk IDs to internal DB UUIDs via the `clerk_id` column on `USERS`. `req.user.id` is always the DB UUID.
@@ -297,12 +300,12 @@ Applied on:
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | UUID (PK) | Internal DB UUID, linked to Clerk via `clerk_id` |
-| `user_name` | String | Unique |
+| `user_name` | String | Display name — Clerk `fullName`, email local-part as fallback (no name in Clerk); **not unique** (legacy `USERS_user_name_key` index dropped — two users can share a name) |
 | `email` | String | Unique — linked to `clerkUsers` table |
 | `image_url` | String? | Profile picture (S3 key — signed before sending to client) |
 | `is_verified` | Boolean | Email verification status |
 | `bio` | String? | User bio |
-| `user_tag` | String | Unique — `username#0001` format |
+| `user_tag` | String | Unique — `cleanName#<totalUsers+1>` format (e.g. `johnsmith#12`), lowercase, spaces stripped |
 | `role` | String | `"user"` by default |
 | `last_login` | DateTime | |
 | `created_at` | DateTime | |

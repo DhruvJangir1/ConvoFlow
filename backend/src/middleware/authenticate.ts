@@ -126,17 +126,12 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
       const authUserId = authData.user.id;
 
-      // Generate unique tag
-      const username = email.split('@')[0] || 'user';
-      let tag = username;
-      let suffix = 1;
-      console.log(`[authenticate] Generating unique tag for "${username}"...`);
-      while (true) {
-        const dup = await prisma.users.findFirst({ where: { user_tag: tag }, select: { id: true } });
-        if (!dup) break;
-        tag = `${username}${suffix}`;
-        suffix++;
-      }
+// Generate unique tag
+      const baseName = (clerkUser.userName && clerkUser.userName.trim()) || email.split('@')[0] || 'user';
+      const cleanName = baseName.toLowerCase().replace(/\s+/g, '');
+      const totalUsers = await prisma.users.count();
+
+      const tag = `${cleanName}#${totalUsers + 1}`;
       console.log(`[authenticate] Tag assigned: "${tag}"`);
 
       // Create clerkUsers row
@@ -153,7 +148,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       const newUser = await prisma.users.create({
         data: {
           id: authUserId,
-          user_name: username,
+          user_name: baseName,
           email,
           user_tag: tag,
           clerk_id: clerkId,

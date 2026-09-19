@@ -2,7 +2,18 @@
 
 Real-time messaging platform with end-to-end authentication, WebSocket-based instant messaging, anonymous chats, and a friend system.
 
-**Explore the live app:** [**<span style="color:#1e90ff">here</span>**](https://convo-flow-4eu6.vercel.app)
+<p align="center">
+  <img
+    src="public/convoflow-landing-page.png"
+    alt="ConvoFlow — real-time chat interface"
+    width="900"
+    style="max-width:100%; height:auto; border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.08);"
+  />
+</p>
+
+<p align="center">
+  <a href="https://convo-flow-4eu6.vercel.app" style="color:#1e90ff; font-weight:600; text-decoration:none;">Explore the live app →</a>
+</p>
 
 ## Tech Stack
 

@@ -371,9 +371,9 @@ npx tsc -b              # TypeScript project references build
 ### Auth Middleware Tests (`backend/src/middleware/authenticate.test.ts`)
 
 - Mock `../lib/auth.js` (the Clerk abstraction layer), NOT `@clerk/backend` directly. This is the whole point of the abstraction — tests never need to know about Clerk.
-- Mock `../lib/connectionPoolClient.js` for Prisma calls (`prisma.users.findFirst`, `prisma.users.create`, `prisma.clerkUsers.upsert`).
+- Mock `../lib/connectionPoolClient.js` for Prisma calls (`prisma.users.findFirst`, `prisma.users.count`, `prisma.users.create`, `prisma.clerkUsers.upsert`).
 - Mock `../supabase/admin.js` for `getAdminClient()` (Supabase auth user creation).
-- The test covers all code paths: missing header, bad token, existing user by clerk_id, link by email, auto-provision, tag collision, and error cases.
+- The test covers all code paths: missing header, bad token, existing user by clerk_id, link by email, auto-provision (with fullName and email-part fallback), and error cases.
 
 ---
 
@@ -552,9 +552,11 @@ export async function authenticate(req, res, next) {
 ```
 
 **Auto-provisioning flow** (when a Clerk user has no DB row):
-1. `fetchClerkUser(clerkId)` → gets email from Clerk API
+1. `fetchClerkUser(clerkId)` → gets email + fullName from Clerk API
 2. Check for existing user by email → if found and has a `clerk_id` already set to a different value, reject with 409 (prevents account takeover)
 3. Otherwise: `supabase.auth.admin.createUser()` → `prisma.clerkUsers.upsert()` → `prisma.users.create()`
+   - `user_name` = Clerk `fullName`; falls back to the email local-part (e.g. `xyz` from `xyz@gmail.com`), then `'user'`. No unique constraint (legacy `USERS_user_name_key` index was dropped), so duplicate names are allowed.
+   - `user_tag` = lowercase name with spaces stripped + `#<total users + 1>` (e.g. `"John Smith"` → `johnsmith#12`); unique, no collision loop — a tag is never re-checked.
 
 **Clerk ID vs DB UUID**: Clerk user IDs (e.g., `user_3Gp...`) are **not** UUIDs. The middleware maps them to internal DB UUIDs via the `clerk_id` column on `USERS`. The `req.user.id` is always the DB UUID, never the Clerk ID.
 
