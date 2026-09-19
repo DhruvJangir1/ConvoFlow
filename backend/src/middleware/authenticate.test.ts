@@ -9,6 +9,7 @@ const { mockVerifyClerkToken, mockFetchClerkUser, mockPrisma, mockGetAdminClient
       findFirst: vi.fn(),
       update: vi.fn(),
       create: vi.fn(),
+      count: vi.fn(),
     },
     clerkUsers: {
       upsert: vi.fn(),
@@ -188,10 +189,10 @@ describe('authenticate middleware', () => {
       mockVerifyClerkToken.mockResolvedValue({ sub: 'clerk_abc' });
       mockPrisma.users.findFirst
         .mockResolvedValueOnce(null)   // by clerk_id
-        .mockResolvedValueOnce(null)   // by email
-        .mockResolvedValueOnce(null);  // tag check
-      mockFetchClerkUser.mockResolvedValue({ emailAddress: 'newuser@test.com' });
+        .mockResolvedValueOnce(null);  // by email
+      mockFetchClerkUser.mockResolvedValue({ emailAddress: 'newuser@test.com', userName: 'New User' });
 
+      mockPrisma.users.count.mockResolvedValue(10);
       const mockSupabase = {
         auth: {
           admin: {
@@ -224,15 +225,57 @@ describe('authenticate middleware', () => {
       expect(mockPrisma.users.create).toHaveBeenCalledWith({
         data: {
           id: 'supabase-uuid-1',
-          user_name: 'newuser',
+          user_name: 'New User',
           email: 'newuser@test.com',
-          user_tag: 'newuser',
+          user_tag: 'newuser#11',
           clerk_id: 'clerk_abc',
           is_verified: true,
         },
         select: { id: true, email: true },
       });
       expect(req.user).toEqual({ id: 'supabase-uuid-1', email: 'newuser@test.com' });
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('falls back to email local-part when Clerk user has no name', async () => {
+      mockVerifyClerkToken.mockResolvedValue({ sub: 'clerk_abc' });
+      mockPrisma.users.findFirst
+        .mockResolvedValueOnce(null)   // by clerk_id
+        .mockResolvedValueOnce(null);  // by email
+      mockFetchClerkUser.mockResolvedValue({ emailAddress: 'xyz@gmail.com', userName: '' });
+
+      mockPrisma.users.count.mockResolvedValue(3);
+      const mockSupabase = {
+        auth: {
+          admin: {
+            createUser: vi.fn().mockResolvedValue({
+              data: { user: { id: 'supabase-uuid-2' } },
+              error: null,
+            }),
+          },
+        },
+      };
+      mockGetAdminClient.mockReturnValue(mockSupabase);
+
+      mockPrisma.clerkUsers.upsert.mockResolvedValue({});
+      mockPrisma.users.create.mockResolvedValue({ id: 'supabase-uuid-2', email: 'xyz@gmail.com' });
+
+      const req = createReq('Bearer valid-token');
+      const res = createRes();
+
+      await authenticate(req, res, next);
+
+      expect(mockPrisma.users.create).toHaveBeenCalledWith({
+        data: {
+          id: 'supabase-uuid-2',
+          user_name: 'xyz',
+          email: 'xyz@gmail.com',
+          user_tag: 'xyz#4',
+          clerk_id: 'clerk_abc',
+          is_verified: true,
+        },
+        select: { id: true, email: true },
+      });
       expect(next).toHaveBeenCalled();
     });
 
@@ -263,43 +306,6 @@ describe('authenticate middleware', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'Failed to create auth user' });
       expect(next).not.toHaveBeenCalled();
-    });
-
-    it('increments tag when first choice is taken', async () => {
-      mockVerifyClerkToken.mockResolvedValue({ sub: 'clerk_abc' });
-      mockPrisma.users.findFirst
-        .mockResolvedValueOnce(null)  // by clerk_id
-        .mockResolvedValueOnce(null)  // by email
-        .mockResolvedValueOnce({ id: 'existing' })  // tag collision: 'alice'
-        .mockResolvedValueOnce(null); // tag 'alice1' is free
-      mockFetchClerkUser.mockResolvedValue({ emailAddress: 'alice@test.com' });
-
-      const mockSupabase = {
-        auth: {
-          admin: {
-            createUser: vi.fn().mockResolvedValue({
-              data: { user: { id: 'sb-uuid' } },
-              error: null,
-            }),
-          },
-        },
-      };
-      mockGetAdminClient.mockReturnValue(mockSupabase);
-
-      mockPrisma.clerkUsers.upsert.mockResolvedValue({});
-      mockPrisma.users.create.mockResolvedValue({ id: 'sb-uuid', email: 'alice@test.com' });
-
-      const req = createReq('Bearer valid-token');
-      const res = createRes();
-
-      await authenticate(req, res, next);
-
-      expect(mockPrisma.users.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ user_tag: 'alice1' }),
-        }),
-      );
-      expect(next).toHaveBeenCalled();
     });
   });
 });

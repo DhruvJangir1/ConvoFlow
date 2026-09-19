@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS "USERS_user_name_key";
