@@ -82,12 +82,12 @@ clerkFetch('/api/chats')               incoming request
                                          │       ├─ clerk_id set to a different value ─▶ 409 (takeover guard)
                                          │       └─ else update clerk_id ──────────────▶ req.user, next()
 │  6. auto-provision (first login):
-                                          │       supabase.auth.admin.createUser({ email, email_confirm: true })
-                                          │       → user_name = fullName || email local-part || 'user'
-                                          │       → user_tag = 'cleanName#' + (users.count() + 1)
-                                          │       → clerkUsers.upsert({ clerk_id, email })
-                                          │       → users.create({ id: authUserId, ... is_verified: true })
-                                          │       → req.user, next()
+                                         │       supabase.auth.admin.createUser({ email, email_confirm: true })
+                                         │       → user_name = fullName || email local-part || 'user'
+                                         │       → user_tag = 'cleanName#' + (users.count() + 1)
+                                         │       → clerkUsers.upsert({ clerk_id, email })
+                                         │       → users.create({ id: authUserId, ... is_verified: true })
+                                         │       → req.user, next()
                                          └─ route handler uses req.user.id (DB UUID)
 ```
 
