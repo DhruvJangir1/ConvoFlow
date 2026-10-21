@@ -3,10 +3,12 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import IconButton from "@mui/material/IconButton";
 import Close from "@mui/icons-material/Close";
+import { useState } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
 import type { ChatMember } from "../types/chat";
 import UserAvatar from "./UserAvatar";
+import UserProfileModal from "../modals/UserProfileModal";
 
 type GroupInfoModalProps = {
   open: boolean;
@@ -16,6 +18,7 @@ type GroupInfoModalProps = {
 
 export default function GroupInfoModal({ open, onClose, members }: GroupInfoModalProps) {
   const user = useSelector((s: RootState) => s.userAuth.user);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   return (
     <Dialog
@@ -59,17 +62,25 @@ export default function GroupInfoModal({ open, onClose, members }: GroupInfoModa
           {members.map((member) => {
             const isCurrentUser = user ? user.id === member.id : false;
             return (
-              <div key={member.id} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/5">
+              <button
+                key={member.id}
+                type="button"
+                onClick={() => setProfileUserId(member.id)}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-white/5"
+              >
                 <UserAvatar imageUrl={member.image_url ?? null} userName={member.user_name} size="md" />
                 <span className="text-sm font-medium text-text-primary truncate">
                   {member.user_name}
                   {isCurrentUser && <span className="text-text-muted ml-1">(You)</span>}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
       </DialogContent>
+      {profileUserId && (
+        <UserProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
+      )}
     </Dialog>
   );
 }

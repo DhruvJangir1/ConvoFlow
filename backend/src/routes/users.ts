@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import multer, { type FileFilterCallback } from 'multer';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/connectionPoolClient.js';
-import { uploadImageToStorage } from '../services/imageUpload.js';
+import { uploadImageToStorage, resolveImageUrl } from '../services/imageUpload.js';
 import { signChatAvatar, signMemberImages } from '../chat/chatImageHelpers.js';
 
 const UserRouter = Router();
@@ -59,6 +59,43 @@ UserRouter.get('/search', authenticate, async (req: Request, res: Response): Pro
 
   res.json({ users });
 });
+
+UserRouter.get('/:userId/profile', authenticate, async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  try {
+    const profile = await prisma.users.findUnique({
+      where: { id: req.params.userId },
+      select: {
+        id: true,
+        user_name: true,
+        user_tag: true,
+        bio: true,
+        image_url: true,
+        created_at: true,
+      },
+    });
+
+    if (!profile) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    res.json({
+      user: {
+        ...profile,
+        image_url: await resolveImageUrl(profile.image_url),
+      },
+    });
+  } catch (error) {
+    console.error('[UserRouter] fetch profile error:', error);
+    res.status(404).json({ error: 'User not found' });
+  }
+});
+
 
 UserRouter.patch('/profile-image', authenticate, upload.single('image'), async (req: ProfileImageRequest, res: Response): Promise<void> => {
   console.log('[UserRouter] PATCH /profile-image hit');

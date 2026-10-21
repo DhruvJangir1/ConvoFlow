@@ -21,3 +21,8 @@ export const notifKeys = {
   lists: () => [...notifKeys.all, 'list'] ,
   list: (filters?: Record<string, string>) => [...notifKeys.lists(), filters] ,
 };
+
+export const userKeys = {
+  all: ['users'] ,
+  profile: (userId: string) => [...userKeys.all, 'profile', userId] ,
+};

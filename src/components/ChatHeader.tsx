@@ -6,6 +6,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useChatDetailQuery } from "../hooks/useChatDetailQuery";
 import GroupInfoModal from "./GroupInfoModal";
 import UserAvatar from "./UserAvatar";
+import UserProfileModal from "../modals/UserProfileModal";
 
 export default function ChatHeader() {
   const user = useSelector((s: RootState) => s.userAuth.user);
@@ -14,6 +15,7 @@ export default function ChatHeader() {
   const navigate = useNavigate();
   const { data: chat } = useChatDetailQuery(chatId);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   if (!chat) return null;
 
@@ -35,7 +37,18 @@ export default function ChatHeader() {
         <ArrowLeft className="h-4 w-4" />
       </button>
       <div className="flex min-w-0 items-center gap-3">
-        <UserAvatar imageUrl={chat.avatar_url ?? null} userName={chat.name} size="sm" />
+        {chat.type === 'dm' && otherUserId ? (
+          <button
+            type="button"
+            onClick={() => setProfileUserId(otherUserId)}
+            className="cursor-pointer rounded-full transition-opacity hover:opacity-80"
+            aria-label={`View ${chat.name} profile`}
+          >
+            <UserAvatar imageUrl={chat.avatar_url ?? null} userName={chat.name} size="sm" />
+          </button>
+        ) : (
+          <UserAvatar imageUrl={chat.avatar_url ?? null} userName={chat.name} size="sm" />
+        )}
         <div className="min-w-0">
           <h1 className="truncate text-[17px]/[1.4] font-semibold text-text-primary">
             {chat.name}
@@ -67,6 +80,9 @@ export default function ChatHeader() {
         </button>
       </div>
       <GroupInfoModal open={infoOpen} onClose={() => setInfoOpen(false)} members={chat.members} />
+      {profileUserId && (
+        <UserProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
+      )}
     </header>
   );
 }
