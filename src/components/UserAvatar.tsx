@@ -5,13 +5,14 @@ import type { RootState } from "../store/store";
 type UserAvatarProps = {
   imageUrl: string | null;
   userName: string;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
 };
 
 const sizeClasses = {
   sm: "h-8 w-8 text-xs",
   md: "h-10 w-10 text-sm",
   lg: "h-14 w-14 text-lg",
+  xl: "h-28 w-28 text-3xl",
 };
 
 import { getInitials, avatarGradient } from "../lib/avatar";

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
+import { useRef, useEffect, useLayoutEffect, useMemo, useCallback, useState } from "react";
 import { IconButton } from "@mui/material";
 import Edit from "@mui/icons-material/Edit";
 import Delete from "@mui/icons-material/Delete";
@@ -6,6 +6,7 @@ import Check from "@mui/icons-material/Check";
 import Close from "@mui/icons-material/Close";
 import type { ChatMessages, AnonymousChatMessages } from "../types/chat";
 import UserAvatar from "./UserAvatar";
+import UserProfileModal from "../modals/UserProfileModal";
 
 type Message = ChatMessages | AnonymousChatMessages;
 
@@ -148,6 +149,7 @@ export default function MessageList({
   const prevScrollInfo = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const isPrependingRef = useRef(false);
   const stickToBottomRef = useRef(true);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   const handleScroll = useCallback(() => {
     const el = listRef.current;
@@ -332,7 +334,13 @@ export default function MessageList({
                   >
                     {mi === 0 && !group.isOwn && !isAnonMsg(msg) && (
                       <div className="shrink-0 self-end">
-                        <UserAvatar imageUrl={msg.senderImage ?? null} userName={msg.senderName} size="sm" />
+                        <button
+                          type="button"
+                          onClick={() => setProfileUserId(msg.senderId)}
+                          className="cursor-pointer transition-opacity hover:opacity-80"
+                        >
+                          <UserAvatar imageUrl={msg.senderImage ?? null} userName={msg.senderName} size="sm" />
+                        </button>
                       </div>
                     )}
                     <div
@@ -431,7 +439,13 @@ export default function MessageList({
 
                       {mi === 0 && group.isOwn && !isAnonMsg(msg) && (
                         <div className="shrink-0 self-end">
-                          <UserAvatar imageUrl={msg.senderImage ?? null} userName={msg.senderName} size="sm" />
+                          <button
+                            type="button"
+                            onClick={() => setProfileUserId(msg.senderId)}
+                            className="cursor-pointer transition-opacity hover:opacity-80"
+                          >
+                            <UserAvatar imageUrl={msg.senderImage ?? null} userName={msg.senderName} size="sm" />
+                          </button>
                         </div>
                       )}
 
@@ -478,6 +492,9 @@ export default function MessageList({
 
         <div ref={sentinelRef} className="h-px" />
       </div>
+      {profileUserId && (
+        <UserProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
+      )}
     </div>
   );
 }

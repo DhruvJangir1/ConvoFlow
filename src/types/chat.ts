@@ -4,6 +4,15 @@ export type ChatMember = {
   image_url: string | null;
 };
 
+export type UserProfile = {
+  id: string;
+  user_name: string;
+  user_tag: string;
+  bio: string | null;
+  image_url: string | null;
+  created_at: string;
+};
+
 export type Chat = {
   id: string;
   name: string;
