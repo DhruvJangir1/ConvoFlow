@@ -36,20 +36,20 @@ function CopyButton({ value }: { value: string }) {
 
 function StatPill({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string | number }) {
   return (
-    <div className="flex flex-1 flex-col items-center gap-1.5 rounded-xl border border-border bg-surface px-2 sm:px-6 py-3">
+    <div className="flex w-full min-w-0 max-w-full flex-col items-center gap-1.5 rounded-xl border border-border bg-surface px-3 py-3 sm:px-4">
       <Icon className="h-4 w-4 text-text-muted" />
-      <span className="truncate text-center text-xs sm:text-sm font-semibold tabular-nums text-text-primary">{value}</span>
-      <span className="text-[10px] sm:text-[11px] text-text-muted">{label}</span>
+      <span className="w-full text-center text-xs font-semibold tabular-nums text-text-primary sm:text-sm [overflow-wrap:anywhere]">{value}</span>
+      <span className="text-center text-[10px] text-text-muted sm:text-[11px]">{label}</span>
     </div>
   );
 }
 
 function AccountRow({ label, value, copyable }: { label: string; value: string; copyable?: boolean }) {
   return (
-    <div className="flex items-center justify-between py-2.5 gap-2">
-      <span className="text-xs font-medium text-text-muted shrink-0">{label}</span>
-      <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
-        <span className="truncate text-right text-xs sm:text-sm text-text-primary">{value}</span>
+    <div className="flex min-w-0 flex-col items-start gap-1 py-3 min-[24rem]:flex-row min-[24rem]:items-center min-[24rem]:justify-between min-[24rem]:gap-2">
+      <span className="text-xs font-medium text-text-muted">{label}</span>
+      <div className="flex w-full min-w-0 flex-1 items-center gap-2 min-[24rem]:justify-end">
+        <span className="min-w-0 flex-1 text-left text-xs text-text-primary min-[24rem]:text-right sm:text-sm [overflow-wrap:anywhere]">{value}</span>
         {copyable && <CopyButton value={value} />}
       </div>
     </div>
@@ -78,11 +78,11 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[8vh] sm:pt-[12vh] backdrop-blur-sm overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:p-6"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="animate-modal-in w-full max-w-sm sm:max-w-md mx-2 sm:mx-0 overflow-hidden rounded-2xl border border-border bg-surface-elevated shadow-2xl shadow-black/50"
+        className="animate-modal-in max-h-[calc(100dvh-1.5rem)] w-full max-w-full overflow-y-auto rounded-2xl border border-border bg-surface-elevated shadow-2xl shadow-black/50 sm:max-h-[calc(100dvh-3rem)] sm:max-w-[32rem]"
         onClick={(e) => e.stopPropagation()}
       >
 
@@ -101,7 +101,7 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
         <div className="relative">
           {/* Mesh gradient banner */}
           <div
-            className="h-20 w-full"
+            className="aspect-[5/1] max-h-32 w-full"
             style={{
               background: `
                 radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.25) 0%, transparent 60%),
@@ -127,12 +127,12 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
         </div>
 
         {/* ── Identity ── */}
-        <div className="mt-10 flex flex-col items-center gap-1 px-6 pb-4 text-center">
-          <p className="text-[17px] font-semibold leading-tight text-text-primary">{user.user_name}</p>
-          <p className="text-sm text-text-muted">{user.email}</p>
+        <div className="mt-10 flex w-full max-w-full flex-col items-center gap-1 px-4 pb-4 text-center sm:px-6">
+          <p className="max-w-full text-[17px] font-semibold leading-tight text-text-primary [overflow-wrap:anywhere]">{user.user_name}</p>
+          <p className="max-w-full text-sm text-text-muted [overflow-wrap:anywhere]">{user.email}</p>
 
           {/* Badges */}
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2 flex max-w-full flex-wrap items-center justify-center gap-2">
             <span className="flex items-center gap-1 rounded-full border border-accent-success/20 bg-accent-success/10 px-2 py-0.5 text-[11px] font-medium text-accent-success">
               <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
               Online
@@ -145,38 +145,40 @@ export default function ProfileModal({ isOpen, onClose, onEditProfile }: Props) 
         </div>
 
         {/* ── Stats ── */}
-        <div className="flex gap-2 px-4 pb-4">
+        <div className="grid w-full max-w-full grid-cols-1 gap-2 px-4 pb-4 min-[40rem]:grid-cols-3">
           <StatPill icon={MessageSquare} label="Chats" value={conversations.length} />
           <StatPill icon={Hash} label="Messages" value={totalMessages} />
           <StatPill icon={Calendar} label="Joined" value={memberSince} />
         </div>
 
         {/* ── Account details ── */}
-        <div className="mx-4 mb-4 rounded-xl border border-border bg-surface px-4">
-          <p className="pt-3 text-[11px] font-semibold uppercase tracking-widest text-text-muted">
-            Account
-          </p>
-          <div className="divide-y divide-border/50">
-            <AccountRow label="Username" value={user.user_name} copyable />
-            <AccountRow label="UserTag" value={user.user_tag} copyable />
-            <AccountRow label="Email" value={user.email} copyable />
-            <AccountRow label="Member since" value={memberSince} />
-            <AccountRow label="Plan" value={plan} />
+        <div className="mb-4 w-full max-w-full px-4">
+          <div className="w-full max-w-full rounded-xl border border-border bg-surface px-3 sm:px-4">
+            <p className="pt-3 text-[11px] font-semibold uppercase tracking-widest text-text-muted">
+              Account
+            </p>
+            <div className="w-full max-w-full divide-y divide-border/50">
+              <AccountRow label="Username" value={user.user_name} copyable />
+              <AccountRow label="UserTag" value={user.user_tag} copyable />
+              <AccountRow label="Email" value={user.email} copyable />
+              <AccountRow label="Member since" value={memberSince} />
+              <AccountRow label="Plan" value={plan} />
+            </div>
           </div>
         </div>
 
         {/* ── Actions ── */}
-        <div className="flex gap-2 border-t border-border px-4 py-3">
+        <div className="grid w-full max-w-full grid-cols-1 gap-2 border-t border-border px-4 py-3 min-[40rem]:grid-cols-2">
           <button
             onClick={onEditProfile}
-            className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-surface py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+            className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-surface py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
           >
             <Pencil className="h-3.5 w-3.5" />
             Edit Profile
           </button>
           <button
             onClick={async () => { await signOut(); navigate('/'); }}
-            className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-accent-danger/20 bg-accent-danger/10 py-2 text-sm font-medium text-accent-danger transition-colors hover:bg-accent-danger/20"
+            className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-accent-danger/20 bg-accent-danger/10 py-2 text-sm font-medium text-accent-danger transition-colors hover:bg-accent-danger/20"
           >
             <LogOut className="h-3.5 w-3.5" />
             Sign Out

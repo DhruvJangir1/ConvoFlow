@@ -17,7 +17,7 @@ function CopyButton({ value }: { value: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
+  return ( 
     <button
       onClick={handleCopy}
       className="flex h-6 w-6 items-center justify-center rounded text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary"
@@ -35,7 +35,7 @@ function InfoLine({ label, value, copyable, icon: Icon }: { label: string; value
         {Icon && <Icon className="h-[clamp(0.85rem,2.5vw,1.1rem)] w-[clamp(0.85rem,2.5vw,1.1rem)] opacity-60" />}
         {label}
       </span>
-      <span className="min-w-0 flex-1 flex justify-end truncate text-[clamp(0.8rem,2.8vw,1rem)] text-text-primary">{value}</span>
+      <span className="min-w-0 flex-1 text-right text-[clamp(0.8rem,2.8vw,1rem)] text-text-primary [overflow-wrap:anywhere]">{value}</span>
       {copyable && <CopyButton value={value} />}
     </div>
   );
@@ -57,12 +57,10 @@ export default function ProfileView() {
     ? new Date(user.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
     : "—";
 
-  const avatarSize = "clamp(8rem, 25vw, 12rem)";
-
   return (
-    <div className="relative flex flex-1 flex-col bg-surface overflow-y-auto overflow-x-hidden h-full w-full pt-[2.5svh]">
+    <div className="relative flex h-full w-full max-w-full flex-1 flex-col overflow-x-hidden overflow-y-auto bg-surface pt-[2.5svh]">
 
-      <div className="w-full">
+      <div className="w-full max-w-full">
 
       {/* ── Header ── */}
       <div className="flex items-center gap-3 px-[3vw] py-[1.5svh] border-b border-border/50">
@@ -79,83 +77,83 @@ export default function ProfileView() {
       </div>
 
       {/* ── Avatar + Bio ── */}
-      <div className="flex items-center gap-[4vw] px-[3vw] pt-[3svh]">
+      <div className="flex w-full max-w-full flex-col items-start gap-4 px-4 pt-6 sm:flex-row sm:gap-6 sm:px-6 lg:px-8">
         <button
           onClick={() => setImageModalOpen(true)}
-          className="shrink-0 cursor-pointer rounded-full transition-transform hover:scale-105 focus:outline-none"
+          className="relative shrink-0 cursor-pointer rounded-full transition-transform hover:scale-105 focus:outline-none"
         >
           {user.image_url ? (
             <img
               src={user.image_url}
               alt={user.user_name}
-              className="rounded-full object-cover ring-[0.35vw] ring-surface shadow-xl"
-              style={{ width: avatarSize, height: avatarSize }}
+              className="aspect-square rounded-full object-cover ring-4 ring-surface shadow-xl"
+              style={{ width: "clamp(4.5rem, 10vw, 7rem)" }}
             />
           ) : (
-            <div className="rounded-full ring-[0.35vw] ring-surface shadow-xl" style={{ width: avatarSize, height: avatarSize }}>
+            <div className="aspect-square rounded-full ring-4 ring-surface shadow-xl" style={{ width: "clamp(4.5rem, 10vw, 7rem)" }}>
               <UserAvatar imageUrl={user.image_url} userName={user.user_name} size="lg" />
             </div>
           )}
           <span className="absolute bottom-[0.5vw] right-[0.5vw] h-[clamp(0.7rem,2vw,1rem)] w-[clamp(0.7rem,2vw,1rem)] rounded-full border-[0.2vw] border-surface bg-green-400" />
         </button>
 
-        {/* ── Bio bubble ── */}
-        {editingBio ? (
-          <div className="flex flex-1 min-w-0 items-center gap-2 rounded-full border border-accent/50 bg-surface-raised px-5 py-4">
-            <textarea
-              autoFocus
-              value={bioValue}
-              onChange={(e) => setBioValue(e.target.value)}
-              onBlur={() => { setBioValue(user.bio ?? ""); setEditingBio(false); }}
-              rows={2}
-              maxLength={120}
-              placeholder="Write something about yourself..."
-              className="flex-1 min-w-0 resize-none bg-transparent text-[clamp(0.8rem,2.8vw,1rem)] leading-relaxed text-text-primary placeholder-text-muted outline-none"
-            />
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={async () => {
-                setSavingBio(true);
-                await updateUserBioAction(user.id, bioValue, dispatch);
-                setSavingBio(false);
-                setEditingBio(false);
-              }}
-              disabled={savingBio}
-              className="shrink-0 flex h-8 w-8 items-center justify-center rounded-full bg-accent text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
-            >
-              <Send className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => { setBioValue(user.bio ?? ""); setEditingBio(true); }}
-            className="flex-1 min-w-0 rounded-full border border-border/50 bg-surface-raised px-5 py-4 text-left cursor-pointer transition-colors hover:bg-surface-hover"
-          >
-            <p className="text-[clamp(0.8rem,2.8vw,1rem)] leading-relaxed text-text-primary whitespace-pre-wrap break-words">
-              {user.bio || "No bio yet"}
+        <div className="w-full min-w-0 flex-1">
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="break-words font-semibold leading-tight text-text-primary [overflow-wrap:anywhere]" style={{ fontSize: "clamp(1.5rem, 3vw, 2.25rem)" }}>
+              {user.user_name}
             </p>
-          </button>
-        )}
-      </div>
+            <p className="text-base text-text-muted [overflow-wrap:anywhere]">{user.user_tag}</p>
+            <span className="mt-1 flex w-fit max-w-full items-center gap-1.5 rounded-full border border-accent-success/20 bg-accent-success/10 px-3 py-1 text-sm font-medium text-accent-success">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />
+              Online
+            </span>
+          </div>
 
-      {/* ── Name ── */}
-      <div className="flex flex-col gap-1 pt-[2.5svh] px-[3vw]">
-        <p className="font-semibold leading-tight text-text-primary" style={{ fontSize: "clamp(1.1rem, 4vw, 1.6rem)" }}>
-          {user.user_name}
-        </p>
-      </div>
-
-      {/* ── Status badges ── */}
-      <div className="flex justify-start gap-3 pt-[2svh] px-[3vw]">
-        <span className="flex items-center gap-1.5 rounded-full border border-accent-success/20 bg-accent-success/10 px-3 py-1 font-medium text-accent-success" style={{ fontSize: "clamp(0.65rem, 2.2vw, 0.8rem)" }}>
-          <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-          Online
-        </span>
+          {/* ── Bio bubble ── */}
+          <div className="mt-4 w-full max-w-full">
+            {editingBio ? (
+              <div className="flex w-full min-w-0 items-center gap-2 rounded-2xl border border-accent/50 bg-surface-raised px-4 py-4 sm:px-5">
+                <textarea
+                  autoFocus
+                  value={bioValue}
+                  onChange={(e) => setBioValue(e.target.value)}
+                  onBlur={() => { setBioValue(user.bio ?? ""); setEditingBio(false); }}
+                  rows={2}
+                  maxLength={120}
+                  placeholder="Write something about yourself..."
+                  className="min-h-12 min-w-0 flex-1 resize-none bg-transparent text-[clamp(0.8rem,2.8vw,1rem)] leading-relaxed text-text-primary placeholder-text-muted outline-none"
+                />
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={async () => {
+                    setSavingBio(true);
+                    await updateUserBioAction(user.id, bioValue, dispatch);
+                    setSavingBio(false);
+                    setEditingBio(false);
+                  }}
+                  disabled={savingBio}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setBioValue(user.bio ?? ""); setEditingBio(true); }}
+                className="w-full min-w-0 rounded-2xl border border-border/50 bg-surface-raised px-4 py-4 text-left transition-colors hover:bg-surface-hover sm:px-5"
+              >
+                <p className="whitespace-pre-wrap break-words text-[clamp(0.8rem,2.8vw,1rem)] leading-relaxed text-text-primary">
+                  {user.bio || "No bio yet"}
+                </p>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── Account info lines ── */}
       <div className="pt-[3svh]">
-        <p className="px-[5vw] sm:px-[4vw] md:px-[3vw] pb-[1.5svh] text-[clamp(0.6rem,2vw,0.75rem)] font-semibold uppercase tracking-widest text-text-muted">
+        <p className="px-4 pb-[1.5svh] text-[clamp(0.6rem,2vw,0.75rem)] font-semibold uppercase tracking-widest text-text-muted sm:px-6 lg:px-8">
           Account
         </p>
         <InfoLine icon={Pencil} label="Username" value={user.user_name} copyable />
@@ -164,9 +162,9 @@ export default function ProfileView() {
       </div>
 
       {/* ── Actions ── */}
-      <div className="flex w-full gap-3 px-[5vw] sm:px-[4vw] md:px-[3vw] pt-[3svh] pb-[5svh]">
+      <div className="grid w-full max-w-full grid-cols-1 gap-3 px-4 pt-[3svh] pb-[5svh] sm:grid-cols-2 sm:px-6 lg:px-8">
         <button
-          className="flex flex-1 items-center justify-center gap-2.5 rounded-xl border border-border bg-surface py-[2.5svh] font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+          className="flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-border bg-surface py-3 font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
           style={{ fontSize: "clamp(0.75rem, 2.5vw, 0.95rem)" }}
         >
           <Pencil style={{ width: "clamp(0.85rem, 2.5vw, 1.1rem)", height: "clamp(0.85rem, 2.5vw, 1.1rem)" }} />
@@ -174,7 +172,7 @@ export default function ProfileView() {
         </button>
         <button
           onClick={async () => { await signOut(); navigate("/"); }}
-          className="flex flex-1 items-center justify-center gap-2.5 rounded-xl border border-accent-danger/20 bg-accent-danger/10 py-[2.5svh] font-medium text-accent-danger transition-colors hover:bg-accent-danger/20"
+          className="flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-accent-danger/20 bg-accent-danger/10 py-3 font-medium text-accent-danger transition-colors hover:bg-accent-danger/20"
           style={{ fontSize: "clamp(0.75rem, 2.5vw, 0.95rem)" }}
         >
           <LogOut style={{ width: "clamp(0.85rem, 2.5vw, 1.1rem)", height: "clamp(0.85rem, 2.5vw, 1.1rem)" }} />
