@@ -84,18 +84,19 @@ Each package has its own `package.json`, `node_modules/`, and `tsconfig.json`. T
 ```
 src/
 ├── main.tsx                  # React entry point — wraps App in ClerkProvider (afterSignOutUrl="/auth") + providers
-├── App.tsx                   # React Router route definitions — /auth uses Clerk <SignIn> with dark theme
+├── App.tsx                   # React Router routes — /auth routes use AuthPageGate, then Clerk <SignIn> (dark theme)
 ├── index.css                 # Global styles + Tailwind imports
 ├── components/               # Shared reusable UI components
 │   ├── AddFriendButton.tsx
+│   ├── AuthState.tsx         # Shared auth spinner + error/retry card
 │   ├── ChatHeader.tsx        # Top bar of a chat (name, avatar, online status)
 │   ├── ChatInput.tsx         # Message composer (text + image paste + anonymous toggle)
 │   ├── GroupInfoModal.tsx    # Group chat member list
 │   ├── MessageList.tsx       # Core message renderer (text, images, voting, edit/delete)
-│   ├── ProtectedRoute.tsx    # Route guard — spinner while loading, redirect to /auth if no user
+│   ├── ProtectedRoute.tsx    # Route guard — spinner / signed-out redirect / error card (no redirect on failure)
 │   └── UserAvatar.tsx
 ├── context/                  # React Context providers (global state that lives across route changes)
-│   ├── AuthContext.tsx        # Syncs Clerk user to Redux — reads useUser()/useAuth() from Clerk
+│   ├── AuthContext.tsx        # Derives auth status from Clerk + /api/auth/setup-user; exposes status/loading/hasSession/error/retry
 │   ├── ChatContext.tsx        # Fetches + syncs chat list to Redux, auto-subscribes WS rooms
 │   └── WebSocketContext.tsx   # WS connection lifecycle, subscribe queue, delegates cache mutations to wsCacheHandlers
 ├── hooks/                    # Custom React hooks (data fetching + mutations via TanStack Query)
@@ -441,7 +442,7 @@ The backend runs as an ESM Node.js process. `server.js` is a plain `.js` file th
 <ClerkProvider publishableKey={...} afterSignOutUrl="/auth">   ← Clerk auth (manages session, OAuth redirect + callback)
   <QueryClientProvider>                ← TanStack React Query (server state caching)
     <Provider store={store}>           ← Redux Toolkit (client state)
-      <AuthProvider>                   ← Syncs Clerk user to Redux via useUser()/useAuth()
+      <AuthProvider>                   ← Derives auth status from Clerk + /api/auth/setup-user
         <WebSocketProvider>            ← WS connection lifecycle, subscribe queue, message dispatch
           <App />                      ← React Router routes
         </WebSocketProvider>
@@ -479,30 +480,34 @@ ConvoFlow uses **Clerk** for authentication. Clerk handles user management, sess
 
 ```
 1. ClerkProvider initializes with publishableKey
-2. AuthContext uses useUser() and useAuth() from @clerk/react
-3. When Clerk session is available:
-   a. useUser() returns the Clerk user object
-   b. AuthContext builds a User object from Clerk data (id, user_name, email, image_url, etc.)
-   c. Dispatches setUser() to Redux — user is now "logged in"
-4. When Clerk session ends:
-   a. useUser() returns null
-   b. AuthContext dispatches setUser(null) — user is now "logged out"
+2. AuthProvider reads useUser()/useAuth() from @clerk/react and derives a status:
+   - loading   — Clerk is initializing, or the DB user request is in flight
+   - ready     — Clerk session + DB user both available (Redux setUser(dbUser) dispatched)
+   - error     — POST /api/auth/setup-user failed (401/404/500/network/timeout)
+   - signed-out — no Clerk session (Redux setUser(null) + resetChats() dispatched)
+3. The DB user is fetched via clerkFetch POST /api/auth/setup-user; only a success sets status=ready
+4. Status is derived during render from the Clerk id, the resolved id, the error (keyed by Clerk id),
+   and the Redux user — no "done" latch that can survive a failed request or an account switch
+5. Stale in-flight responses are ignored via a cancelled flag in the effect cleanup
+6. retry() clears the error and increments an attempt counter; the guard screens expose a Try again button
 ```
 
 ### Login/Signup Flow (OAuth via Clerk `<SignIn>`)
 
 ```
 1. User navigates to /auth (via LandingPage CTA or ProtectedRoute redirect)
-2. App.tsx renders Clerk's <SignIn> component at /auth (with routing="path", dark theme from @clerk/themes)
-3. <SignIn> shows Google + GitHub buttons (providers configured in Clerk Dashboard)
-4. Clicking a provider → Clerk handles OAuth redirect internally (routing="path" manages sub-paths like /auth/sso-callback)
-5. Provider redirects back → Clerk's JS SDK finalizes session on /auth/* sub-paths
-6. <SignIn> redirects to /home (forceRedirectUrl="/home")
-7. useUser() in AuthContext fires with the new user → Redux state updates → UI re-renders
-8. ProtectedRoute sees user in Redux → allows access to protected pages
+2. AuthPageGate (src/App.tsx) shows the spinner while AuthContext status is loading
+3. If there is no Clerk session, it renders Clerk's <SignIn> (routing="path", dark theme from @clerk/themes)
+4. <SignIn> shows the configured OAuth buttons (providers set in the Clerk Dashboard)
+5. Clicking a provider → Clerk handles the OAuth redirect internally (routing="path" manages /auth/* sub-paths)
+6. Provider redirects back → Clerk's JS SDK finalizes the session
+7. AuthContext fetches the DB user via clerkFetch POST /api/auth/setup-user
+8. When status is ready, AuthPageGate navigates to /home with replace; ProtectedRoute renders protected pages
 ```
 
-**Why two routes for `/auth`**: React Router's `/auth/*` splat does NOT match bare `/auth`. The `/auth` route catches the initial visit; `/auth/*` catches Clerk's internal sub-paths (`/auth/factor-one`, `/auth/sso-callback`). Both render the same `<SignIn>` component which internally detects its sub-path.
+`forceRedirectUrl="/home"` remains on `<SignIn>` for the post-login destination, but `AuthPageGate` never renders `<SignIn>` for an already-signed-in user. A failed `setup-user` therefore shows the error/retry card instead of bouncing `/auth → /home → /auth`.
+
+**Why two routes for `/auth`**: React Router's `/auth/*` splat does NOT match bare `/auth`. The `/auth` route catches the initial visit; `/auth/*` catches Clerk's internal sub-paths (`/auth/factor-one`, `/auth/sso-callback`). Both render `AuthPageGate`, which renders the same `<SignIn>` component when there is no Clerk session.
 
 ### Logout Flow
 
@@ -511,7 +516,7 @@ ConvoFlow uses **Clerk** for authentication. Clerk handles user management, sess
 2. Component calls useClerk().signOut()
 3. Clerk destroys the session and clears its internal state
 4. useUser() returns null → AuthContext dispatches setUser(null) + resetChats() → Redux clears user + chat state
-5. ProtectedRoute detects user is null via useEffect → navigates to /auth (afterSignOutUrl="/auth")
+5. AuthContext status becomes signed-out → ProtectedRoute uses <Navigate to="/auth" replace /> (no useEffect)
 ```
 
 ### `clerkFetch` Utility (`src/lib/clerkFetch.ts`)
@@ -913,7 +918,7 @@ The WebSocket handlers in `WebSocketContext.tsx` delegate cache mutations to `ws
 | Route | Component | Protected? | Description |
 |-------|-----------|------------|-------------|
 | `/` | `LandingPage` | No | Marketing page — auto-redirects to /home if logged in |
-| `/auth` | Clerk `<SignIn>` | No | OAuth login/signup — Google + GitHub buttons (dark theme from @clerk/themes) |
+| `/auth`, `/auth/*` | `AuthPageGate` → Clerk `<SignIn>` | No | Spinner while loading; sign-in form when signed out; `/home` once the DB user is ready; error/retry on setup failure |
 | `/home` | `Home` | Yes | Chat list / home feed |
 | `/communities` | `Communities` | Yes | Communities page |
 | `/chat/:chatId` | `ChatView` | Yes | Standard chat view |
@@ -922,7 +927,7 @@ The WebSocket handlers in `WebSocketContext.tsx` delegate cache mutations to `ws
 | `/notification` | `NotificationsPage` | Yes | Notification feed |
 | `*` | `NotFoundPage` | No | 404 page |
 
-Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `AuthContext.loading` is true (Clerk is initializing), then renders the content if a user exists in Redux or redirects to `/auth` if not.
+Protected routes are wrapped in `<ProtectedRoute>`: spinner while `AuthContext.loading` is true (Clerk initializing or `setup-user` in flight); `<Navigate to="/auth" replace />` when the Clerk status is `signed-out`; `AuthErrorState` with **Try again** when `setup-user` failed (never a redirect to `/auth`); children only when status is `ready` with a Redux user.
 
 ---
 
@@ -939,7 +944,7 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 | **Origin Validation** | `x-forwarded-host` header checked against `CORS_ORIGIN` in production, falls back to standard `Origin` header. Standard `Origin`/`Referer` in dev. |
 | **Auto-Provision Guard** | When linking existing accounts by email, `clerk_id` is checked — if already set to a different Clerk account, the link is rejected (409). |
 | **401 Retry** | `clerkFetch` auto-retries once on 401 by calling `getToken()` again (forces a fresh JWT). |
-| **Logout Cleanup** | `AuthContext` dispatches `resetChats()` on logout, clearing Redux chat state. `ProtectedRoute` has a `useEffect` that watches `user` and redirects on session expiry. |
+| **Logout Cleanup** | `AuthContext` dispatches `resetChats()` on logout, clearing Redux chat state. `ProtectedRoute` redirects declaratively via `<Navigate>` when the derived status is `signed-out`; failed account setup shows retry instead of redirecting. |
 | **Bearer Parsing** | Authorization header is parsed via regex `/^Bearer\s+(.+)$/i` (strict, no lenient `.startsWith`). |
 | **User Privacy** | User search no longer exposes email addresses. Only `id`, `user_name`, `image_url`, `is_verified`, `user_tag` are returned. |
 | **Self-Request Block** | Friend requests to self are rejected (400). |
@@ -958,13 +963,14 @@ Protected routes are wrapped in `<ProtectedRoute>` which shows a spinner while `
 7. **Never push/add/commit/pull code on or from GitHub without asking**
 8. **Do NOT read any env files at all costs**
 9. **Two WebSocket providers** exist in the tree — `main.tsx` wraps the app in one, `RootLayout` wraps protected pages in another. The inner one shadows the outer one.
-10. **OAuth-only auth flow** — `/auth` renders Clerk's `<SignIn>` component with `routing="path"` and dark theme from `@clerk/themes`. Providers (Google, GitHub) are configured in the Clerk Dashboard, not in code. Two routes (`/auth` and `/auth/*`) are needed because React Router's splat doesn't match bare `/auth`, and Clerk's internal sub-paths (factor-one, sso-callback) need the `/*` route.
+10. **OAuth-only auth flow** — `/auth` and `/auth/*` render `AuthPageGate`, which renders Clerk's `<SignIn>` (`routing="path"`, dark theme from `@clerk/themes`) only when there is no Clerk session. Providers are configured in the Clerk Dashboard, not in code. Two routes are needed because React Router's splat doesn't match bare `/auth`, and Clerk's internal sub-paths (factor-one, sso-callback) need the `/*` route.
 11. **Clerk ID vs DB UUID** — Clerk user IDs (e.g., `user_3Gp...`) are NOT valid UUIDs. The database requires UUID format. A `clerk_id` mapping column has been added to `USERS` and the `authenticate` middleware maps Clerk IDs to DB UUIDs via this column.
 12. **`clerkFetch` must be used for all API calls** — Never use raw `fetch()` for backend requests. Always import `clerkFetch` from `../lib/clerkFetch` which injects the Clerk JWT automatically.
 13. **WebSocket subscribe enforces membership for standard chats** — The subscribe handler batch-queries `standardChatMembers` (membership) before allowing room subscription; non-member chatIds are silently skipped. Anonymous rooms are the exception: they are validated against `anonymousChats` by existence, so any authenticated user can subscribe to any anon room.
 14. **Anonymous message sender uses `req.user.id`** — `POST /:id/messages/:userId/:isAnonymous` ignores the URL `:userId` param and uses `req.user.id` from auth (prevents impersonation).
 15. **Rate limiter is active on `/api/friends/send`** — it calls `trackAuthAttempt(req.ip)`. Falls back to in-memory when Redis is unavailable.
 16. **Expired Clerk JWTs return 401, not 500** — The catch block in `authenticate.ts` checks `err.name === 'TokenVerificationError'` before falling back to generic 500.
+17. **Auth failures never redirect between `/home` and `/auth`** — `AuthContext` derives `status` from the Clerk session plus `setup-user` instead of a one-shot `dbUserFetched` latch. On failure both guards render `AuthErrorState` with **Try again**; `AuthPageGate` never mounts `<SignIn>` for a signed-in user, so `forceRedirectUrl` cannot bounce back to `/home`. Retries are manual, not automatic.
 
 ---
 

@@ -1,6 +1,10 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SignIn } from "@clerk/react";
 import { dark } from "@clerk/themes";
+import { useSelector } from "react-redux";
+import type { RootState } from "./store/store";
+import { useAuth } from "./context/AuthContext";
+import { AuthErrorState, AuthSpinner } from "./components/AuthState";
 import RootLayout from "./layouts/RootLayout";
 import Home from "./pages/Home";
 import ChatView from "./pages/ChatView";
@@ -45,13 +49,36 @@ function SignInPage() {
   );
 }
 
+function AuthPageGate() {
+  const { status, loading, hasSession, error, retry } = useAuth();
+  const user = useSelector((s: RootState) => s.userAuth.user);
+
+  if (loading) {
+    return <AuthSpinner />;
+  }
+
+  if (hasSession === false) {
+    return <SignInPage />;
+  }
+
+  if (status === 'error') {
+    return <AuthErrorState error={error} onRetry={retry} />;
+  }
+
+  if (user !== null) {
+    return <Navigate to="/home" replace />;
+  }
+
+  return <AuthSpinner />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/auth" element={<SignInPage />} />
-        <Route path="/auth/*" element={<SignInPage />} />
+        <Route path="/auth" element={<AuthPageGate />} />
+        <Route path="/auth/*" element={<AuthPageGate />} />
         <Route
           element={
             <ProtectedRoute>

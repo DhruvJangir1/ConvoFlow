@@ -114,6 +114,19 @@ npm run dev
 
 Frontend runs on `http://localhost:5173`, backend on `http://localhost:3000`. The Vite dev server proxies `/api/*` requests to the backend automatically.
 
+## Auth Startup Flow
+
+`AuthProvider` derives one `status` from the Clerk session and the result of `POST /api/auth/setup-user`:
+
+| Status | Meaning | Route behavior |
+|---|---|---|
+| `loading` | Clerk is initializing, or the DB user request is in flight | Spinner, no redirects |
+| `ready` | Clerk session and DB user are both available | Protected routes render; `/auth` sends the user to `/home` |
+| `signed-out` | No Clerk session | Protected routes go to `/auth`, which renders Clerk `<SignIn>` |
+| `error` | `setup-user` failed (401/404/500/network/timeout) | Error card with **Try again**, no redirect |
+
+Both `/auth` and `/auth/*` render `AuthPageGate` (`src/App.tsx`). It never mounts `<SignIn>` for an already-signed-in user, so a failed `setup-user` cannot cause a `/home` ↔ `/auth` redirect loop. Retries are manual — click **Try again** after fixing the backend issue.
+
 ## Project Structure
 
 ```
